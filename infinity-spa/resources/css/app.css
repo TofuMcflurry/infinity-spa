@@ -1,3 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 10% 5%;
+    --foreground: 40 20% 90%;
+
+    --card: 30 10% 8%;
+    --card-foreground: 40 20% 90%;
+
+    --popover: 30 10% 8%;
+    --popover-foreground: 40 20% 90%;
+
+    --primary: 43 72% 55%;
+    --primary-foreground: 30 10% 5%;
+
+    --secondary: 30 8% 15%;
+    --secondary-foreground: 40 20% 85%;
+
+    --muted: 30 8% 18%;
+    --muted-foreground: 40 10% 55%;
+
+    --accent: 43 72% 55%;
+    --accent-foreground: 30 10% 5%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 40 15% 20%;
+    --input: 40 15% 20%;
+    --ring: 43 72% 55%;
+
+    --radius: 0.5rem;
+
+    /* Custom luxury tokens */
+    --gold: 43 72% 55%;
+    --gold-light: 43 80% 70%;
+    --gold-dark: 43 60% 40%;
+    --onyx: 30 10% 5%;
+    --marble: 40 20% 92%;
+    --champagne: 38 40% 80%;
+
+    --font-display: 'Playfair Display', serif;
+    --font-body: 'Montserrat', sans-serif;
+    --font-accent: 'Cormorant Garamond', serif;
+
+    --glass-bg: hsla(30, 10%, 8%, 0.6);
+    --glass-border: hsla(43, 72%, 55%, 0.15);
+    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.4);
+
+    --glow-gold: 0 0 20px hsla(43, 72%, 55%, 0.3), 0 0 60px hsla(43, 72%, 55%, 0.1);
+    --glow-gold-strong: 0 0 20px hsla(43, 72%, 55%, 0.5), 0 0 60px hsla(43, 72%, 55%, 0.2), 0 0 100px hsla(43, 72%, 55%, 0.1);
+
+    --sidebar-background: 30 10% 8%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 43 72% 55%;
+    --sidebar-primary-foreground: 30 10% 5%;
+    --sidebar-accent: 30 8% 15%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 40 15% 20%;
+    --sidebar-ring: 43 72% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Gold glow effect */
+.glow-gold {
+  box-shadow: var(--glow-gold);
+}
+
+.glow-gold-strong {
+  box-shadow: var(--glow-gold-strong);
+}
+
+/* Mashrabiya pattern overlay */
+.mashrabiya-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c9a84c' fill-opacity='0.06'%3E%3Cpath d='M30 0l30 30-30 30L0 30zM30 8l22 22-22 22L8 30z'/%3E%3Cpath d='M30 15l15 15-15 15-15-15z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Floating label styles */
+.floating-label-group {
+  position: relative;
+}
+
+.floating-label-group input {
+  font-family: var(--font-body);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 0;
+  padding: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+  color: hsl(var(--foreground));
+  width: 100%;
+  transition: border-color 0.3s ease;
+  outline: none;
+}
+
+.floating-label-group input:focus {
+  border-bottom-color: hsl(var(--gold));
+  box-shadow: 0 1px 0 0 hsl(var(--gold));
+}
+
+.floating-label-group label {
+  position: absolute;
+  top: 1.25rem;
+  left: 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.floating-label-group input:focus ~ label,
+.floating-label-group input:not(:placeholder-shown) ~ label {
+  top: 0;
+  font-size: 0.7rem;
+  color: hsl(var(--gold));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Shimmer animation for gold text */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--gold-dark)),
+    hsl(var(--gold-light)),
+    hsl(var(--gold)),
+    hsl(var(--gold-light)),
+    hsl(var(--gold-dark))
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s ease-out forwards;
+}
+
+.animate-fade-up-delay-1 {
+  animation: fade-up 0.8s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-up-delay-2 {
+  animation: fade-up 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+}
+
+.animate-fade-up-delay-3 {
+  animation: fade-up 0.8s ease-out 0.6s forwards;
+  opacity: 0;
+}
