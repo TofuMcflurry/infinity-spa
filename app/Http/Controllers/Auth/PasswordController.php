@@ -26,4 +26,21 @@ class PasswordController extends Controller
 
         return back();
     }
+
+    public function setPasswordForGoogleUser(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Update password
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json(['message' => 'Password set successfully']);
+    }
 }

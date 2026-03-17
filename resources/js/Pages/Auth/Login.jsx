@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import spaLogin from "@/assets/spa-login.jpg";
 import FloatingInput from "@/Components/ui/FloatingInput";
-import SocialLoginButtons from "@/Components/ui/SocialLoginButtons";
+import SocialLoginButtons from '@/Components/SocialLoginButtons';
 import InputError from '@/Components/InputError';
 
 export default function Login({ status, canResetPassword }) {
