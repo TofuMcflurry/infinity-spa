@@ -14,11 +14,26 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+// DASHBOARD ROUTES - MOVE OUTSIDE TO AVOID CONFLICT
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/dashboard', function () {
+        return Inertia::render('Dashboard');
+    })->name('dashboard');
+    
+    Route::get('/my-bookings', function () {
+        return Inertia::render('Bookings');
+    })->name('bookings');
+    
+    Route::get('/my-profile', function () {
+        return Inertia::render('Profile');
+    })->name('my.profile');  // ← CHANGED NAME
+    
+    Route::get('/services', function () {
+        return Inertia::render('Services');
+    })->name('services');
+});
 
-// OTP Routes - NASA LABAS (hindi na duplicate ang register/login)
+// OTP Routes
 Route::get('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'showForm'])->name('otp.form');
 Route::post('otp/send', [App\Http\Controllers\Auth\OtpController::class, 'sendOtp'])->name('otp.send');
 Route::post('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'verifyOtp'])->name('otp.verify');
@@ -41,10 +56,11 @@ Route::middleware('auth')->group(function () {
         ->name('otp.disable');
 });
 
+// Breeze Profile Routes
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php'; // <--- Ito ang magha-handle ng register/login
+require __DIR__.'/auth.php';
