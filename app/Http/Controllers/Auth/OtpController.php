@@ -21,9 +21,11 @@ class OtpController extends Controller
     /**
      * Show OTP verification form
      */
-    public function showForm()
+    public function showForm(Request $request)
     {
-        return Inertia::render('Auth/OtpVerification');
+        return Inertia::render('Auth/OtpVerification', [
+            'email' => $request->query('email'),
+        ]);
     }
 
     /**

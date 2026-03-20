@@ -18,15 +18,10 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// OTP Routes
-Route::middleware('guest')->group(function () {
-    Route::get('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'showForm'])
-        ->name('otp.form');
-    Route::post('otp/send', [App\Http\Controllers\Auth\OtpController::class, 'sendOtp'])
-        ->name('otp.send');
-    Route::post('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'verifyOtp'])
-        ->name('otp.verify');
-});
+// OTP Routes - NASA LABAS (hindi na duplicate ang register/login)
+Route::get('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'showForm'])->name('otp.form');
+Route::post('otp/send', [App\Http\Controllers\Auth\OtpController::class, 'sendOtp'])->name('otp.send');
+Route::post('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'verifyOtp'])->name('otp.verify');
 
 Route::post('/account/set-password', [App\Http\Controllers\Auth\PasswordController::class, 'setPasswordForGoogleUser'])
     ->name('account.set.password');
@@ -52,4 +47,4 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__.'/auth.php'; // <--- Ito ang magha-handle ng register/login

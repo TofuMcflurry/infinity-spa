@@ -4,19 +4,33 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use Illuminate\Http\RedirectResponse;
+use App\Providers\RouteServiceProvider;
+use App\Services\OtpService; // <--- ADD THIS IMPORT
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Validation\ValidationException;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
+     * OtpService instance
+     */
+    protected $otpService; // <--- ADD THIS PROPERTY
+
+    /**
+     * Constructor
+     */
+    public function __construct(OtpService $otpService) // <--- ADD THIS CONSTRUCTOR
+    {
+        $this->otpService = $otpService;
+    }
+
+    /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create()
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
@@ -27,19 +41,34 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request)
     {
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = Auth::user();
+
+        // ✅ CHECK KUNG VERIFIED NA ANG EMAIL
+        if (!$user->email_verified_at) {
+            // Logout muna
+            Auth::logout();
+            
+            // Generate bagong OTP
+            $this->otpService->generateOtp($user);
+            
+            // Redirect sa OTP page
+            return redirect()->route('otp.form', ['email' => $user->email]);
+        }
+
+        // GAMITIN ITO - direct path
+        return redirect()->intended('/dashboard');
     }
 
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request)
     {
         Auth::guard('web')->logout();
 
