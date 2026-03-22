@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
+use App\Http\Controllers\CustomerProfileController;
 use App\Http\Controllers\AddressController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -51,6 +52,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
         Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])->name('api.addresses.destroy');
         Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])->name('api.addresses.default');
+
+        // ── Customer Profile ──────────────────────────────────────────────────────
+        Route::get('/profile-data',      [CustomerProfileController::class, 'show'])->name('api.profile');
+        Route::post('/profile-update',   [CustomerProfileController::class, 'update'])->name('api.profile.update');
+        Route::post('/profile-avatar',   [CustomerProfileController::class, 'uploadAvatar'])->name('api.profile.avatar');
     });
 });
 
