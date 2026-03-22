@@ -8,10 +8,10 @@ export default function AppSidebar() {
   const { url } = usePage();
 
   const navItems = [
-    { icon: Home, label: t.nav.home, path: '/' },
+    { icon: Home, label: t.nav.home, path: '/dashboard' },
     { icon: Sparkles, label: t.nav.services, path: '/services' },
-    { icon: CalendarDays, label: t.nav.bookings, path: '/bookings' },
-    { icon: User, label: t.nav.profile, path: '/profile' },
+    { icon: CalendarDays, label: t.nav.bookings, path: '/my-bookings' },
+    { icon: User, label: t.nav.profile, path: '/my-profile' },
   ];
 
   const isActive = (path) => {

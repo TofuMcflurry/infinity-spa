@@ -16,21 +16,10 @@ Route::get('/', function () {
 
 // DASHBOARD ROUTES - MOVE OUTSIDE TO AVOID CONFLICT
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
-    
-    Route::get('/my-bookings', function () {
-        return Inertia::render('Bookings');
-    })->name('bookings');
-    
-    Route::get('/my-profile', function () {
-        return Inertia::render('Profile');
-    })->name('my.profile');  // ← CHANGED NAME
-    
-    Route::get('/services', function () {
-        return Inertia::render('Services');
-    })->name('services');
+    Route::get('/dashboard', function () { return Inertia::render('Dashboard'); })->name('dashboard');
+    Route::get('/my-bookings', function () { return Inertia::render('Bookings'); })->name('bookings');
+    Route::get('/my-profile', function () { return Inertia::render('Profile'); })->name('my.profile');
+    Route::get('/services', function () { return Inertia::render('Services'); })->name('services');
 });
 
 // OTP Routes

@@ -1,64 +1,284 @@
-/* Dashboard specific styles - no border-glass-border */
-.glass-card {
-  @apply bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 228 50% 7%;
+    --foreground: 40 20% 92%;
+
+    --card: 228 40% 12%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 228 40% 10%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 42 65% 58%;
+    --primary-foreground: 228 50% 7%;
+
+    --secondary: 228 30% 18%;
+    --secondary-foreground: 40 20% 88%;
+
+    --muted: 228 25% 15%;
+    --muted-foreground: 220 15% 55%;
+
+    --accent: 42 65% 58%;
+    --accent-foreground: 228 50% 7%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 228 20% 20%;
+    --input: 228 25% 18%;
+    --ring: 42 65% 58%;
+
+    --radius: 1rem;
+
+    --gold: 42 65% 58%;
+    --gold-light: 42 70% 72%;
+    --gold-dark: 42 55% 42%;
+    --midnight: 228 50% 7%;
+    --midnight-light: 228 40% 12%;
+    --glass: 228 40% 14%;
+    --glass-border: 228 20% 24%;
+
+    --sidebar-background: 228 50% 7%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 42 65% 58%;
+    --sidebar-primary-foreground: 228 50% 7%;
+    --sidebar-accent: 228 30% 18%;
+    --sidebar-accent-foreground: 40 20% 88%;
+    --sidebar-border: 228 20% 20%;
+    --sidebar-ring: 42 65% 58%;
+  }
 }
 
-.glass-card-strong {
-  @apply bg-card/80 backdrop-blur-2xl border border-white/10 rounded-2xl;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
 }
 
-.gold-gradient {
-  background: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)), hsl(var(--gold-light)));
+@layer components {
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-card-strong {
+    @apply bg-card/80 backdrop-blur-2xl border border-white/10 rounded-2xl;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)), hsl(var(--gold-light)));
+  }
+
+  .gold-text {
+    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gold-border {
+    border-image: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)), hsl(var(--gold-light))) 1;
+  }
+
+  .btn-gold {
+    @apply px-6 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300;
+    background: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)));
+    color: hsl(var(--midnight));
+    box-shadow: 0 4px 15px rgba(212, 168, 83, 0.3);
+  }
+
+  .btn-gold:hover {
+    box-shadow: 0 6px 25px rgba(212, 168, 83, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-gold:active {
+    transform: translateY(0);
+  }
+
+  .btn-ghost-gold {
+    @apply px-6 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 border;
+    border-color: hsl(var(--gold) / 0.4);
+    color: hsl(var(--gold));
+  }
+
+  .btn-ghost-gold:hover {
+    background: hsl(var(--gold) / 0.1);
+    border-color: hsl(var(--gold) / 0.7);
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(212, 168, 83, 0.08), transparent);
+    animation: shimmer 3s infinite;
+  }
+
+  @keyframes shimmer {
+    100% { left: 150%; }
+  }
+}
+/* ── Calendar Styles ──────────────────────────────────────────────────────── */
+
+.rdp {
+  --rdp-cell-size: 36px;   /* ← ONE place to control calendar size */
+  margin: 0;
+  width: 100%;
 }
 
-.gold-text {
-  background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.rdp-month {
+  background-color: transparent;
+  width: 100%;
 }
 
-.btn-gold {
-  @apply px-6 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300;
-  background: linear-gradient(135deg, hsl(var(--gold-dark)), hsl(var(--gold)));
-  color: hsl(var(--midnight));
-  box-shadow: 0 4px 15px rgba(212, 168, 83, 0.3);
+.rdp-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.btn-gold:hover {
-  box-shadow: 0 6px 25px rgba(212, 168, 83, 0.5);
-  transform: translateY(-1px);
+/* Header row — grid so every column is exactly equal */
+.rdp-head_row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
 }
 
-.btn-ghost-gold {
-  @apply px-6 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 border;
-  border-color: hsl(var(--gold) / 0.4);
+.rdp-head_cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rdp-cell-size);   /* ← synced to variable */
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+/* Date rows — same grid as header */
+.rdp-row,
+.rdp-tbody tr {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  margin-top: 2px;
+}
+
+.rdp-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 0;
+}
+
+/* Day button — synced to variable */
+.rdp-day {
+  width: var(--rdp-cell-size);    /* ← synced to variable */
+  height: var(--rdp-cell-size);   /* ← synced to variable */
+  border-radius: 9999px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: hsl(var(--foreground));
+}
+
+.rdp-day:hover:not(.rdp-day_disabled):not(.rdp-day_selected) {
+  background-color: hsl(var(--gold) / 0.2);
   color: hsl(var(--gold));
 }
 
-.btn-ghost-gold:hover {
-  background: hsl(var(--gold) / 0.1);
-  border-color: hsl(var(--gold) / 0.7);
+.rdp-day_selected,
+.rdp-day_selected:hover {
+  background-color: hsl(var(--gold)) !important;
+  color: hsl(var(--midnight)) !important;
 }
 
-.shimmer {
-  position: relative;
-  overflow: hidden;
+.rdp-day_today {
+  border: 1px solid hsl(var(--gold) / 0.6);
 }
 
-.shimmer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(212, 168, 83, 0.08), transparent);
-  animation: shimmer 3s infinite;
+.rdp-day_outside {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.3;
 }
 
-@keyframes shimmer {
-  100% { left: 150%; }
+.rdp-day_disabled {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.25;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Nav (arrows + month title) */
+.rdp-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.rdp-caption_label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: 'Playfair Display', serif;
+}
+
+.rdp-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rdp-nav_button {
+  border-radius: 9999px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.rdp-nav_button:hover {
+  opacity: 1;
+  background-color: hsl(var(--gold) / 0.15);
+}
+
+.rdp-head {
+  margin-bottom: 2px;
 }
