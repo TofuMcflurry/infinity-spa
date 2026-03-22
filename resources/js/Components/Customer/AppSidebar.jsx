@@ -1,30 +1,37 @@
-import { Home, Sparkles, CalendarDays, User, Crown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History } from 'lucide-react';
 import { Link, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from "@/Components/Customer/LanguageToggle";
 
 export default function AppSidebar() {
   const { t } = useLanguage();
-  const { url } = usePage();
+  const { url, props } = usePage();
 
-  const navItems = [
-    { icon: Home, label: t.nav.home, path: '/dashboard' },
-    { icon: Sparkles, label: t.nav.services, path: '/services' },
-    { icon: CalendarDays, label: t.nav.bookings, path: '/my-bookings' },
-    { icon: User, label: t.nav.profile, path: '/my-profile' },
-  ];
+  // Auto-expand Bookings if on any bookings route
+  const isOnBookings = url.startsWith('/my-bookings') || url.startsWith('/book-session');
+  const [bookingsOpen, setBookingsOpen] = useState(isOnBookings);
+
+  // Keep expanded when navigating between booking sub-pages
+  useEffect(() => {
+    if (isOnBookings) setBookingsOpen(true);
+  }, [url]);
 
   const isActive = (path) => {
     if (path === '/') return url === '/';
     return url.startsWith(path);
   };
 
+  const user = props.auth?.user;
+  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'U';
+
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen sticky top-0 h-screen overflow-y-auto glass-card-strong rounded-none border-y-0 border-s-0">
-      {/* Logo */}
+
+      {/* ── Logo ── */}
       <div className="p-6 border-b border-glass-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center flex-shrink-0">
             <Crown className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
@@ -34,38 +41,117 @@ export default function AppSidebar() {
         </div>
       </div>
 
-      {/* Nav */}
+      {/* ── Nav ── */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            href={item.path}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
-              isActive(item.path)
+
+        {/* Home */}
+        <Link
+          href="/dashboard"
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+            isActive('/dashboard')
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <Home className="w-5 h-5 flex-shrink-0" />
+          <span>{t.nav.home}</span>
+        </Link>
+
+        {/* Services */}
+        <Link
+          href="/services"
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+            isActive('/services')
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <Sparkles className="w-5 h-5 flex-shrink-0" />
+          <span>{t.nav.services}</span>
+        </Link>
+
+        {/* Bookings — collapsible parent */}
+        <div>
+          <button
+            onClick={() => setBookingsOpen(o => !o)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+              isOnBookings
                 ? 'bg-secondary text-foreground font-medium'
                 : 'text-muted-foreground hover:bg-secondary/60'
             }`}
           >
-            <item.icon className="w-5 h-5" />
-            <span>{item.label}</span>
-          </Link>
-        ))}
+            <CalendarDays className="w-5 h-5 flex-shrink-0" />
+            <span className="flex-1 text-left">{t.nav.bookings}</span>
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${bookingsOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {/* Sub-items */}
+          <div className={`overflow-hidden transition-all duration-200 ${
+            bookingsOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+          }`}>
+            <div className="ml-4 mt-1 space-y-1 border-l border-white/8 pl-3">
+
+              {/* Book a Session */}
+              <Link
+                href="/book-session"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
+                  isActive('/book-session')
+                    ? 'bg-secondary text-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-secondary/60'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 flex-shrink-0" />
+                <span>Book a Session</span>
+              </Link>
+
+              {/* History */}
+              <Link
+                href="/my-bookings"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
+                  isActive('/my-bookings')
+                    ? 'bg-secondary text-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-secondary/60'
+                }`}
+              >
+                <History className="w-4 h-4 flex-shrink-0" />
+                <span>History</span>
+              </Link>
+
+            </div>
+          </div>
+        </div>
+
+        {/* Profile */}
+        <Link
+          href="/my-profile"
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+            isActive('/my-profile')
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <User className="w-5 h-5 flex-shrink-0" />
+          <span>{t.nav.profile}</span>
+        </Link>
+
       </nav>
 
-      {/* Footer */}
+      {/* ── Footer ── */}
       <div className="p-4 border-t border-glass-border space-y-3">
         <LanguageToggle />
         <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-8 h-8 rounded-full gold-gradient flex items-center justify-center">
-            <Crown className="w-4 h-4 text-primary-foreground" />
+          <div className="w-8 h-8 rounded-full gold-gradient flex items-center justify-center flex-shrink-0 text-xs font-display font-bold text-primary-foreground">
+            {initials}
           </div>
-          <div>
-            <p className="text-sm font-medium">Rashid Al Maktoum</p>
-            <p className="text-[10px] text-muted-foreground">{t.header.platinumVip}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name ?? 'Guest'}</p>
+            <p className="text-[10px] text-muted-foreground">Member</p>
           </div>
         </div>
       </div>
+
     </aside>
   );
 }
-

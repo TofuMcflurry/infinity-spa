@@ -187,14 +187,40 @@ class BookingController extends Controller
     // Idagdag sa BookingController — after store()
     public function myBookings()
     {
-        $bookings = Booking::with(['therapist.user', 'service'])
-            ->where('customer_id', auth()->id())
-            ->orderBy('scheduled_date', 'desc')
-            ->get();
+        $customerId = auth()->id();
 
-        return response()->json($bookings);
+        $bookings = Booking::with(['service', 'therapist.user'])
+            ->where('customer_id', $customerId)
+            ->orderByDesc('scheduled_date')
+            ->orderByDesc('scheduled_start')
+            ->get()
+            ->map(fn($b) => [
+                'id'               => $b->id,
+                'service'          => $b->service->name,
+                'service_id'       => $b->service_id,
+                'therapist'        => $b->therapist->user->name,
+                'therapist_id'     => $b->therapist_id,
+                'therapist_avatar' => strtoupper(substr($b->therapist->user->name, 0, 1))
+                                    . strtoupper(substr(explode(' ', $b->therapist->user->name)[1] ?? '', 0, 1)),
+                'date'             => Carbon::parse($b->scheduled_date)->format('l, d F Y'),
+                'date_short'       => Carbon::parse($b->scheduled_date)->format('M d, Y'),
+                'time'             => Carbon::parse($b->scheduled_start)->format('g:i A'),
+                'duration'         => $b->service->duration_minutes,
+                'price'            => $b->service->price,
+                'location'         => $b->location,
+                'zone_name'        => $b->zone_name,
+                'payment_method'   => $b->payment_method,
+                'status'           => $b->status,
+                'rejection_reason' => $b->rejection_reason,
+            ]);
+
+        return response()->json([
+            'upcoming'  => $bookings->whereIn('status', ['accepted'])->values(),
+            'pending'   => $bookings->where('status', 'pending')->values(),
+            'completed' => $bookings->where('status', 'completed')->values(),
+            'cancelled' => $bookings->whereIn('status', ['rejected', 'cancelled'])->values(),
+        ]);
     }
-
     // ── Private Helpers ───────────────────────────────────────────────────────
 
     private function hasConflict(

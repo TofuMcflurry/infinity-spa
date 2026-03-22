@@ -21,10 +21,11 @@ Route::get('/', function () {
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard',   fn() => Inertia::render('Dashboard'))->name('dashboard');
-    Route::get('/my-bookings', fn() => Inertia::render('Bookings'))->name('bookings');
-    Route::get('/my-profile',  fn() => Inertia::render('Profile'))->name('my.profile');
-    Route::get('/services',    fn() => Inertia::render('Services'))->name('services');
+    Route::get('/dashboard',     fn() => Inertia::render('Dashboard'))->name('dashboard');
+    Route::get('/book-session',  fn() => Inertia::render('Bookings'))->name('bookings');
+    Route::get('/my-bookings',   fn() => Inertia::render('MyBookings'))->name('my.bookings');
+    Route::get('/my-profile',    fn() => Inertia::render('Profile'))->name('my.profile');
+    Route::get('/services',      fn() => Inertia::render('Services'))->name('services');
 
     // ── API Routes ────────────────────────────────────────────────────────────
     Route::prefix('api')->group(function () {
