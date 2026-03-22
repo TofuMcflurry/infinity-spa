@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
+use App\Http\Controllers\AddressController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -44,6 +45,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Customer — view own bookings
         Route::get('/my-bookings', [BookingController::class, 'myBookings'])
             ->name('api.my-bookings');
+
+        Route::get('/addresses',                    [AddressController::class, 'index'])->name('api.addresses');
+        Route::post('/addresses',                   [AddressController::class, 'store'])->name('api.addresses.store');
+        Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
+        Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])->name('api.addresses.destroy');
+        Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])->name('api.addresses.default');
     });
 });
 

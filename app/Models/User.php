@@ -93,6 +93,18 @@ class User extends Authenticatable
         return true;
     }
 
+    // Idagdag sa User.php
+    public function addresses()
+    {
+        return $this->hasMany(CustomerAddress::class);
+    }
+
+    public function defaultAddress()
+    {
+        return $this->hasOne(CustomerAddress::class)
+                    ->where('is_default', true);
+    }
+
     /**
      * Check if user is a Google user
      */
