@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
 use App\Http\Controllers\CustomerProfileController;
+use App\Http\Controllers\CustomerDashboardController;
 use App\Http\Controllers\AddressController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -20,43 +21,49 @@ Route::get('/', function () {
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard',    fn() => Inertia::render('Dashboard'))->name('dashboard');
-    Route::get('/my-bookings',  fn() => Inertia::render('Bookings'))->name('bookings');
-    Route::get('/my-profile',   fn() => Inertia::render('Profile'))->name('my.profile');
-    Route::get('/services',     fn() => Inertia::render('Services'))->name('services');
+    Route::get('/dashboard',   fn() => Inertia::render('Dashboard'))->name('dashboard');
+    Route::get('/my-bookings', fn() => Inertia::render('Bookings'))->name('bookings');
+    Route::get('/my-profile',  fn() => Inertia::render('Profile'))->name('my.profile');
+    Route::get('/services',    fn() => Inertia::render('Services'))->name('services');
 
-    // ── Booking API ───────────────────────────────────────────────────────────
+    // ── API Routes ────────────────────────────────────────────────────────────
     Route::prefix('api')->group(function () {
-        // Step 1 — Get all services
-        Route::get('/services', [BookingController::class, 'getServices'])
+
+        // Dashboard
+        Route::get('/dashboard-data', [CustomerDashboardController::class, 'index'])
+            ->name('api.dashboard');
+
+        // Booking flow
+        Route::get('/services',              [BookingController::class, 'getServices'])
             ->name('api.services');
-
-        // Step 3 — Get available time slots
-        Route::get('/available-slots', [BookingController::class, 'getAvailableSlots'])
+        Route::get('/available-slots',       [BookingController::class, 'getAvailableSlots'])
             ->name('api.available-slots');
-
-        // Step 4 — Get available therapists
-        Route::get('/available-therapists', [BookingController::class, 'getAvailableTherapists'])
+        Route::get('/available-therapists',  [BookingController::class, 'getAvailableTherapists'])
             ->name('api.available-therapists');
-
-        // Step 5 — Store booking
-        Route::post('/bookings', [BookingController::class, 'store'])
+        Route::post('/bookings',             [BookingController::class, 'store'])
             ->name('api.bookings.store');
-
-        // Customer — view own bookings
-        Route::get('/my-bookings', [BookingController::class, 'myBookings'])
+        Route::get('/my-bookings',           [BookingController::class, 'myBookings'])
             ->name('api.my-bookings');
 
-        Route::get('/addresses',                    [AddressController::class, 'index'])->name('api.addresses');
-        Route::post('/addresses',                   [AddressController::class, 'store'])->name('api.addresses.store');
-        Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
-        Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])->name('api.addresses.destroy');
-        Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])->name('api.addresses.default');
+        // Addresses
+        Route::get('/addresses',                    [AddressController::class, 'index'])
+            ->name('api.addresses');
+        Route::post('/addresses',                   [AddressController::class, 'store'])
+            ->name('api.addresses.store');
+        Route::put('/addresses/{address}',          [AddressController::class, 'update'])
+            ->name('api.addresses.update');
+        Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])
+            ->name('api.addresses.destroy');
+        Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])
+            ->name('api.addresses.default');
 
-        // ── Customer Profile ──────────────────────────────────────────────────────
-        Route::get('/profile-data',      [CustomerProfileController::class, 'show'])->name('api.profile');
-        Route::post('/profile-update',   [CustomerProfileController::class, 'update'])->name('api.profile.update');
-        Route::post('/profile-avatar',   [CustomerProfileController::class, 'uploadAvatar'])->name('api.profile.avatar');
+        // Profile
+        Route::get('/profile-data',    [CustomerProfileController::class, 'show'])
+            ->name('api.profile');
+        Route::post('/profile-update', [CustomerProfileController::class, 'update'])
+            ->name('api.profile.update');
+        Route::post('/profile-avatar', [CustomerProfileController::class, 'uploadAvatar'])
+            ->name('api.profile.avatar');
     });
 });
 
@@ -65,13 +72,11 @@ Route::middleware(['auth', 'verified'])
     ->prefix('therapist')
     ->name('therapist.')
     ->group(function () {
-        // Therapist dashboard page
         Route::get('/dashboard', fn() => Inertia::render('Therapist/Dashboard'))
             ->name('dashboard');
 
-        // Therapist booking actions
         Route::prefix('api')->group(function () {
-            Route::get('/bookings',                [TherapistBookingController::class, 'index'])
+            Route::get('/bookings',                     [TherapistBookingController::class, 'index'])
                 ->name('api.bookings');
             Route::post('/bookings/{booking}/accept',   [TherapistBookingController::class, 'accept'])
                 ->name('api.bookings.accept');
@@ -103,7 +108,7 @@ Route::middleware('auth')->group(function () {
     Route::post('otp/disable', [App\Http\Controllers\Auth\OtpController::class, 'disableOtp'])->name('otp.disable');
 });
 
-// ── Profile Routes ────────────────────────────────────────────────────────────
+// ── Profile Routes (Breeze) ───────────────────────────────────────────────────
 Route::middleware('auth')->group(function () {
     Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile',  [ProfileController::class, 'update'])->name('profile.update');
