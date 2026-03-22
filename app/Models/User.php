@@ -4,12 +4,13 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -98,5 +99,35 @@ class User extends Authenticatable
     public function isGoogleUser(): bool
     {
         return !is_null($this->google_id);
+    }
+
+    // Idagdag sa User.php
+
+    // User as Customer — has many bookings
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class, 'customer_id');
+    }
+
+    // User as Therapist — has one therapist profile
+    public function therapist()
+    {
+        return $this->hasOne(Therapist::class);
+    }
+
+    // Check role helpers
+    public function isCustomer(): bool
+    {
+        return $this->role === 'customer';
+    }
+
+    public function isTherapist(): bool
+    {
+        return $this->role === 'therapist';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
     }
 }

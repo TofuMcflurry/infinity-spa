@@ -6,25 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('therapists', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('photo_url')->nullable();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('base_location');
             $table->text('bio')->nullable();
-            $table->jsonb('specialties'); // PostgreSQL JSONB is super fast for searching skills
-            $table->boolean('is_available')->default(true);
+            $table->integer('experience_years')->default(0);
+            $table->decimal('rating', 3, 2)->default(0.00);
+            $table->string('gender');
+            $table->string('specialty')->nullable();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('therapists');
