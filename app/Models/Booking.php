@@ -16,7 +16,6 @@ class Booking extends Model
         'service_id',
         'location',
         'zone_name',
-        'scheduled_date',
         'scheduled_start',
         'scheduled_end',
         'travel_start',
@@ -27,7 +26,10 @@ class Booking extends Model
     ];
 
     protected $casts = [
-        'scheduled_date' => 'date',
+        'scheduled_start' => 'datetime',
+        'scheduled_end'   => 'datetime',
+        'travel_start'    => 'datetime',
+        'buffer_end'      => 'datetime',
     ];
 
     // Booking belongs to a Customer (User)
@@ -70,27 +72,18 @@ class Booking extends Model
         return $this->status === 'completed';
     }
 
-    // ── Time computation (static helper) ────────────
-
     public static function computeTimeBlocks(
-        string $scheduledStart,   // "10:00"
-        int    $durationMinutes,  // 60
-        int    $travelMinutes,    // 30
+        string $scheduledStart,
+        int    $durationMinutes,
+        int    $travelMinutes,
         int    $bufferMinutes = 30
     ): array {
-        $start  = Carbon::createFromFormat('H:i', $scheduledStart);
+        $start = Carbon::parse($scheduledStart);
 
         return [
-            'travel_start'    => $start->copy()
-                                       ->subMinutes($travelMinutes)
-                                       ->format('H:i'),
-            'scheduled_end'   => $start->copy()
-                                       ->addMinutes($durationMinutes)
-                                       ->format('H:i'),
-            'buffer_end'      => $start->copy()
-                                       ->addMinutes($durationMinutes)
-                                       ->addMinutes($bufferMinutes)
-                                       ->format('H:i'),
+            'travel_start'  => $start->copy()->subMinutes($travelMinutes),
+            'scheduled_end' => $start->copy()->addMinutes($durationMinutes),
+            'buffer_end'    => $start->copy()->addMinutes($durationMinutes + $bufferMinutes),
         ];
     }
 }

@@ -12,9 +12,14 @@ import LanguageToggle from '@/Components/Customer/LanguageToggle';
 
 // ── Zone config ───────────────────────────────────────────────────────────────
 const ZONE_OPTIONS = [
-    { zone: 'Palm Jumeirah', label: 'Home',   address: 'Palm Jumeirah, Dubai',   icon: Home      },
-    { zone: 'DIFC',          label: 'Office', address: 'DIFC, Gate Village',     icon: Building2 },
-    { zone: 'Burj Al Arab',  label: 'Hotel',  address: 'Burj Al Arab, Jumeirah', icon: Hotel     },
+    { zone: 'JAFZA',                  label: 'JAFZA',         address: 'Jebel Ali Free Zone, Block 14, Dubai',              icon: Building2 },
+    { zone: 'DAFZ',                   label: 'DAFZ',          address: 'Dubai Airport Freezone, Dubai',                     icon: Building2 },
+    { zone: 'DMCC / JLT',             label: 'DMCC / JLT',    address: 'Jumeirah Lakes Towers, Dubai',                      icon: Building2 },
+    { zone: 'Dubai South',            label: 'Dubai South',   address: 'Near Al Maktoum International Airport, Dubai',      icon: Building2 },
+    { zone: 'Dubai Silicon Oasis',    label: 'DSO',           address: 'Academic City Road, Dubai Silicon Oasis, Dubai',    icon: Building2 },
+    { zone: 'Dubai Internet City',    label: 'DIC / DMC',     address: 'Near Sheikh Zayed Road, Dubai Internet City, Dubai',icon: Building2 },
+    { zone: 'Dubai Design District',  label: 'D3',            address: 'Near Business Bay, Dubai Design District, Dubai',   icon: Building2 },
+    { zone: 'DIFC',                   label: 'DIFC',          address: 'Dubai International Financial Centre, Dubai',       icon: Building2 },
 ];
 
 const LOCATION_ICONS = { Home, Office: Building2, Hotel };

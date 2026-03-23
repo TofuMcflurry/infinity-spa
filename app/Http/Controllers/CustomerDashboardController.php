@@ -24,7 +24,7 @@ class CustomerDashboardController extends Controller
             ->join('services', 'bookings.service_id', '=', 'services.id')
             ->sum('services.price');
 
-        // ── Favorite Therapist (most booked) ──────────────────────────────────
+        // ── Favorite Therapist ────────────────────────────────────────────────
         $favoriteTherapist = Booking::where('customer_id', $customerId)
             ->whereIn('status', ['completed', 'accepted'])
             ->select('therapist_id', DB::raw('COUNT(*) as booking_count'))
@@ -36,37 +36,39 @@ class CustomerDashboardController extends Controller
         // ── Upcoming Booking ──────────────────────────────────────────────────
         $upcomingBooking = Booking::where('customer_id', $customerId)
             ->whereIn('status', ['pending', 'accepted'])
-            ->where('scheduled_date', '>=', now()->toDateString())
+            ->where('scheduled_start', '>=', now())
             ->with(['service', 'therapist.user'])
-            ->orderBy('scheduled_date')
             ->orderBy('scheduled_start')
             ->first();
 
-        // ── Your Usual (auto-detected from history) ───────────────────────────
+        // ── Your Usual ────────────────────────────────────────────────────────
         $yourUsual   = null;
         $lastBooking = Booking::where('customer_id', $customerId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['completed', 'pending', 'accepted'])
             ->with(['service', 'therapist.user'])
-            ->latest('scheduled_date')
+            ->latest('scheduled_start')
             ->first();
 
         if ($lastBooking) {
-            $preferredTime = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
-                ->select('scheduled_start', DB::raw('COUNT(*) as cnt'))
-                ->groupBy('scheduled_start')
+            $preferredHour = Booking::where('customer_id', $customerId)
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
+                ->select(
+                    DB::raw('EXTRACT(HOUR FROM scheduled_start) as hour'),
+                    DB::raw('COUNT(*) as cnt')
+                )
+                ->groupBy(DB::raw('EXTRACT(HOUR FROM scheduled_start)'))
                 ->orderByDesc('cnt')
-                ->value('scheduled_start');
+                ->value(DB::raw('EXTRACT(HOUR FROM scheduled_start)'));
 
             $preferredLocation = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
                 ->select('zone_name', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('zone_name')
                 ->orderByDesc('cnt')
                 ->value('zone_name');
 
             $preferredPayment = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
                 ->select('payment_method', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('payment_method')
                 ->orderByDesc('cnt')
@@ -81,8 +83,8 @@ class CustomerDashboardController extends Controller
                     'id'   => $lastBooking->therapist->id,
                     'name' => $lastBooking->therapist->user->name,
                 ],
-                'time'      => $preferredTime
-                    ? Carbon::parse($preferredTime)->format('g:i A')
+                'time'      => $preferredHour !== null
+                    ? Carbon::today()->setHour((int)$preferredHour)->setMinute(0)->format('g:i A')
                     : null,
                 'location'  => $preferredLocation,
                 'payment'   => $preferredPayment,
@@ -116,74 +118,80 @@ class CustomerDashboardController extends Controller
         // ── Recent Activity ───────────────────────────────────────────────────
         $recentActivity = Booking::where('customer_id', $customerId)
             ->with(['service', 'therapist.user'])
-            ->orderByDesc('scheduled_date')
+            ->orderByDesc('scheduled_start')
             ->take(3)
             ->get()
             ->map(fn($b) => [
-                'id'          => $b->id,
-                'service'     => $b->service->name,
-                'therapist'   => $b->therapist->user->name,
-                'date'        => Carbon::parse($b->scheduled_date)->format('M d, Y'),
-                'duration'    => $b->service->duration_minutes,
-                'status'      => $b->status,
-                'service_id'  => $b->service_id,
-                'therapist_id'=> $b->therapist_id,
-                'zone_name'   => $b->zone_name,
-                'location'    => $b->location,
+                'id'             => $b->id,
+                'service'        => $b->service->name,
+                'therapist'      => $b->therapist->user->name,
+                'date'           => Carbon::parse($b->scheduled_start)->format('M d, Y'),
+                'time'           => Carbon::parse($b->scheduled_start)->format('g:i A'),
+                'duration'       => $b->service->duration_minutes,
+                'status'         => $b->status,
+                'service_id'     => $b->service_id,
+                'therapist_id'   => $b->therapist_id,
+                'zone_name'      => $b->zone_name,
+                'location'       => $b->location,
                 'payment_method' => $b->payment_method,
             ]);
 
-        // ── Preferences ───────────────────────────────────────────────────────
+        // ── Preferences (from completed bookings only) ────────────────────────
         $preferences = null;
-        if ($totalSessions > 0) {
-            $prefTime = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
-                ->select('scheduled_start', DB::raw('COUNT(*) as cnt'))
-                ->groupBy('scheduled_start')
+        $anyBooking  = Booking::where('customer_id', $customerId)->exists();
+
+        if ($anyBooking) {
+            $prefHour = Booking::where('customer_id', $customerId)
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
+                ->select(
+                    DB::raw('EXTRACT(HOUR FROM scheduled_start) as hour'),
+                    DB::raw('COUNT(*) as cnt')
+                )
+                ->groupBy(DB::raw('EXTRACT(HOUR FROM scheduled_start)'))
                 ->orderByDesc('cnt')
-                ->value('scheduled_start');
+                ->value(DB::raw('EXTRACT(HOUR FROM scheduled_start)'));
 
             $prefLocation = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
                 ->select('zone_name', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('zone_name')
                 ->orderByDesc('cnt')
                 ->value('zone_name');
 
             $prefPayment = Booking::where('customer_id', $customerId)
-                ->where('status', 'completed')
+                ->whereIn('status', ['completed', 'pending', 'accepted'])
                 ->select('payment_method', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('payment_method')
                 ->orderByDesc('cnt')
                 ->value('payment_method');
 
             $preferences = [
-                'time'     => $prefTime
-                    ? Carbon::parse($prefTime)->format('g:i A')
+                'time'     => $prefHour !== null
+                    ? Carbon::today()->setHour((int)$prefHour)->setMinute(0)->format('g:i A')
                     : null,
                 'location' => $prefLocation,
                 'payment'  => $prefPayment === 'cash' ? 'Cash on completion' : 'Cashless',
             ];
         }
 
-        // ── Return all ────────────────────────────────────────────────────────
         return response()->json([
             'stats' => [
                 'total_sessions'     => $totalSessions,
-                'total_spent'        => number_format($totalSpent, 2),
+                'total_spent'        => number_format((float)$totalSpent, 2),
                 'favorite_therapist' => $favoriteTherapist
                     ? $favoriteTherapist->therapist->user->name
                     : null,
             ],
             'upcoming_booking' => $upcomingBooking ? [
-                'id'       => $upcomingBooking->id,
-                'service'  => $upcomingBooking->service->name,
-                'therapist'=> $upcomingBooking->therapist->user->name,
-                'date'     => Carbon::parse($upcomingBooking->scheduled_date)->format('l, d F Y'),
-                'time'     => Carbon::parse($upcomingBooking->scheduled_start)->format('g:i A'),
-                'location' => $upcomingBooking->location,
-                'status'   => $upcomingBooking->status,
-                'duration' => $upcomingBooking->service->duration_minutes,
+                'id'        => $upcomingBooking->id,
+                'service'   => $upcomingBooking->service->name,
+                'therapist' => $upcomingBooking->therapist->user->name,
+                'date'      => Carbon::parse($upcomingBooking->scheduled_start)->format('l, d F Y'),
+                'time'      => Carbon::parse($upcomingBooking->scheduled_start)->format('g:i A'),
+                'location'  => $upcomingBooking->location,
+                'zone_name' => $upcomingBooking->zone_name,
+                'status'    => $upcomingBooking->status,
+                'duration'  => $upcomingBooking->service->duration_minutes,
             ] : null,
             'your_usual'      => $yourUsual,
             'top_therapists'  => $topTherapists,

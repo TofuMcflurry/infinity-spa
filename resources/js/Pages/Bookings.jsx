@@ -56,6 +56,7 @@ export default function Bookings() {
     const [step, setStep] = useState(1);
 
     // ── Selections ────────────────────────────────────────────────────────────
+    const [selectedGroup, setSelectedGroup] = useState(null);
     const [selectedService,   setSelectedService]   = useState(null);
     const [selectedAddress,   setSelectedAddress]   = useState(null);
     const [selectedDate,      setSelectedDate]      = useState(undefined);
@@ -124,7 +125,14 @@ export default function Bookings() {
         setSelectedTime(null);
 
         apiFetch(`/api/available-slots?service_id=${selectedService.id}&zone_name=${encodeURIComponent(selectedAddress.zone_name)}&date=${date}`)
-            .then(setAvailableSlots)
+            .then(data => {
+                if (data.day_off) {
+                    setError('No therapists available on this day — Tuesday is their day off.');
+                    setAvailableSlots([]);
+                } else {
+                    setAvailableSlots(data.slots ?? []);
+                }
+            })
             .catch(() => setError('Failed to load available slots.'))
             .finally(() => setLoadingSlots(false));
     }, [step]);
@@ -138,7 +146,7 @@ export default function Bookings() {
         setAvailableTherapists([]);
         setSelectedTherapist(null);
 
-        apiFetch(`/api/available-therapists?service_id=${selectedService.id}&zone_name=${encodeURIComponent(selectedAddress.zone_name)}&date=${date}&time=${selectedTime}`)
+        apiFetch(`/api/available-therapists?service_id=${selectedService.id}&zone_name=${encodeURIComponent(selectedAddress.zone_name)}&datetime=${encodeURIComponent(selectedTime)}`)
             .then(setAvailableTherapists)
             .catch(() => setError('Failed to load therapists.'))
             .finally(() => setLoadingTherapists(false));
@@ -158,8 +166,6 @@ export default function Bookings() {
     const handleConfirm = useCallback(async () => {
         setIsSubmitting(true);
         setError(null);
-
-        const date = selectedDate.toISOString().split('T')[0];
 
         try {
             const csrfToken = document.cookie
@@ -181,8 +187,7 @@ export default function Bookings() {
                     therapist_id:   selectedTherapist.id,
                     zone_name:      selectedAddress.zone_name,
                     location:       `${selectedAddress.label} - ${selectedAddress.address}`,
-                    date,
-                    time:           selectedTime,
+                    datetime:       selectedTime,  // ← now stores full datetime string
                     payment_method: selectedPayment,
                 }),
             });
@@ -284,7 +289,7 @@ export default function Bookings() {
                                     {selectedService?.name} • {selectedTherapist?.name}
                                 </p>
                                 <p className="text-muted-foreground text-xs">
-                                    {formattedDate} • {selectedTime && new Date(`2000-01-01T${selectedTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    {formattedDate} • {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                                 </p>
                                 <p className="text-xs text-gold mt-2">
                                     {selectedAddress?.label} — {selectedAddress?.address}
@@ -305,41 +310,173 @@ export default function Bookings() {
 
                                 {/* ════════════════ STEP 1: Select Service ════════════════ */}
                                 {step === 1 && (
-                                    <div className="space-y-3">
-                                        <p className="text-sm text-muted-foreground mb-4">{t.booking.selectService}</p>
+                                    <div className="space-y-6">
+                                        <p className="text-sm mb-2" style={{ color: '#94a3b8' }}>
+                                            {t.booking.selectService}
+                                        </p>
 
                                         {loadingServices ? (
                                             <div className="flex items-center justify-center py-16">
-                                                <Loader2 className="w-6 h-6 animate-spin text-gold" />
+                                                <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#e2b764' }} />
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {services.map((service) => {
-                                                    const isSelected = selectedService?.id === service.id;
-                                                    const name = locale === 'ar' ? service.name_ar : service.name;
-                                                    return (
-                                                        <button
-                                                            key={service.id}
-                                                            onClick={() => setSelectedService(service)}
-                                                            className={`glass-card p-4 text-start transition-all ${
-                                                                isSelected ? 'ring-2 ring-gold' : 'hover:bg-secondary/40'
-                                                            }`}
-                                                        >
-                                                            <h4 className="font-display font-semibold text-sm">{name}</h4>
-                                                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                                                                <span className="flex items-center gap-1">
-                                                                    <Clock className="w-3 h-3" />{service.duration_minutes} min
-                                                                </span>
-                                                                <span className="gold-text font-semibold">AED {service.price}</span>
-                                                            </div>
-                                                            <div className="mt-2 flex items-center gap-1">
-                                                                <Star className="w-3 h-3 text-gold fill-gold" />
-                                                                <span className="text-xs text-muted-foreground">{service.rating}</span>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                            <>
+                                                {/* Level 1 — Service Groups */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    {services.map((group) => {
+                                                        const isActive   = selectedGroup?.group_name === group.group_name;
+                                                        const groupLabel = locale === 'ar' ? group.group_name_ar : group.group_name;
+                                                        return (
+                                                            <button
+                                                                key={group.group_name}
+                                                                onClick={() => {
+                                                                    setSelectedGroup(isActive ? null : group);
+                                                                    setSelectedService(null);
+                                                                }}
+                                                                className="relative p-5 rounded-2xl border text-start transition-all"
+                                                                style={{
+                                                                    borderColor: isActive ? '#e2b764' : '#1e2740',
+                                                                    background:  isActive ? 'rgba(226,183,100,0.08)' : '#0f1629',
+                                                                }}
+                                                                onMouseEnter={e => {
+                                                                    if (!isActive) {
+                                                                        e.currentTarget.style.borderColor = '#2a3a5c';
+                                                                        e.currentTarget.style.background  = '#141d33';
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={e => {
+                                                                    if (!isActive) {
+                                                                        e.currentTarget.style.borderColor = '#1e2740';
+                                                                        e.currentTarget.style.background  = '#0f1629';
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {/* Active check */}
+                                                                {isActive && (
+                                                                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center"
+                                                                        style={{ background: '#e2b764' }}>
+                                                                        <Check className="w-3 h-3" style={{ color: '#0b1120' }} />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Group name */}
+                                                                <h4 className="font-display font-semibold text-base text-white mb-3 pr-6">
+                                                                    {groupLabel}
+                                                                </h4>
+
+                                                                {/* Duration chips */}
+                                                                <div className="flex flex-wrap gap-1.5 mb-4">
+                                                                    {group.durations.map(d => (
+                                                                        <span key={d.id}
+                                                                            className="text-[10px] px-2.5 py-1 rounded-full font-medium"
+                                                                            style={{ background: '#141d33', color: '#94a3b8' }}>
+                                                                            {d.duration_minutes} min
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+
+                                                                {/* Starting price */}
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[11px]" style={{ color: '#64748b' }}>
+                                                                        From
+                                                                    </span>
+                                                                    <span className="font-display font-bold text-base"
+                                                                        style={{ color: '#e2b764' }}>
+                                                                        AED {Number(group.min_price).toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Level 2 — Duration Selection */}
+                                                {selectedGroup && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        className="rounded-2xl border p-5"
+                                                        style={{ borderColor: '#1e2740', background: '#080d1a' }}
+                                                    >
+                                                        <p className="text-sm font-medium text-white mb-4">
+                                                            Choose duration —{' '}
+                                                            <span style={{ color: '#e2b764' }}>
+                                                                {locale === 'ar' ? selectedGroup.group_name_ar : selectedGroup.group_name}
+                                                            </span>
+                                                        </p>
+
+                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                            {selectedGroup.durations.map(duration => {
+                                                                const isSelected = selectedService?.id === duration.id;
+                                                                return (
+                                                                    <button
+                                                                        key={duration.id}
+                                                                        onClick={() => setSelectedService({
+                                                                            ...duration,
+                                                                            name:       `${selectedGroup.group_name} ${duration.duration_minutes} min`,
+                                                                            name_ar:    `${selectedGroup.group_name_ar} ${duration.duration_minutes} دقيقة`,
+                                                                            group_name: selectedGroup.group_name,
+                                                                        })}
+                                                                        className="relative p-4 rounded-xl border text-start transition-all"
+                                                                        style={{
+                                                                            borderColor: isSelected ? '#e2b764' : '#1e2740',
+                                                                            background:  isSelected ? 'rgba(226,183,100,0.1)' : '#0f1629',
+                                                                        }}
+                                                                        onMouseEnter={e => {
+                                                                            if (!isSelected) {
+                                                                                e.currentTarget.style.borderColor = '#2a3a5c';
+                                                                                e.currentTarget.style.background  = '#141d33';
+                                                                            }
+                                                                        }}
+                                                                        onMouseLeave={e => {
+                                                                            if (!isSelected) {
+                                                                                e.currentTarget.style.borderColor = '#1e2740';
+                                                                                e.currentTarget.style.background  = '#0f1629';
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {isSelected && (
+                                                                            <div className="absolute top-3 right-3 w-4 h-4 rounded-full flex items-center justify-center"
+                                                                                style={{ background: '#e2b764' }}>
+                                                                                <Check className="w-2.5 h-2.5" style={{ color: '#0b1120' }} />
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Duration */}
+                                                                        <div className="flex items-center gap-2 mb-2">
+                                                                            <Clock className="w-4 h-4" style={{ color: '#e2b764' }} />
+                                                                            <span className="text-base font-display font-bold text-white">
+                                                                                {duration.duration_minutes} min
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {/* Price */}
+                                                                        <p className="text-lg font-display font-bold"
+                                                                            style={{ color: '#e2b764' }}>
+                                                                            AED {Number(duration.price).toLocaleString()}
+                                                                        </p>
+
+                                                                        {/* Rating — placeholder for now */}
+                                                                        <div className="flex items-center gap-1 mt-2">
+                                                                            {[1,2,3,4,5].map(s => (
+                                                                                <Star key={s} size={10}
+                                                                                    style={{
+                                                                                        color: Number(duration.rating) > 0 ? '#e2b764' : '#1e2740',
+                                                                                        fill:  Number(duration.rating) > 0 ? '#e2b764' : '#1e2740',
+                                                                                    }}
+                                                                                />
+                                                                            ))}
+                                                                            <span className="text-[10px] ml-1" style={{ color: '#64748b' }}>
+                                                                                {Number(duration.rating) > 0 ? duration.rating : 'New'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 )}
@@ -440,7 +577,7 @@ export default function Bookings() {
                                                     return (
                                                         <button
                                                             key={slot.time}
-                                                            onClick={() => isAvailable && setSelectedTime(slot.time)}
+                                                            onClick={() => isAvailable && setSelectedTime(slot.datetime)}
                                                             disabled={!isAvailable}
                                                             className={`py-3.5 rounded-xl text-sm font-medium transition-all relative ${
                                                                 !isAvailable
