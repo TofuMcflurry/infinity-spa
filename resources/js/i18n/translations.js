@@ -1,4 +1,6 @@
-export const translations = {
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+
+const translations = {
   en: {
     nav: {
       home: 'Home',
@@ -101,11 +103,6 @@ export const translations = {
       fullName: 'Full Name',
       email: 'Email',
       phone: 'Phone Number',
-      paymentMethods: 'Payment Methods',
-      applePay: 'Apple Pay',
-      savedCards: 'Saved Cards',
-      addCard: 'Add Card',
-      connected: 'Connected',
       addressBook: 'Address Book',
       addAddress: 'Add Address',
       communicationPrefs: 'Communication Preferences',
@@ -115,6 +112,32 @@ export const translations = {
       promotionalOffers: 'Promotional Offers',
       saveChanges: 'Save Changes',
       saving: 'Saving...',
+      default: 'Default',
+      security: 'Security',
+      twoFactorAuth: 'Two-Factor Authentication',
+      twoFactorDesc: 'Extra layer of security for your account',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      accountType: 'Account Type',
+      accountTypeDesc: 'account',
+      edit: 'Edit',
+      setDefault: 'Set Default',
+      profileUpdated: 'Profile updated!',
+      addressAdded: 'Address added!',
+      addressRemoved: 'Address removed!',
+      defaultUpdated: 'Default address updated!',
+      noAddresses: 'No addresses yet.',
+      addFirstLocation: 'Add your first location.',
+      changeAvatar: 'Change',
+      selectZone: 'Select your zone',
+      enterAddress: 'Enter your address',
+      selectZoneDesc: 'We currently serve these areas in Dubai. Select where you\'d like to receive services.',
+      locationLabel: 'Location Label',
+      labelPlaceholder: 'e.g. Home, Studio, Office...',
+      exactAddress: 'Exact Address',
+      addressPlaceholder: 'e.g. Villa 23, Street 5B, Gate Village, DIFC',
+      notInArea: 'Not in any of these areas?',
+      areaNotCovered: 'Sorry, we do not cover this area yet.',
     },
     language: {
       en: 'English (US)',
@@ -227,11 +250,6 @@ export const translations = {
       fullName: 'الاسم الكامل',
       email: 'البريد الإلكتروني',
       phone: 'رقم الهاتف',
-      paymentMethods: 'طرق الدفع',
-      applePay: 'Apple Pay',
-      savedCards: 'البطاقات المحفوظة',
-      addCard: 'إضافة بطاقة',
-      connected: 'متصل',
       addressBook: 'دفتر العناوين',
       addAddress: 'إضافة عنوان',
       communicationPrefs: 'تفضيلات التواصل',
@@ -241,6 +259,32 @@ export const translations = {
       promotionalOffers: 'العروض الترويجية',
       saveChanges: 'حفظ التغييرات',
       saving: 'جاري الحفظ...',
+      default: 'الافتراضي',
+      security: 'الأمان',
+      twoFactorAuth: 'المصادقة الثنائية',
+      twoFactorDesc: 'طبقة أمان إضافية لحسابك',
+      enabled: 'مفعل',
+      disabled: 'معطل',
+      accountType: 'نوع الحساب',
+      accountTypeDesc: 'حساب',
+      edit: 'تعديل',
+      setDefault: 'تعيين افتراضي',
+      profileUpdated: 'تم تحديث الملف الشخصي!',
+      addressAdded: 'تمت إضافة العنوان!',
+      addressRemoved: 'تم حذف العنوان!',
+      defaultUpdated: 'تم تحديث العنوان الافتراضي!',
+      noAddresses: 'لا توجد عناوين حتى الآن.',
+      addFirstLocation: 'أضف موقعك الأول.',
+      changeAvatar: 'تغيير',
+      selectZone: 'اختر منطقتك',
+      enterAddress: 'أدخل عنوانك',
+      selectZoneDesc: 'نحن نخدم هذه المناطق في دبي. اختر أين تريد تلقي الخدمات.',
+      locationLabel: 'تسمية الموقع',
+      labelPlaceholder: 'مثال: المنزل، الاستوديو، المكتب...',
+      exactAddress: 'العنوان الدقيق',
+      addressPlaceholder: 'مثال: فيلا 23، شارع 5ب، قرية البوابة، DIFC',
+      notInArea: 'لست في أي من هذه المناطق؟',
+      areaNotCovered: 'عذراً، نحن لا نغطي هذه المنطقة بعد.',
     },
     language: {
       en: 'English (US)',
@@ -252,3 +296,37 @@ export const translations = {
     },
   },
 };
+
+const LanguageContext = createContext(null);
+
+export function LanguageProvider({ children }) {
+  const [locale, setLocaleState] = useState(() => {
+    return localStorage.getItem('locale') || 'en';
+  });
+
+  const setLocale = useCallback((l) => {
+    setLocaleState(l);
+    localStorage.setItem('locale', l);
+  }, []);
+
+  const isRTL = locale === 'ar';
+
+  useEffect(() => {
+    document.documentElement.dir = 'ltr';
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  return (
+    React.createElement(LanguageContext.Provider, { value: { locale, setLocale, t: translations[locale], isRTL } },
+      children
+    )
+  );
+}
+
+export function useLanguage() {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) throw new Error('useLanguage must be used within LanguageProvider');
+  return ctx;
+}
+
+export { translations };

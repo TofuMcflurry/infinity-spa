@@ -21,34 +21,36 @@ class AddressController extends Controller
     // Add new address
     public function store(Request $request)
     {
+        $allowedZones = [
+            'JAFZA', 'DAFZ', 'DMCC / JLT',
+            'Dubai South', 'Dubai Silicon Oasis',
+            'Dubai Internet City', 'Dubai Design District', 'DIFC',
+        ];
+
         $request->validate([
-            'label'      => 'required|string|max:50',
+            'label'      => 'required|string|max:100',
             'address'    => 'required|string|max:255',
-            'zone_name'  => 'required|string|max:100',
-            'is_default' => 'boolean',
+            'zone_name'  => 'required|string|in:' . implode(',', $allowedZones),
         ]);
 
-        // Kung is_default = true, i-remove muna ang default sa iba
-        if ($request->is_default) {
-            CustomerAddress::where('user_id', auth()->id())
-                ->update(['is_default' => false]);
+        $customer = auth()->user();
+
+        if ($customer->addresses()->count() >= 3) {
+            return response()->json([
+                'message' => 'Maximum of 3 addresses allowed.'
+            ], 422);
         }
 
-        // Kung first address ng customer — automatic default
-        $isFirst = CustomerAddress::where('user_id', auth()->id())->count() === 0;
+        $isDefault = $customer->addresses()->count() === 0;
 
-        $address = CustomerAddress::create([
-            'user_id'    => auth()->id(),
+        $address = $customer->addresses()->create([
             'label'      => $request->label,
             'address'    => $request->address,
             'zone_name'  => $request->zone_name,
-            'is_default' => $request->is_default ?? $isFirst,
+            'is_default' => $isDefault,
         ]);
 
-        return response()->json([
-            'message' => 'Address added successfully!',
-            'address' => $address,
-        ], 201);
+        return response()->json(['address' => $address], 201);
     }
 
     // Update address
