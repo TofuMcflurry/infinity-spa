@@ -398,6 +398,8 @@ export default function Dashboard() {
 
     const [data,    setData]    = useState(null);
     const [loading, setLoading] = useState(true);
+    const [avatarUrl, setAvatarUrl] = useState(null);
+    const [userProfile, setUserProfile] = useState(null);
 
     useEffect(() => {
         apiFetch('/api/dashboard-data')
@@ -406,10 +408,19 @@ export default function Dashboard() {
             .finally(() => setLoading(false));
     }, []);
 
+    useEffect(() => {
+        apiFetch('/api/profile-data')
+            .then(data => {
+                setUserProfile(data);
+                setAvatarUrl(data.avatar);
+            })
+            .catch(err => console.error(err));
+    }, []);
+
     const handleLogout = () => router.post(route('logout'));
 
     const user     = props.auth?.user;
-    const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'U';
+    const initials = userProfile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'U';
 
     // Greeting based on time
     const hour     = new Date().getHours();
@@ -438,23 +449,31 @@ export default function Dashboard() {
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             {/* Avatar */}
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-display font-bold flex-shrink-0"
-                                style={{ background: '#e2b764', color: '#0b1120' }}>
-                                {initials}
+                            <div className="relative group">
+                                <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-gold/40 flex-shrink-0">
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full gold-gradient flex items-center justify-center">
+                                            <span className="text-sm font-display font-bold text-primary-foreground">
+                                                {initials}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <h1 className="text-lg font-display font-semibold text-white leading-tight">
                                     {greeting}, {user?.name?.split(' ')[0] ?? 'Guest'}
                                 </h1>
                                 <div className="hidden md:block">
-                                    <LanguageToggle />
                                 </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="md:hidden">
-                                <LanguageToggle />
                             </div>
+                            <LanguageToggle />
                             <button className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors"
                                 style={{ background: '#141d33', color: '#94a3b8' }}
                                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}

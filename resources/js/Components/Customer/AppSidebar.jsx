@@ -4,9 +4,22 @@ import { Link, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from "@/Components/Customer/LanguageToggle";
 
+// API helper
+async function apiFetch(url) {
+    const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
 export default function AppSidebar() {
   const { t } = useLanguage();
   const { url, props } = usePage();
+
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [profileName, setProfileName] = useState(null);
 
   // Auto-expand Bookings if on any bookings route
   const isOnBookings = url.startsWith('/my-bookings') || url.startsWith('/book-session');
@@ -17,13 +30,24 @@ export default function AppSidebar() {
     if (isOnBookings) setBookingsOpen(true);
   }, [url]);
 
+  // Fetch profile data for avatar
+  useEffect(() => {
+    apiFetch('/api/profile-data')
+        .then(data => {
+            setAvatarUrl(data.avatar);
+            setProfileName(data.name);
+        })
+        .catch(err => console.error('Failed to fetch profile:', err));
+  }, []);
+
   const isActive = (path) => {
     if (path === '/') return url === '/';
     return url.startsWith(path);
   };
 
   const user = props.auth?.user;
-  const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'U';
+  const displayName = profileName || user?.name || 'Guest';
+  const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen sticky top-0 h-screen overflow-y-auto glass-card-strong rounded-none border-y-0 border-s-0">
@@ -142,11 +166,21 @@ export default function AppSidebar() {
       <div className="p-4 border-t border-glass-border space-y-3">
         <LanguageToggle />
         <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-8 h-8 rounded-full gold-gradient flex items-center justify-center flex-shrink-0 text-xs font-display font-bold text-primary-foreground">
-            {initials}
+          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+            {avatarUrl ? (
+              <img 
+                src={avatarUrl} 
+                alt="Avatar" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full gold-gradient flex items-center justify-center text-xs font-display font-bold text-primary-foreground">
+                {initials}
+              </div>
+            )}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name ?? 'Guest'}</p>
+            <p className="text-sm font-medium truncate">{displayName}</p>
             <p className="text-[10px] text-muted-foreground">Member</p>
           </div>
         </div>

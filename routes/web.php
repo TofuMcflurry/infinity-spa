@@ -5,6 +5,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
 use App\Http\Controllers\CustomerProfileController;
 use App\Http\Controllers\CustomerDashboardController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +46,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('api.bookings.store');
         Route::get('/my-bookings',           [BookingController::class, 'myBookings'])
             ->name('api.my-bookings');
+
+        // Sa loob ng api group — idagdag:
+        Route::get('/reviews/check',    [ReviewController::class, 'checkEligibility'])->name('api.reviews.check');
+        Route::post('/reviews',         [ReviewController::class, 'store'])->name('api.reviews.store');
+        Route::get('/reviews/pending',  [ReviewController::class, 'pendingReviews'])->name('api.reviews.pending');
 
         // Addresses
         Route::get('/addresses',                    [AddressController::class, 'index'])

@@ -26,11 +26,12 @@ class BookingController extends Controller
                 'group_name_ar' => $first->group_name_ar,
                 'category'      => $first->category,
                 'min_price'     => $items->min('price'),
-                'durations'     => $items->map(fn($s) => [
+                'durations' => $items->map(fn($s) => [
                     'id'               => $s->id,
                     'duration_minutes' => $s->duration_minutes,
                     'price'            => $s->price,
                     'rating'           => $s->rating,
+                    'description'      => $s->description, // ← ADD THIS
                 ])->values(),
             ];
         })->values();

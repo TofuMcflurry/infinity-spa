@@ -57,6 +57,11 @@ class Booking extends Model
         return $this->status === 'pending';
     }
 
+    public function review()
+    {
+        return $this->hasOne(Review::class);
+    }
+
     public function isAccepted(): bool
     {
         return $this->status === 'accepted';
