@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
 import {
     Bell, LogOut, MapPin, Clock, Calendar,
@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
+import ReviewModal from '@/Components/Customer/ReviewModal';
 
-// ── API helper ────────────────────────────────────────────────────────────────
 async function apiFetch(url) {
     const res = await fetch(url, {
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -21,12 +21,11 @@ async function apiFetch(url) {
     return res.json();
 }
 
-// ── Status Tracker ────────────────────────────────────────────────────────────
 const STATUS_STEPS = [
-    { key: 'pending',  label: 'Pending',  icon: Clock         },
-    { key: 'accepted', label: 'Accepted', icon: CheckCircle2  },
-    { key: 'en_route', label: 'En Route', icon: Navigation    },
-    { key: 'arrived',  label: 'Arrived',  icon: MapPin        },
+    { key: 'pending',  label: 'Pending',  icon: Clock        },
+    { key: 'accepted', label: 'Accepted', icon: CheckCircle2 },
+    { key: 'en_route', label: 'En Route', icon: Navigation   },
+    { key: 'arrived',  label: 'Arrived',  icon: MapPin       },
 ];
 
 function StatusTracker({ booking }) {
@@ -40,12 +39,10 @@ function StatusTracker({ booking }) {
             className="relative overflow-hidden rounded-2xl border border-[#1e2740] p-6 md:p-8"
             style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}
         >
-            {/* Glow */}
             <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"
                 style={{ background: 'rgba(226,183,100,0.05)' }} />
 
             <div className="relative z-10">
-                {/* Top row */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-3"
@@ -64,11 +61,8 @@ function StatusTracker({ booking }) {
                     </div>
                 </div>
 
-                {/* Timeline */}
                 <div className="relative">
-                    {/* Background line */}
                     <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: '#1e2740' }} />
-                    {/* Progress line */}
                     <div className="absolute top-5 left-5 h-px hidden sm:block transition-all duration-1000"
                         style={{ background: '#e2b764', width: `calc(${progress}% - 40px)` }} />
 
@@ -79,17 +73,9 @@ function StatusTracker({ booking }) {
                             const Icon   = step.icon;
                             return (
                                 <div key={step.key} className="flex sm:flex-col items-center gap-4 sm:gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${
-                                        active
-                                            ? 'shadow-[0_0_15px_rgba(226,183,100,0.4)]'
-                                            : ''
-                                    }`}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${active ? 'shadow-[0_0_15px_rgba(226,183,100,0.4)]' : ''}`}
                                         style={{
-                                            background: active
-                                                ? '#e2b764'
-                                                : done
-                                                    ? 'rgba(226,183,100,0.2)'
-                                                    : '#1e2740',
+                                            background: active ? '#e2b764' : done ? 'rgba(226,183,100,0.2)' : '#1e2740',
                                             color: active ? '#0b1120' : done ? '#e2b764' : '#64748b',
                                         }}>
                                         <Icon size={18} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
@@ -114,57 +100,39 @@ function StatusTracker({ booking }) {
     );
 }
 
-// ── Your Usual Card ───────────────────────────────────────────────────────────
 function UsualBookingCard({ yourUsual }) {
     return (
-        <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-        >
+        <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-display font-semibold text-white">Your Usual?</h2>
             </div>
-
             <div className="group relative rounded-2xl border p-6 md:p-8 overflow-hidden transition-all"
-                style={{
-                    borderColor: 'rgba(226,183,100,0.3)',
-                    background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)',
-                }}>
-                {/* Sparkle bg */}
+                style={{ borderColor: 'rgba(226,183,100,0.3)', background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}>
                 <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
                     <Sparkles size={120} style={{ color: '#e2b764' }} />
                 </div>
-
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                                style={{ background: '#e2b764', color: '#0b1120' }}>
-                                Auto-Detected
-                            </span>
+                                style={{ background: '#e2b764', color: '#0b1120' }}>Auto-Detected</span>
                             <span className="text-sm" style={{ color: '#94a3b8' }}>Based on your history</span>
                         </div>
-                        <h3 className="text-2xl font-display font-semibold text-white mb-4">
-                            {yourUsual.service?.name}
-                        </h3>
+                        <h3 className="text-2xl font-display font-semibold text-white mb-4">{yourUsual.service?.name}</h3>
                         <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm" style={{ color: '#cbd5e1' }}>
                             {yourUsual.therapist?.name && (
                                 <div className="flex items-center gap-2">
-                                    <User size={14} style={{ color: '#e2b764' }} />
-                                    {yourUsual.therapist.name}
+                                    <User size={14} style={{ color: '#e2b764' }} />{yourUsual.therapist.name}
                                 </div>
                             )}
                             {yourUsual.time && (
                                 <div className="flex items-center gap-2">
-                                    <Clock size={14} style={{ color: '#e2b764' }} />
-                                    {yourUsual.time}
+                                    <Clock size={14} style={{ color: '#e2b764' }} />{yourUsual.time}
                                 </div>
                             )}
                             {yourUsual.location && (
                                 <div className="flex items-center gap-2">
-                                    <MapPin size={14} style={{ color: '#e2b764' }} />
-                                    {yourUsual.location}
+                                    <MapPin size={14} style={{ color: '#e2b764' }} />{yourUsual.location}
                                 </div>
                             )}
                         </div>
@@ -172,16 +140,11 @@ function UsualBookingCard({ yourUsual }) {
                     <button
                         onClick={() => router.visit(route('bookings'))}
                         className="shrink-0 w-full md:w-auto px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-                        style={{
-                            background: '#e2b764',
-                            color: '#0b1120',
-                            boxShadow: '0 8px 20px rgba(226,183,100,0.3)',
-                        }}
+                        style={{ background: '#e2b764', color: '#0b1120', boxShadow: '0 8px 20px rgba(226,183,100,0.3)' }}
                         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 30px rgba(226,183,100,0.5)'}
                         onMouseLeave={e => e.currentTarget.style.boxShadow = '0 8px 20px rgba(226,183,100,0.3)'}
                     >
-                        <Sparkles size={18} />
-                        1-Click Book
+                        <Sparkles size={18} /> 1-Click Book
                     </button>
                 </div>
             </div>
@@ -189,7 +152,6 @@ function UsualBookingCard({ yourUsual }) {
     );
 }
 
-// ── Therapist Card ────────────────────────────────────────────────────────────
 function TherapistCard({ therapist }) {
     return (
         <div className="flex items-center gap-4 p-4 rounded-xl border transition-colors group cursor-pointer"
@@ -197,13 +159,8 @@ function TherapistCard({ therapist }) {
             onMouseEnter={e => e.currentTarget.style.background = '#141d33'}
             onMouseLeave={e => e.currentTarget.style.background = '#0f1629'}
         >
-            {/* Avatar */}
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-display font-bold flex-shrink-0 border-2 transition-colors"
-                style={{
-                    background: 'linear-gradient(135deg, #b7882a, #e2b764, #f0c97a)',
-                    borderColor: '#1e2740',
-                    color: '#0b1120',
-                }}>
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-display font-bold flex-shrink-0 border-2"
+                style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764, #f0c97a)', borderColor: '#1e2740', color: '#0b1120' }}>
                 {therapist.avatar}
             </div>
             <div className="flex-1 min-w-0">
@@ -237,7 +194,6 @@ function TherapistCard({ therapist }) {
     );
 }
 
-// ── Recent Activity Item ──────────────────────────────────────────────────────
 function RecentActivityItem({ item }) {
     return (
         <div className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b last:border-0"
@@ -255,7 +211,7 @@ function RecentActivityItem({ item }) {
                 </div>
             </div>
             <button
-                onClick={() => router.visit(route('bookings'))}
+                onClick={() => router.visit(route('my.bookings'))}
                 className="shrink-0 px-4 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 transition-all"
                 style={{ borderColor: '#1e2740', color: '#cbd5e1' }}
                 onMouseEnter={e => {
@@ -275,7 +231,6 @@ function RecentActivityItem({ item }) {
     );
 }
 
-// ── Preference Item ───────────────────────────────────────────────────────────
 function PreferenceItem({ icon: Icon, label, value }) {
     return (
         <div className="flex items-center gap-4">
@@ -291,7 +246,6 @@ function PreferenceItem({ icon: Icon, label, value }) {
     );
 }
 
-// ── Loyalty / Wellness Widget ─────────────────────────────────────────────────
 function LoyaltyWidget({ stats }) {
     const sessions = stats?.total_sessions ?? 0;
     const goal     = 10;
@@ -306,7 +260,6 @@ function LoyaltyWidget({ stats }) {
                 </div>
                 <h3 className="font-display font-semibold text-white">Wellness Journey</h3>
             </div>
-
             <div className="mb-6">
                 <div className="flex justify-between text-sm mb-2">
                     <span style={{ color: '#cbd5e1' }}>Sessions completed</span>
@@ -327,7 +280,6 @@ function LoyaltyWidget({ stats }) {
                     </p>
                 )}
             </div>
-
             <div className="pt-6 border-t" style={{ borderColor: '#1e2740' }}>
                 <h4 className="text-sm font-medium text-white mb-4">Your Stats</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -347,7 +299,6 @@ function LoyaltyWidget({ stats }) {
     );
 }
 
-// ── Auto Preferences Widget ───────────────────────────────────────────────────
 function AutoPreferencesWidget({ prefs }) {
     return (
         <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
@@ -355,15 +306,10 @@ function AutoPreferencesWidget({ prefs }) {
             <p className="text-sm mb-6 leading-relaxed" style={{ color: '#94a3b8' }}>
                 We've learned what you love. These preferences are automatically applied to speed up your booking.
             </p>
-
             {prefs ? (
                 <div className="space-y-4">
-                    {prefs.time && (
-                        <PreferenceItem icon={Clock} label="Preferred Time" value={prefs.time} />
-                    )}
-                    {prefs.location && (
-                        <PreferenceItem icon={MapPin} label="Favorite Location" value={`Home (${prefs.location})`} />
-                    )}
+                    {prefs.time && <PreferenceItem icon={Clock} label="Preferred Time" value={prefs.time} />}
+                    {prefs.location && <PreferenceItem icon={MapPin} label="Favorite Location" value={`Home (${prefs.location})`} />}
                     {prefs.payment && (
                         <PreferenceItem
                             icon={prefs.payment === 'Cashless' ? CreditCard : Banknote}
@@ -377,7 +323,6 @@ function AutoPreferencesWidget({ prefs }) {
                     Complete your first booking to unlock personalized preferences!
                 </p>
             )}
-
             <button
                 onClick={() => router.visit(route('my.profile'))}
                 className="w-full mt-6 py-2 text-sm transition-colors"
@@ -391,21 +336,31 @@ function AutoPreferencesWidget({ prefs }) {
     );
 }
 
-// ── MAIN DASHBOARD ────────────────────────────────────────────────────────────
 export default function Dashboard() {
     const { t } = useLanguage();
     const { props } = usePage();
 
-    const [data,    setData]    = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [avatarUrl, setAvatarUrl] = useState(null);
-    const [userProfile, setUserProfile] = useState(null);
+    const [data,            setData]            = useState(null);
+    const [loading,         setLoading]         = useState(true);
+    const [avatarUrl,       setAvatarUrl]       = useState(null);
+    const [userProfile,     setUserProfile]     = useState(null);
+    const [pendingReview,   setPendingReview]   = useState(null);
+    const [showReviewModal, setShowReviewModal] = useState(false);
 
     useEffect(() => {
         apiFetch('/api/dashboard-data')
             .then(setData)
             .catch(console.error)
             .finally(() => setLoading(false));
+
+        apiFetch('/api/reviews/pending')
+            .then(reviews => {
+                if (reviews.length > 0) {
+                    setPendingReview(reviews[0]);
+                    setShowReviewModal(true);
+                }
+            })
+            .catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -414,15 +369,16 @@ export default function Dashboard() {
                 setUserProfile(data);
                 setAvatarUrl(data.avatar);
             })
-            .catch(err => console.error(err));
+            .catch(console.error);
     }, []);
 
     const handleLogout = () => router.post(route('logout'));
 
     const user     = props.auth?.user;
-    const initials = userProfile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'U';
+    const initials = userProfile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                  ?? user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                  ?? 'U';
 
-    // Greeting based on time
     const hour     = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -448,7 +404,6 @@ export default function Dashboard() {
                     style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}>
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            {/* Avatar */}
                             <div className="relative group">
                                 <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-gold/40 flex-shrink-0">
                                     {avatarUrl ? (
@@ -466,13 +421,9 @@ export default function Dashboard() {
                                 <h1 className="text-lg font-display font-semibold text-white leading-tight">
                                     {greeting}, {user?.name?.split(' ')[0] ?? 'Guest'}
                                 </h1>
-                                <div className="hidden md:block">
-                                </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="md:hidden">
-                            </div>
                             <LanguageToggle />
                             <button className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors"
                                 style={{ background: '#141d33', color: '#94a3b8' }}
@@ -498,23 +449,16 @@ export default function Dashboard() {
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
 
-                    {/* ── Active Booking Tracker ── */}
                     {upcoming && <StatusTracker booking={upcoming} />}
 
-                    {/* ── Main Grid ── */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
 
-                        {/* ════ LEFT (2/3) ════ */}
                         <div className="lg:col-span-2 space-y-12">
 
-                            {/* Your Usual */}
                             {yourUsual ? (
                                 <UsualBookingCard yourUsual={yourUsual} />
                             ) : (
-                                <motion.section
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                >
+                                <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                                     <div className="flex items-center justify-between mb-6">
                                         <h2 className="text-xl font-display font-semibold text-white">Ready to book?</h2>
                                     </div>
@@ -532,7 +476,7 @@ export default function Dashboard() {
                                         </div>
                                         <button
                                             onClick={() => router.visit(route('bookings'))}
-                                            className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all"
+                                            className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm"
                                             style={{ background: '#e2b764', color: '#0b1120' }}
                                         >
                                             Book Now
@@ -541,12 +485,7 @@ export default function Dashboard() {
                                 </motion.section>
                             )}
 
-                            {/* Top Therapists */}
-                            <motion.section
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                            >
+                            <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold text-white">Top Therapists For You</h2>
                                     <button
@@ -566,12 +505,7 @@ export default function Dashboard() {
                                 </div>
                             </motion.section>
 
-                            {/* Recent Activity */}
-                            <motion.section
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                            >
+                            <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold text-white">Recent Activity</h2>
                                     <button
@@ -584,7 +518,6 @@ export default function Dashboard() {
                                         View All <ChevronRight size={14} />
                                     </button>
                                 </div>
-
                                 {(data?.recent_activity ?? []).length === 0 ? (
                                     <div className="py-12 text-center" style={{ color: '#64748b' }}>
                                         <Calendar size={32} className="mx-auto mb-3 opacity-50" />
@@ -600,13 +533,26 @@ export default function Dashboard() {
                             </motion.section>
                         </div>
 
-                        {/* ════ RIGHT (1/3) ════ */}
                         <div className="space-y-8">
                             <LoyaltyWidget stats={stats} />
                             <AutoPreferencesWidget prefs={prefs} />
                         </div>
                     </div>
                 </main>
+
+                {/* ── Review Modal ── */}
+                <AnimatePresence>
+                    {showReviewModal && pendingReview && (
+                        <ReviewModal
+                            bookingId={pendingReview.booking_id}
+                            onClose={() => setShowReviewModal(false)}
+                            onSubmitted={() => {
+                                setShowReviewModal(false);
+                                apiFetch('/api/dashboard-data').then(setData);
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
 
             </div>
         </AuthenticatedLayout>

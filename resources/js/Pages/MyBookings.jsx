@@ -145,22 +145,43 @@ function BookingCard({ booking, tab }) {
                     {/* Book Again — show on completed and cancelled */}
                     {(tab === 'completed' || tab === 'cancelled') && (
                         <button
-                            onClick={() => router.visit(route('bookings'))}
+                            onClick={handleBookAgain}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all border"
                             style={{ borderColor: '#1e2740', color: '#cbd5e1' }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)';
                                 e.currentTarget.style.color = '#e2b764';
-                                e.currentTarget.style.background = 'rgba(226,183,100,0.05)';
                             }}
                             onMouseLeave={e => {
                                 e.currentTarget.style.borderColor = '#1e2740';
                                 e.currentTarget.style.color = '#cbd5e1';
-                                e.currentTarget.style.background = 'transparent';
                             }}
                         >
                             <RefreshCw size={13} />
                             Book Again
+                        </button>
+                    )}
+
+                    {/* Rate button — completed tab only, within 48hrs */}
+                    {tab === 'completed' && booking.can_review && (
+                        <button
+                            onClick={() => onRate?.(booking.id)}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            style={{
+                                background: 'rgba(226,183,100,0.1)',
+                                border:     '1px solid rgba(226,183,100,0.3)',
+                                color:      '#e2b764',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(226,183,100,0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(226,183,100,0.1)'}
+                        >
+                            <Star size={13} />
+                            Rate
+                            {booking.hours_remaining && (
+                                <span className="text-[10px] opacity-70">
+                                    · {Math.floor(booking.hours_remaining)}h
+                                </span>
+                            )}
                         </button>
                     )}
 

@@ -256,6 +256,10 @@ class BookingController extends Controller
                 'payment_method'   => $b->payment_method,
                 'status'           => $b->status,
                 'rejection_reason' => $b->rejection_reason,
+                'can_review'      => $this->canReview($b, auth()->id()),
+                'hours_remaining' => $b->updated_at
+                    ? max(0, 48 - \Carbon\Carbon::parse($b->updated_at)->diffInHours(now()))
+                    : null,
             ]);
 
         return response()->json([
@@ -264,6 +268,34 @@ class BookingController extends Controller
             'completed' => $bookings->where('status', 'completed')->values(),
             'cancelled' => $bookings->whereIn('status', ['rejected', 'cancelled'])->values(),
         ]);
+    }
+
+    private function canReview(Booking $booking, int $customerId): bool
+    {
+        if ($booking->status !== 'completed') return false;
+
+        // Check 48 hour window
+        $hoursElapsed = \Carbon\Carbon::parse($booking->updated_at)
+            ->diffInHours(now());
+        if ($hoursElapsed > 48) return false;
+
+        // Check if already reviewed
+        if (\App\Models\Review::where('booking_id', $booking->id)->exists()) {
+            return false;
+        }
+
+        // Check if either rating is still available
+        $canServiceRate = \App\Models\ServiceRatingLog::canRate(
+            $customerId,
+            $booking->service->group_name
+        );
+
+        $canTherapistRate = \App\Models\TherapistRatingLog::canRate(
+            $customerId,
+            $booking->therapist_id
+        );
+
+        return $canServiceRate || $canTherapistRate;
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
