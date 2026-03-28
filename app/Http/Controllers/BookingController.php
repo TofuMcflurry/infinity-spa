@@ -298,6 +298,39 @@ class BookingController extends Controller
         return $canServiceRate || $canTherapistRate;
     }
 
+    // Sa BookingController.php — idagdag:
+    public function getTherapists()
+    {
+        $therapists = Therapist::with(['user', 'zones'])
+            ->where('is_active', true)
+            ->orderByDesc('rating')
+            ->get()
+            ->map(function ($t) {
+                // Count total reviews
+                $reviewCount = \App\Models\Review::where('therapist_id', $t->id)
+                    ->where('is_visible', true)
+                    ->whereNotNull('therapist_rating')
+                    ->count();
+
+                return [
+                    'id'               => $t->id,
+                    'name'             => $t->user->name,
+                    'specialty'        => $t->specialty,
+                    'bio'              => $t->bio,
+                    'rating'           => $t->rating,
+                    'review_count'     => $reviewCount,
+                    'experience_years' => $t->experience_years,
+                    'gender'           => $t->gender,
+                    'day_off'          => $t->day_off,
+                    'shift_start'      => \Carbon\Carbon::parse($t->shift_start)->format('g:i A'),
+                    'shift_end'        => \Carbon\Carbon::parse($t->shift_end)->format('g:i A'),
+                    'zones'            => $t->zones->pluck('zone_name')->toArray(),
+                ];
+            });
+
+        return response()->json($therapists);
+    }
+
     // ── Private Helpers ───────────────────────────────────────────────────────
 
     private function hasConflict(

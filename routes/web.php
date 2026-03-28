@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard',     fn() => Inertia::render('Dashboard'))->name('dashboard');
     Route::get('/book-session',  fn() => Inertia::render('Bookings'))->name('bookings');
     Route::get('/my-bookings',   fn() => Inertia::render('MyBookings'))->name('my.bookings');
+    Route::get('/therapists', fn() => Inertia::render('Therapists'))->name('therapists');
     Route::get('/my-profile',    fn() => Inertia::render('Profile'))->name('my.profile');
     Route::get('/services',      fn() => Inertia::render('Services'))->name('services');
 
@@ -34,6 +35,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Dashboard
         Route::get('/dashboard-data', [CustomerDashboardController::class, 'index'])
             ->name('api.dashboard');
+
+        Route::get('/therapists', [BookingController::class, 'getTherapists'])
+            ->name('api.therapists');
 
         // Booking flow
         Route::get('/services',              [BookingController::class, 'getServices'])

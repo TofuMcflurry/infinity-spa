@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History } from 'lucide-react';
+import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History, Users } from 'lucide-react';
 import { Link, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from "@/Components/Customer/LanguageToggle";
@@ -18,19 +18,16 @@ export default function AppSidebar() {
   const { t } = useLanguage();
   const { url, props } = usePage();
 
-  const [avatarUrl, setAvatarUrl] = useState(null);
-  const [profileName, setProfileName] = useState(null);
+  const [avatarUrl,    setAvatarUrl]    = useState(null);
+  const [profileName,  setProfileName]  = useState(null);
 
-  // Auto-expand Bookings if on any bookings route
   const isOnBookings = url.startsWith('/my-bookings') || url.startsWith('/book-session');
   const [bookingsOpen, setBookingsOpen] = useState(isOnBookings);
 
-  // Keep expanded when navigating between booking sub-pages
   useEffect(() => {
     if (isOnBookings) setBookingsOpen(true);
   }, [url]);
 
-  // Fetch profile data for avatar
   useEffect(() => {
     apiFetch('/api/profile-data')
         .then(data => {
@@ -45,9 +42,9 @@ export default function AppSidebar() {
     return url.startsWith(path);
   };
 
-  const user = props.auth?.user;
+  const user        = props.auth?.user;
   const displayName = profileName || user?.name || 'Guest';
-  const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials    = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen sticky top-0 h-screen overflow-y-auto glass-card-strong rounded-none border-y-0 border-s-0">
@@ -94,7 +91,20 @@ export default function AppSidebar() {
           <span>{t.nav.services}</span>
         </Link>
 
-        {/* Bookings — collapsible parent */}
+        {/* Therapists ← BAGONG ITEM */}
+        <Link
+          href="/therapists"
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+            isActive('/therapists')
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60'
+          }`}
+        >
+          <Users className="w-5 h-5 flex-shrink-0" />
+          <span>Therapists</span>
+        </Link>
+
+        {/* Bookings — collapsible */}
         <div>
           <button
             onClick={() => setBookingsOpen(o => !o)}
@@ -111,13 +121,10 @@ export default function AppSidebar() {
             />
           </button>
 
-          {/* Sub-items */}
           <div className={`overflow-hidden transition-all duration-200 ${
             bookingsOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
           }`}>
             <div className="ml-4 mt-1 space-y-1 border-l border-white/8 pl-3">
-
-              {/* Book a Session */}
               <Link
                 href="/book-session"
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
@@ -130,7 +137,6 @@ export default function AppSidebar() {
                 <span>Book a Session</span>
               </Link>
 
-              {/* History */}
               <Link
                 href="/my-bookings"
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
@@ -142,7 +148,6 @@ export default function AppSidebar() {
                 <History className="w-4 h-4 flex-shrink-0" />
                 <span>History</span>
               </Link>
-
             </div>
           </div>
         </div>
@@ -168,11 +173,7 @@ export default function AppSidebar() {
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
             {avatarUrl ? (
-              <img 
-                src={avatarUrl} 
-                alt="Avatar" 
-                className="w-full h-full object-cover"
-              />
+              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full gold-gradient flex items-center justify-center text-xs font-display font-bold text-primary-foreground">
                 {initials}

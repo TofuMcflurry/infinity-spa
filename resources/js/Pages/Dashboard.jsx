@@ -499,7 +499,7 @@ export default function Dashboard() {
                                     </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {(data?.top_therapists ?? []).map(therapist => (
+                                    {(data?.top_therapists ?? []).slice(0, 2).map(therapist => (
                                         <TherapistCard key={therapist.id} therapist={therapist} />
                                     ))}
                                 </div>
