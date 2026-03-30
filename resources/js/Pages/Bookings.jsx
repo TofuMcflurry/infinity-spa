@@ -1,15 +1,14 @@
 ﻿import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { router } from '@inertiajs/react';
 import {
     ChevronLeft, Star, Loader2, Check, Clock,
     Banknote, CreditCard, MapPin, Home, Building2, Hotel,
-    AlertCircle
+    AlertCircle, Upload
 } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { Calendar } from '@/Components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // ── Payment Methods ────────────────────────────────────────────────────────────
 const PAYMENT_METHODS = [
@@ -50,46 +49,51 @@ async function apiFetch(url) {
 }
 
 export default function Bookings() {
-    const { t, locale } = useLanguage();
+    const { t: translations } = useLanguage();
+    const t = translations.booking;
 
     // ── Step state ────────────────────────────────────────────────────────────
     const [step, setStep] = useState(1);
 
     // ── Selections ────────────────────────────────────────────────────────────
-    const [selectedGroup, setSelectedGroup] = useState(null);
+    const [selectedGroup,     setSelectedGroup]     = useState(null);
     const [selectedService,   setSelectedService]   = useState(null);
+    const [selectedTherapist, setSelectedTherapist] = useState(null);
     const [selectedAddress,   setSelectedAddress]   = useState(null);
     const [selectedDate,      setSelectedDate]      = useState(undefined);
     const [selectedTime,      setSelectedTime]      = useState(null);
-    const [selectedTherapist, setSelectedTherapist] = useState(null);
     const [selectedPayment,   setSelectedPayment]   = useState(null);
 
     // ── API data ──────────────────────────────────────────────────────────────
-    const [services,            setServices]           = useState([]);
-    const [addresses,           setAddresses]          = useState([]);
-    const [availableSlots,      setAvailableSlots]     = useState([]);
-    const [availableTherapists, setAvailableTherapists] = useState([]);
+    const [services,       setServices]       = useState([]);
+    const [addresses,      setAddresses]      = useState([]);
+    const [therapists,     setTherapists]     = useState([]);
+    const [availableSlots, setAvailableSlots] = useState([]);
 
     // ── Loading & error states ────────────────────────────────────────────────
-    const [loadingServices,    setLoadingServices]    = useState(false);
-    const [loadingAddresses,   setLoadingAddresses]   = useState(false);
-    const [loadingSlots,       setLoadingSlots]       = useState(false);
-    const [loadingTherapists,  setLoadingTherapists]  = useState(false);
-    const [isSubmitting,       setIsSubmitting]       = useState(false);
-    const [isConfirmed,        setIsConfirmed]        = useState(false);
-    const [error,              setError]              = useState(null);
+    const [loadingServices,   setLoadingServices]   = useState(false);
+    const [loadingAddresses,  setLoadingAddresses]  = useState(false);
+    const [loadingTherapists, setLoadingTherapists] = useState(false);
+    const [loadingSlots,      setLoadingSlots]      = useState(false);
+    const [isSubmitting,      setIsSubmitting]      = useState(false);
+    const [isConfirmed,       setIsConfirmed]       = useState(false);
+    const [error,             setError]             = useState(null);
 
-    // ── Gender filter (Step 4) ────────────────────────────────────────────────
+    // ── Proof of payment upload (Step 5) ─────────────────────────────────────
+    const [proofFile, setProofFile] = useState(null);
+
+    // ── Gender filter (Step 2) ────────────────────────────────────────────────
     const [genderFilter, setGenderFilter] = useState('all');
 
     // ── Step labels ───────────────────────────────────────────────────────────
-    const TOTAL_STEPS  = 5;
-    const stepLabels   = [
-        locale === 'ar' ? 'الخدمة'      : 'Service',
-        locale === 'ar' ? 'التاريخ'     : 'Date & Location',
-        locale === 'ar' ? 'الوقت'       : 'Time',
-        locale === 'ar' ? 'المعالج'     : 'Therapist',
-        locale === 'ar' ? 'الدفع'       : 'Payment',
+    // NEW ORDER: Service → Therapist → Date & Location → Time → Payment
+    const TOTAL_STEPS = 5;
+    const stepLabels  = [
+        t.stepService,
+        t.stepTherapist,
+        t.stepDateLocation,
+        t.stepTime,
+        t.stepPayment,
     ];
 
     // ── Fetch services on mount ───────────────────────────────────────────────
@@ -107,7 +111,6 @@ export default function Bookings() {
         apiFetch('/api/addresses')
             .then((data) => {
                 setAddresses(data);
-                // Auto-select default address
                 const def = data.find(a => a.is_default);
                 if (def) setSelectedAddress(def);
             })
@@ -115,19 +118,39 @@ export default function Bookings() {
             .finally(() => setLoadingAddresses(false));
     }, []);
 
-    // ── Fetch available slots when entering Step 3 ────────────────────────────
+    // ── Step 2: Fetch ALL therapists (cx picks first, then date/time) ─────────
     useEffect(() => {
-        if (step !== 3 || !selectedService || !selectedAddress || !selectedDate) return;
+        if (step !== 2) return;
+        setLoadingTherapists(true);
+        setTherapists([]);
+        setSelectedTherapist(null);
+
+        apiFetch('/api/therapists')
+            .then(setTherapists)
+            .catch(() => setError('Failed to load therapists.'))
+            .finally(() => setLoadingTherapists(false));
+    }, [step]);
+
+    // ── Step 4: Fetch available slots for selected therapist ──────────────────
+    // Now passes therapist_id so only THAT therapist's booked slots are blocked.
+    useEffect(() => {
+        if (step !== 4 || !selectedService || !selectedAddress || !selectedDate || !selectedTherapist) return;
 
         const date = selectedDate.toISOString().split('T')[0];
         setLoadingSlots(true);
         setAvailableSlots([]);
         setSelectedTime(null);
 
-        apiFetch(`/api/available-slots?service_id=${selectedService.id}&zone_name=${encodeURIComponent(selectedAddress.zone_name)}&date=${date}`)
+        apiFetch(
+            `/api/available-slots` +
+            `?service_id=${selectedService.id}` +
+            `&zone_name=${encodeURIComponent(selectedAddress.zone_name)}` +
+            `&date=${date}` +
+            `&therapist_id=${selectedTherapist.id}`
+        )
             .then(data => {
                 if (data.day_off) {
-                    setError('No therapists available on this day — Tuesday is their day off.');
+                    setError(t.slotUnavailable);
                     setAvailableSlots([]);
                 } else {
                     setAvailableSlots(data.slots ?? []);
@@ -137,28 +160,13 @@ export default function Bookings() {
             .finally(() => setLoadingSlots(false));
     }, [step]);
 
-    // ── Fetch available therapists when entering Step 4 ───────────────────────
-    useEffect(() => {
-        if (step !== 4 || !selectedService || !selectedAddress || !selectedDate || !selectedTime) return;
-
-        const date = selectedDate.toISOString().split('T')[0];
-        setLoadingTherapists(true);
-        setAvailableTherapists([]);
-        setSelectedTherapist(null);
-
-        apiFetch(`/api/available-therapists?service_id=${selectedService.id}&zone_name=${encodeURIComponent(selectedAddress.zone_name)}&datetime=${encodeURIComponent(selectedTime)}`)
-            .then(setAvailableTherapists)
-            .catch(() => setError('Failed to load therapists.'))
-            .finally(() => setLoadingTherapists(false));
-    }, [step]);
-
     // ── canProceed guard ──────────────────────────────────────────────────────
     const canProceed = () => {
         if (step === 1) return !!selectedService;
-        if (step === 2) return !!selectedAddress && !!selectedDate;
-        if (step === 3) return !!selectedTime;
-        if (step === 4) return !!selectedTherapist;
-        if (step === 5) return !!selectedPayment;
+        if (step === 2) return !!selectedTherapist;
+        if (step === 3) return !!selectedAddress && !!selectedDate;
+        if (step === 4) return !!selectedTime;
+        if (step === 5) return !!selectedPayment && !!proofFile;
         return false;
     };
 
@@ -173,6 +181,7 @@ export default function Bookings() {
                 .find(row => row.startsWith('XSRF-TOKEN='))
                 ?.split('=')[1];
 
+            // Step 1 — Create booking first
             const res = await fetch('/api/bookings', {
                 method:      'POST',
                 credentials: 'same-origin',
@@ -187,7 +196,7 @@ export default function Bookings() {
                     therapist_id:   selectedTherapist.id,
                     zone_name:      selectedAddress.zone_name,
                     location:       `${selectedAddress.label} - ${selectedAddress.address}`,
-                    datetime:       selectedTime,  // ← now stores full datetime string
+                    datetime:       selectedTime,
                     payment_method: selectedPayment,
                 }),
             });
@@ -197,24 +206,45 @@ export default function Bookings() {
                 throw new Error(data.message ?? 'Booking failed.');
             }
 
+            const bookingData = await res.json();
+
+            // Step 2 — Upload proof of downpayment
+            const formData = new FormData();
+            formData.append('booking_id', bookingData.booking.id);
+            formData.append('proof', proofFile);
+
+            const proofRes = await fetch('/api/downpayment/upload-proof', {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept':           'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN':     decodeURIComponent(csrfToken ?? ''),
+                },
+                body: formData,
+            });
+
+            if (!proofRes.ok) {
+                throw new Error('Failed to upload payment proof.');
+            }
+
             setIsConfirmed(true);
         } catch (err) {
             setError(err.message);
         } finally {
             setIsSubmitting(false);
         }
-    }, [selectedService, selectedTherapist, selectedAddress, selectedDate, selectedTime, selectedPayment]);
+    }, [selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, proofFile]);
 
-    // ── Formatted date display ────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
     const formattedDate = selectedDate
         ? selectedDate.toLocaleDateString('en-GB', {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
           })
         : null;
 
-    // ── Filtered therapists by gender ─────────────────────────────────────────
-    const filteredTherapists = availableTherapists.filter(t =>
-        genderFilter === 'all' || t.gender === genderFilter
+    const filteredTherapists = therapists.filter(th =>
+        genderFilter === 'all' || th.gender === genderFilter
     );
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -230,14 +260,14 @@ export default function Bookings() {
                             animate={{ opacity: 1 }}
                             className="font-display text-xl font-bold"
                         >
-                            {t.booking.title}
+                            {t.title}
                         </motion.h1>
 
                         <div className="flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide">
                             {stepLabels.map((label, i) => (
                                 <div key={i} className="flex items-center gap-1.5 flex-shrink-0">
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                                        step > i + 1  ? 'gold-gradient text-primary-foreground' :
+                                        step > i + 1   ? 'gold-gradient text-primary-foreground' :
                                         step === i + 1 ? 'border-2 border-gold text-gold' :
                                                          'bg-secondary text-muted-foreground'
                                     }`}>
@@ -267,7 +297,9 @@ export default function Bookings() {
                         <div className="flex items-center gap-3 p-4 mb-4 bg-destructive/10 border border-destructive/30 rounded-xl text-sm text-destructive">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             {error}
-                            <button onClick={() => setError(null)} className="ml-auto text-xs underline">Dismiss</button>
+                            <button onClick={() => setError(null)} className="ml-auto text-xs underline">
+                                {t.dismiss}
+                            </button>
                         </div>
                     )}
 
@@ -284,18 +316,21 @@ export default function Bookings() {
                                 <div className="w-16 h-16 rounded-full gold-gradient flex items-center justify-center mx-auto mb-4">
                                     <Check className="w-8 h-8 text-primary-foreground" />
                                 </div>
-                                <h2 className="font-display text-xl font-bold mb-2">{t.booking.bookingConfirmed}</h2>
+                                <h2 className="font-display text-xl font-bold mb-2">{t.bookingConfirmed}</h2>
                                 <p className="text-muted-foreground text-sm mb-1">
                                     {selectedService?.name} • {selectedTherapist?.name}
                                 </p>
                                 <p className="text-muted-foreground text-xs">
-                                    {formattedDate} • {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    {formattedDate} •{' '}
+                                    {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', {
+                                        hour: 'numeric', minute: '2-digit', hour12: true,
+                                    })}
                                 </p>
                                 <p className="text-xs text-gold mt-2">
                                     {selectedAddress?.label} — {selectedAddress?.address}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-4">
-                                    Waiting for therapist confirmation...
+                                    {t.waitingConfirm}
                                 </p>
                             </motion.div>
 
@@ -308,11 +343,11 @@ export default function Bookings() {
                                 transition={{ duration: 0.25 }}
                             >
 
-                                {/* ════════════════ STEP 1: Select Service ════════════════ */}
+                                {/* ════════════ STEP 1: Select Service ════════════ */}
                                 {step === 1 && (
                                     <div className="space-y-6">
                                         <p className="text-sm mb-2" style={{ color: '#94a3b8' }}>
-                                            {t.booking.selectService}
+                                            {t.selectService}
                                         </p>
 
                                         {loadingServices ? (
@@ -325,7 +360,6 @@ export default function Bookings() {
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                     {services.map((group) => {
                                                         const isActive   = selectedGroup?.group_name === group.group_name;
-                                                        const groupLabel = locale === 'ar' ? group.group_name_ar : group.group_name;
                                                         return (
                                                             <button
                                                                 key={group.group_name}
@@ -351,7 +385,6 @@ export default function Bookings() {
                                                                     }
                                                                 }}
                                                             >
-                                                                {/* Active check */}
                                                                 {isActive && (
                                                                     <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center"
                                                                         style={{ background: '#e2b764' }}>
@@ -359,26 +392,23 @@ export default function Bookings() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* Group name */}
                                                                 <h4 className="font-display font-semibold text-base text-white mb-3 pr-6">
-                                                                    {groupLabel}
+                                                                    {group.group_name}
                                                                 </h4>
 
-                                                                {/* Duration chips */}
                                                                 <div className="flex flex-wrap gap-1.5 mb-4">
                                                                     {group.durations.map(d => (
                                                                         <span key={d.id}
                                                                             className="text-[10px] px-2.5 py-1 rounded-full font-medium"
                                                                             style={{ background: '#141d33', color: '#94a3b8' }}>
-                                                                            {d.duration_minutes} min
+                                                                            {d.duration_minutes} {t.minutes_suffix}
                                                                         </span>
                                                                     ))}
                                                                 </div>
 
-                                                                {/* Starting price */}
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="text-[11px]" style={{ color: '#64748b' }}>
-                                                                        From
+                                                                        {t.from}
                                                                     </span>
                                                                     <span className="font-display font-bold text-base"
                                                                         style={{ color: '#e2b764' }}>
@@ -401,7 +431,7 @@ export default function Bookings() {
                                                         <p className="text-sm font-medium text-white mb-4">
                                                             Choose duration —{' '}
                                                             <span style={{ color: '#e2b764' }}>
-                                                                {locale === 'ar' ? selectedGroup.group_name_ar : selectedGroup.group_name}
+                                                                {selectedGroup.group_name}
                                                             </span>
                                                         </p>
 
@@ -414,7 +444,6 @@ export default function Bookings() {
                                                                         onClick={() => setSelectedService({
                                                                             ...duration,
                                                                             name:       `${selectedGroup.group_name} ${duration.duration_minutes} min`,
-                                                                            name_ar:    `${selectedGroup.group_name_ar} ${duration.duration_minutes} دقيقة`,
                                                                             group_name: selectedGroup.group_name,
                                                                         })}
                                                                         className="relative p-4 rounded-xl border text-start transition-all"
@@ -442,21 +471,18 @@ export default function Bookings() {
                                                                             </div>
                                                                         )}
 
-                                                                        {/* Duration */}
                                                                         <div className="flex items-center gap-2 mb-2">
                                                                             <Clock className="w-4 h-4" style={{ color: '#e2b764' }} />
                                                                             <span className="text-base font-display font-bold text-white">
-                                                                                {duration.duration_minutes} min
+                                                                                {duration.duration_minutes} {t.minutes_suffix}
                                                                             </span>
                                                                         </div>
 
-                                                                        {/* Price */}
                                                                         <p className="text-lg font-display font-bold"
                                                                             style={{ color: '#e2b764' }}>
                                                                             AED {Number(duration.price).toLocaleString()}
                                                                         </p>
 
-                                                                        {/* Rating — placeholder for now */}
                                                                         <div className="flex items-center gap-1 mt-2">
                                                                             {[1,2,3,4,5].map(s => (
                                                                                 <Star key={s} size={10}
@@ -467,7 +493,7 @@ export default function Bookings() {
                                                                                 />
                                                                             ))}
                                                                             <span className="text-[10px] ml-1" style={{ color: '#64748b' }}>
-                                                                                {Number(duration.rating) > 0 ? duration.rating : 'New'}
+                                                                                {Number(duration.rating) > 0 ? duration.rating : t.new_rating}
                                                                             </span>
                                                                         </div>
                                                                     </button>
@@ -481,13 +507,93 @@ export default function Bookings() {
                                     </div>
                                 )}
 
-                                {/* ════════════════ STEP 2: Date & Location ════════════════ */}
+                                {/* ════════════ STEP 2: Select Therapist ════════════ */}
                                 {step === 2 && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <p className="text-sm text-muted-foreground flex-1">{t.selectTherapist}</p>
+                                            <div className="flex gap-1.5">
+                                                {['all', 'male', 'female'].map((g) => (
+                                                    <button
+                                                        key={g}
+                                                        onClick={() => setGenderFilter(g)}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                            genderFilter === g
+                                                                ? 'gold-gradient text-primary-foreground'
+                                                                : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                                        }`}
+                                                    >
+                                                        {g === 'all' ? t.genderAll : g === 'male' ? t.genderMale : t.genderFemale}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {loadingTherapists ? (
+                                            <div className="flex items-center justify-center py-16">
+                                                <Loader2 className="w-6 h-6 animate-spin text-gold" />
+                                                <span className="ml-3 text-sm text-muted-foreground">{t.findingTherapists}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {filteredTherapists.map((therapist) => {
+                                                    const isSelected = selectedTherapist?.id === therapist.id;
+                                                    return (
+                                                        <button
+                                                            key={therapist.id}
+                                                            onClick={() => setSelectedTherapist(therapist)}
+                                                            className={`glass-card p-4 text-start transition-all ${
+                                                                isSelected
+                                                                    ? 'ring-2 ring-gold'
+                                                                    : 'hover:bg-secondary/40'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <div className="w-12 h-12 rounded-full gold-gradient flex items-center justify-center text-sm font-bold flex-shrink-0 text-primary-foreground">
+                                                                    {therapist.avatar ?? (
+                                                                        therapist.name
+                                                                            ?.split(' ')
+                                                                            .map(n => n[0])
+                                                                            .join('')
+                                                                            .toUpperCase()
+                                                                            .slice(0, 2)
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h4 className="font-display font-semibold text-sm">{therapist.name}</h4>
+                                                                    <p className="text-xs text-muted-foreground truncate">{therapist.specialty}</p>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <Star className="w-3 h-3 text-gold fill-gold" />
+                                                                        <span className="text-xs font-medium">{therapist.rating}</span>
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            {therapist.experience_years} yrs
+                                                                        </span>
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            {therapist.gender === 'male' ? '♂' : '♀'}
+                                                                        </span>
+                                                                    </div>
+                                                                    {therapist.day_off && (
+                                                                        <p className="text-[10px] text-muted-foreground mt-1">
+                                                                            Day off: {therapist.day_off}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ════════════ STEP 3: Date & Location ════════════ */}
+                                {step === 3 && (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" style={{ alignItems: 'stretch' }}>
 
                                         {/* LEFT — Calendar */}
                                         <div className="glass-card p-5 flex flex-col">
-                                            <h4 className="font-display font-semibold text-base mb-2">{t.booking.chooseDate}</h4>
+                                            <h4 className="font-display font-semibold text-base mb-2">{t.chooseDate}</h4>
                                             <Calendar
                                                 mode="single"
                                                 selected={selectedDate}
@@ -495,7 +601,9 @@ export default function Bookings() {
                                                 disabled={(date) => {
                                                     const today = new Date();
                                                     today.setHours(0, 0, 0, 0);
-                                                    return date <= today;
+                                                    // Also disable the therapist's day off
+                                                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                                                    return date < today || dayName === selectedTherapist?.day_off;
                                                 }}
                                                 className={cn('pointer-events-auto w-full')}
                                             />
@@ -503,7 +611,7 @@ export default function Bookings() {
 
                                         {/* RIGHT — Address Book */}
                                         <div className="glass-card p-5 flex flex-col">
-                                            <h4 className="font-display font-semibold text-base mb-4">{t.booking.location}</h4>
+                                            <h4 className="font-display font-semibold text-base mb-4">{t.location}</h4>
 
                                             {loadingAddresses ? (
                                                 <div className="flex items-center justify-center py-10">
@@ -513,7 +621,7 @@ export default function Bookings() {
                                                 <div className="flex flex-col items-center justify-center py-10 gap-3">
                                                     <MapPin className="w-8 h-8 text-muted-foreground" />
                                                     <p className="text-sm text-muted-foreground text-center">
-                                                        No addresses found.<br />Add one in your profile.
+                                                        {t.noAddresses}
                                                     </p>
                                                 </div>
                                             ) : (
@@ -531,7 +639,6 @@ export default function Bookings() {
                                                                         : 'bg-secondary border-transparent hover:bg-secondary/80'
                                                                 }`}
                                                             >
-                                                                {/* Radio */}
                                                                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                                                                     isActive ? 'border-gold' : 'border-muted-foreground/40'
                                                                 }`}>
@@ -556,157 +663,185 @@ export default function Bookings() {
                                     </div>
                                 )}
 
-                                {/* ════════════════ STEP 3: Time ════════════════ */}
-                                {step === 3 && (
+                                {/* ════════════ STEP 4: Time ════════════ */}
+                                {step === 4 && (
                                     <div className="glass-card p-7">
-                                        <h4 className="font-display font-semibold text-lg mb-2">{t.booking.chooseTime}</h4>
-                                        <p className="text-xs text-muted-foreground mb-5">
-                                            {formattedDate} • {selectedAddress?.label}
+                                        <p className="text-xs text-muted-foreground mb-1">
+                                            {formattedDate} • {selectedAddress?.label} • {selectedTherapist?.name}
                                         </p>
+                                        <h4 className="font-display font-semibold text-lg mb-6">
+                                            When would you like your session?
+                                        </h4>
 
                                         {loadingSlots ? (
                                             <div className="flex items-center justify-center py-16">
                                                 <Loader2 className="w-6 h-6 animate-spin text-gold" />
-                                                <span className="ml-3 text-sm text-muted-foreground">Checking availability...</span>
+                                                <span className="ml-3 text-sm text-muted-foreground">{t.checkingAvail}</span>
                                             </div>
-                                        ) : (
-                                            <div className="grid grid-cols-4 gap-3">
-                                                {availableSlots.map((slot) => {
-                                                    const isSelected  = selectedTime === slot.time;
-                                                    const isAvailable = slot.available;
-                                                    return (
-                                                        <button
-                                                            key={slot.time}
-                                                            onClick={() => isAvailable && setSelectedTime(slot.datetime)}
-                                                            disabled={!isAvailable}
-                                                            className={`py-3.5 rounded-xl text-sm font-medium transition-all relative ${
-                                                                !isAvailable
-                                                                    ? 'bg-secondary/30 text-muted-foreground/40 cursor-not-allowed line-through'
-                                                                    : isSelected
-                                                                        ? 'gold-gradient text-primary-foreground'
-                                                                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                                                            }`}
-                                                        >
-                                                            {slot.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                        ) : (() => {
+                                            // ── Split slots into periods ──────────────────────────
+                                            // Evening: 4PM–11PM (hour 16–23)
+                                            // Late night: 12AM–4AM (hour 0–4)
+                                            const evening   = availableSlots.filter(s => {
+                                                const h = new Date(s.datetime).getHours();
+                                                return h >= 16;
+                                            });
+                                            const lateNight = availableSlots.filter(s => {
+                                                const h = new Date(s.datetime).getHours();
+                                                return h < 16;
+                                            });
 
-                                {/* ════════════════ STEP 4: Therapist ════════════════ */}
-                                {step === 4 && (
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <p className="text-sm text-muted-foreground flex-1">{t.booking.selectTherapist}</p>
-                                            {/* Gender filter */}
-                                            <div className="flex gap-1.5">
-                                                {['all', 'male', 'female'].map((g) => (
+                                            const SlotButton = ({ slot }) => {
+                                                const isSelected  = selectedTime === slot.datetime;
+                                                const isAvailable = slot.available;
+
+                                                let btnStyle = {};
+                                                let btnClass  = 'rounded-xl transition-all flex flex-col items-center justify-center gap-1.5 py-3 px-2 text-sm font-medium';
+
+                                                if (isSelected) {
+                                                    btnClass += ' cursor-pointer';
+                                                    btnStyle = {
+                                                        background:  'linear-gradient(135deg,#e2b764,#c9963f)',
+                                                        border:      '1.5px solid transparent',
+                                                        color:       '#0b1120',
+                                                    };
+                                                } else if (isAvailable) {
+                                                    btnClass += ' cursor-pointer';
+                                                    btnStyle = {
+                                                        background:  '#111827',
+                                                        border:      '1.5px solid #1e293b',
+                                                        color:       '#94a3b8',
+                                                    };
+                                                } else {
+                                                    btnClass += ' cursor-not-allowed';
+                                                    btnStyle = {
+                                                        background:  '#0a0e1a',
+                                                        border:      '1.5px solid #0f172a',
+                                                        color:       '#1e293b',
+                                                    };
+                                                }
+
+                                                // Dot color
+                                                const dotColor = isSelected
+                                                    ? '#92400e'
+                                                    : isAvailable
+                                                        ? '#1d4ed8'
+                                                        : '#0f172a';
+
+                                                return (
                                                     <button
-                                                        key={g}
-                                                        onClick={() => setGenderFilter(g)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                                            genderFilter === g
-                                                                ? 'gold-gradient text-primary-foreground'
-                                                                : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                                                        }`}
+                                                        key={slot.datetime}
+                                                        onClick={() => isAvailable && setSelectedTime(slot.datetime)}
+                                                        disabled={!isAvailable}
+                                                        className={btnClass}
+                                                        style={btnStyle}
+                                                        onMouseEnter={e => {
+                                                            if (isAvailable && !isSelected) {
+                                                                e.currentTarget.style.borderColor = '#e2b764';
+                                                                e.currentTarget.style.color       = '#e2b764';
+                                                            }
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            if (isAvailable && !isSelected) {
+                                                                e.currentTarget.style.borderColor = '#1e293b';
+                                                                e.currentTarget.style.color       = '#94a3b8';
+                                                            }
+                                                        }}
                                                     >
-                                                        {g === 'all' ? 'All' : g === 'male' ? 'Male' : 'Female'}
+                                                        <span>{slot.label}</span>
+                                                        <div className="w-1.5 h-1.5 rounded-full"
+                                                            style={{ background: dotColor }} />
                                                     </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                                                );
+                                            };
 
-                                        {loadingTherapists ? (
-                                            <div className="flex items-center justify-center py-16">
-                                                <Loader2 className="w-6 h-6 animate-spin text-gold" />
-                                                <span className="ml-3 text-sm text-muted-foreground">Finding available therapists...</span>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {filteredTherapists.map((therapist) => {
-                                                    const isSelected  = selectedTherapist?.id === therapist.id;
-                                                    const isAvailable = therapist.available;
-                                                    return (
-                                                        <button
-                                                            key={therapist.id}
-                                                            onClick={() => isAvailable && setSelectedTherapist(therapist)}
-                                                            disabled={!isAvailable}
-                                                            className={`glass-card p-4 text-start transition-all ${
-                                                                !isAvailable
-                                                                    ? 'opacity-50 cursor-not-allowed'
-                                                                    : isSelected
-                                                                        ? 'ring-2 ring-gold'
-                                                                        : 'hover:bg-secondary/40'
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-start gap-3">
-                                                                {/* Avatar */}
-                                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                                                                    isAvailable ? 'gold-gradient text-primary-foreground' : 'bg-secondary text-muted-foreground'
-                                                                }`}>
-                                                                    {therapist.avatar}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <h4 className="font-display font-semibold text-sm">{therapist.name}</h4>
-                                                                    <p className="text-xs text-muted-foreground truncate">{therapist.specialty}</p>
-                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                        <Star className="w-3 h-3 text-gold fill-gold" />
-                                                                        <span className="text-xs font-medium">{therapist.rating}</span>
-                                                                        <span className="text-[10px] text-muted-foreground">{therapist.experience} yrs</span>
-                                                                        <span className="text-[10px] text-muted-foreground">
-                                                                            {therapist.gender === 'male' ? '♂' : '♀'}
-                                                                        </span>
-                                                                    </div>
-                                                                    {/* Availability indicator */}
-                                                                    {isAvailable ? (
-                                                                        <span className="text-[10px] text-emerald-400 font-medium mt-1 block">● Available</span>
-                                                                    ) : (
-                                                                        <span className="text-[10px] text-destructive font-medium mt-1 block">
-                                                                            ● Booked
-                                                                            {therapist.next_available && ` · Next: ${therapist.next_available}`}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                            return (
+                                                <div className="space-y-6">
+                                                    {/* Evening period */}
+                                                    {evening.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[11px] font-semibold uppercase tracking-widest mb-3"
+                                                                style={{ color: '#334155' }}>
+                                                                Evening
+                                                            </p>
+                                                            <div className="grid grid-cols-4 gap-2">
+                                                                {evening.map(slot => (
+                                                                    <SlotButton key={slot.datetime} slot={slot} />
+                                                                ))}
                                                             </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Late night period */}
+                                                    {lateNight.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[11px] font-semibold uppercase tracking-widest mb-3"
+                                                                style={{ color: '#334155' }}>
+                                                                Late night
+                                                            </p>
+                                                            <div className="grid grid-cols-4 gap-2">
+                                                                {lateNight.map(slot => (
+                                                                    <SlotButton key={slot.datetime} slot={slot} />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Legend */}
+                                                    <div className="flex items-center gap-5 pt-4 flex-wrap"
+                                                        style={{ borderTop: '1px solid #0f172a' }}>
+                                                        {[
+                                                            { dot: '#1d4ed8', label: 'Available' },
+                                                            { dot: '#0f172a', label: 'Unavailable', border: '1px solid #1e293b' },
+                                                            { dot: '#92400e', label: 'Selected' },
+                                                        ].map(({ dot, label, border }) => (
+                                                            <div key={label} className="flex items-center gap-2">
+                                                                <div className="w-2 h-2 rounded-full flex-shrink-0"
+                                                                    style={{ background: dot, border }} />
+                                                                <span className="text-[11px] text-muted-foreground">{label}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
-                                {/* ════════════════ STEP 5: Payment ════════════════ */}
+                                {/* ════════════ STEP 5: Payment ════════════ */}
                                 {step === 5 && (
                                     <div className="space-y-4">
 
                                         {/* Booking Summary */}
                                         <div className="glass-card p-5">
                                             <h4 className="font-display font-semibold text-sm mb-4 gold-text">
-                                                {locale === 'ar' ? 'ملخص الحجز' : 'Booking Summary'}
+                                                {t.summary}
                                             </h4>
                                             <div className="space-y-3">
                                                 {[
                                                     {
-                                                        label: locale === 'ar' ? 'الخدمة'          : 'Service',
+                                                        label: t.summaryService,
                                                         value: selectedService?.name,
-                                                        sub:   `${selectedService?.duration_minutes} min`,
+                                                        sub:   selectedService?.duration_minutes
+                                                            ? `${selectedService.duration_minutes} ${t.minutes_suffix}`
+                                                            : null,
                                                     },
                                                     {
-                                                        label: locale === 'ar' ? 'المعالج'         : 'Therapist',
+                                                        label: t.summaryTherapist,
                                                         value: selectedTherapist?.name,
                                                         sub:   selectedTherapist?.specialty,
                                                     },
                                                     {
-                                                        label: locale === 'ar' ? 'التاريخ والوقت' : 'Date & Time',
+                                                        label: t.summaryDateTime,
                                                         value: formattedDate,
-                                                        sub:   selectedTime ? new Date(`2000-01-01T${selectedTime}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : null,
+                                                        sub: selectedTime
+                                                            ? new Date(selectedTime).toLocaleTimeString('en-US', {
+                                                                hour: 'numeric', minute: '2-digit', hour12: true,
+                                                              })
+                                                            : null,
                                                     },
                                                     {
-                                                        label: locale === 'ar' ? 'الموقع'          : 'Location',
+                                                        label: t.summaryLocation,
                                                         value: selectedAddress?.label,
                                                         sub:   selectedAddress?.address,
                                                     },
@@ -719,50 +854,208 @@ export default function Bookings() {
                                                         </div>
                                                     </div>
                                                 ))}
-                                                <div className="border-t border-white/8 pt-3 flex justify-between items-center">
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {locale === 'ar' ? 'الإجمالي' : 'Total'}
-                                                    </span>
-                                                    <span className="font-display font-bold gold-text text-lg">
-                                                        AED {selectedService?.price}
-                                                    </span>
+
+                                                {/* Price breakdown */}
+                                                <div className="border-t border-white/8 pt-3 space-y-2">
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-muted-foreground">{t.summaryTotal}</span>
+                                                        <span className="font-medium">
+                                                            AED {Number(selectedService?.price).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                                                            20% Downpayment
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                                                                style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
+                                                                Required
+                                                            </span>
+                                                        </span>
+                                                        <span className="font-display font-bold gold-text">
+                                                            AED {(Number(selectedService?.price) * 0.20).toFixed(2)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-muted-foreground">Remaining (pay on session)</span>
+                                                        <span className="font-medium">
+                                                            AED {(Number(selectedService?.price) * 0.80).toFixed(2)}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Payment Methods */}
-                                        <div className="space-y-3">
-                                            {PAYMENT_METHODS.map((method) => {
-                                                const Icon     = method.icon;
-                                                const isActive = selectedPayment === method.id;
-                                                return (
-                                                    <button
-                                                        key={method.id}
-                                                        onClick={() => setSelectedPayment(method.id)}
-                                                        className={`w-full glass-card p-4 flex items-center gap-4 text-start transition-all ${
-                                                            isActive ? 'ring-2 ring-gold' : 'hover:bg-secondary/40'
-                                                        }`}
-                                                    >
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                                                            isActive ? 'gold-gradient' : 'bg-secondary'
-                                                        }`}>
-                                                            <Icon className={`w-5 h-5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                                        {/* ── Downpayment Instructions ── */}
+                                        <div className="rounded-2xl border p-5 space-y-4"
+                                            style={{ borderColor: 'rgba(226,183,100,0.2)', background: 'rgba(226,183,100,0.04)' }}>
+
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                                                    style={{ background: '#e2b764' }}>
+                                                    <span className="text-[10px] font-black" style={{ color: '#0b1120' }}>!</span>
+                                                </div>
+                                                <h4 className="font-display font-semibold text-sm text-white">
+                                                    Downpayment Required
+                                                </h4>
+                                            </div>
+
+                                            <p className="text-xs leading-relaxed" style={{ color: '#94a3b8' }}>
+                                                A 20% downpayment is required to confirm your booking.
+                                                Please transfer <span className="font-bold text-white">
+                                                AED {(Number(selectedService?.price) * 0.20).toFixed(2)}</span> to
+                                                the account below and upload your payment screenshot.
+                                            </p>
+
+                                            {/* Bank Details */}
+                                            <div className="rounded-xl p-4 space-y-2.5"
+                                                style={{ background: '#0a0f1e', border: '1px solid #1e2740' }}>
+                                                <p className="text-[10px] uppercase tracking-wider font-semibold mb-3"
+                                                    style={{ color: '#64748b' }}>
+                                                    Bank Transfer Details
+                                                </p>
+                                                {[
+                                                    { label: 'Bank',         value: 'Emirates NBD' },
+                                                    { label: 'Account Name', value: 'Infinity Home Spa' },
+                                                    { label: 'Account No.',  value: 'XXXX-XXXX-XXXX' },
+                                                    { label: 'IBAN',         value: 'AE00 0000 0000 0000 0000 000' },
+                                                    { label: 'Reference',    value: 'IHS-[your booking ID]' },
+                                                ].map(({ label, value }) => (
+                                                    <div key={label} className="flex justify-between items-start gap-4">
+                                                        <span className="text-[11px] flex-shrink-0" style={{ color: '#64748b' }}>
+                                                            {label}
+                                                        </span>
+                                                        <span className="text-[11px] font-semibold text-right"
+                                                            style={{ color: label === 'Reference' ? '#e2b764' : '#e2e8f0' }}>
+                                                            {value}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Cancellation Policy */}
+                                            <div className="rounded-xl p-3 space-y-1.5"
+                                                style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.15)' }}>
+                                                <p className="text-[10px] uppercase tracking-wider font-semibold"
+                                                    style={{ color: '#f87171' }}>
+                                                    Cancellation Policy
+                                                </p>
+                                                <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+                                                    • Cancel <span className="text-white font-medium">before 24hrs</span> → Full refund ✅
+                                                </p>
+                                                <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+                                                    • Cancel <span className="text-white font-medium">within 24hrs</span> → Downpayment forfeited ❌
+                                                </p>
+                                                <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+                                                    • No-show → Downpayment forfeited ❌
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* ── Upload Proof ── */}
+                                        <div className="glass-card p-5">
+                                            <h4 className="font-display font-semibold text-sm mb-1 text-white">
+                                                Upload Payment Screenshot
+                                            </h4>
+                                            <p className="text-xs mb-4" style={{ color: '#64748b' }}>
+                                                JPG, JPEG, or PNG only • Max 5MB
+                                            </p>
+
+                                            <label
+                                                className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed cursor-pointer transition-all"
+                                                style={{
+                                                    borderColor: proofFile ? '#e2b764' : '#1e2740',
+                                                    background:  proofFile ? 'rgba(226,183,100,0.05)' : 'transparent',
+                                                }}
+                                                onMouseEnter={e => { if (!proofFile) e.currentTarget.style.borderColor = '#2a3a5c'; }}
+                                                onMouseLeave={e => { if (!proofFile) e.currentTarget.style.borderColor = '#1e2740'; }}
+                                            >
+                                                <input
+                                                    type="file"
+                                                    accept="image/jpg,image/jpeg,image/png"
+                                                    className="hidden"
+                                                    onChange={e => setProofFile(e.target.files?.[0] ?? null)}
+                                                />
+                                                {proofFile ? (
+                                                    <>
+                                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                                                            style={{ background: 'rgba(226,183,100,0.15)' }}>
+                                                            <Check className="w-5 h-5" style={{ color: '#e2b764' }} />
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-semibold font-display">{method.label}</span>
-                                                                <span className="text-xs text-muted-foreground">{method.sub}</span>
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-medium text-white">{proofFile.name}</p>
+                                                            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                                                                {(proofFile.size / 1024 / 1024).toFixed(2)} MB
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={e => { e.preventDefault(); setProofFile(null); }}
+                                                            className="text-xs px-3 py-1 rounded-lg transition-colors"
+                                                            style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                                                            style={{ background: '#141d33' }}>
+                                                            <Upload className="w-5 h-5" style={{ color: '#64748b' }} />
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>
+                                                                Click to upload screenshot
+                                                            </p>
+                                                            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                                                                JPG, JPEG, PNG up to 5MB
+                                                            </p>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </label>
+                                        </div>
+
+                                        {/* ── Session Payment Method ── */}
+                                        <div className="glass-card p-5">
+                                            <h4 className="font-display font-semibold text-sm mb-1 text-white">
+                                                Session Payment
+                                            </h4>
+                                            <p className="text-xs mb-4" style={{ color: '#64748b' }}>
+                                                How will you pay the remaining AED {(Number(selectedService?.price) * 0.80).toFixed(2)} on session day?
+                                            </p>
+                                            <div className="space-y-3">
+                                                {PAYMENT_METHODS.map((method) => {
+                                                    const Icon     = method.icon;
+                                                    const isActive = selectedPayment === method.id;
+                                                    return (
+                                                        <button
+                                                            key={method.id}
+                                                            onClick={() => setSelectedPayment(method.id)}
+                                                            className={`w-full glass-card p-4 flex items-center gap-4 text-start transition-all ${
+                                                                isActive ? 'ring-2 ring-gold' : 'hover:bg-secondary/40'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                                                                isActive ? 'gold-gradient' : 'bg-secondary'
+                                                            }`}>
+                                                                <Icon className={`w-5 h-5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
                                                             </div>
-                                                            <p className="text-xs text-muted-foreground mt-0.5">{method.desc}</p>
-                                                        </div>
-                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                                                            isActive ? 'border-gold' : 'border-white/20'
-                                                        }`}>
-                                                            {isActive && <div className="w-2.5 h-2.5 rounded-full gold-gradient" />}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-semibold font-display">{method.label}</span>
+                                                                    <span className="text-xs text-muted-foreground">{method.sub}</span>
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">{method.desc}</p>
+                                                            </div>
+                                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                                                isActive ? 'border-gold' : 'border-white/20'
+                                                            }`}>
+                                                                {isActive && <div className="w-2.5 h-2.5 rounded-full gold-gradient" />}
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -780,7 +1073,7 @@ export default function Bookings() {
                                     className="btn-ghost-gold flex items-center gap-1"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
-                                    {t.booking.back}
+                                    {t.back}
                                 </button>
                             )}
                             <div className="flex-1" />
@@ -790,7 +1083,7 @@ export default function Bookings() {
                                     disabled={!canProceed()}
                                     className="btn-gold disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    {t.booking.next}
+                                    {t.next}
                                 </button>
                             ) : (
                                 <button
@@ -799,7 +1092,7 @@ export default function Bookings() {
                                     className="btn-gold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isSubmitting ? t.booking.confirmingBooking : t.booking.confirm}
+                                    {isSubmitting ? t.confirmingBooking : t.confirm}
                                 </button>
                             )}
                         </div>

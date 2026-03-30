@@ -18,7 +18,6 @@ class BookingController extends Controller
             ->orderBy('duration_minutes')
             ->get();
 
-        // Group by group_name
         $grouped = $services->groupBy('group_name')->map(function ($items, $groupName) {
             $first = $items->first();
             return [
@@ -31,7 +30,7 @@ class BookingController extends Controller
                     'duration_minutes' => $s->duration_minutes,
                     'price'            => $s->price,
                     'rating'           => $s->rating,
-                    'description'      => $s->description, // ← ADD THIS
+                    'description'      => $s->description,
                 ])->values(),
             ];
         })->values();
@@ -39,70 +38,130 @@ class BookingController extends Controller
         return response()->json($grouped);
     }
 
-    // ── Step 3: Get available time slots ─────────────────────────────────────
+    // ── Step 2: Get all active therapists (cx picks therapist first) ──────────
+    public function getTherapists()
+    {
+        $therapists = Therapist::with(['user', 'zones'])
+            ->where('is_active', true)
+            ->orderByDesc('rating')
+            ->get()
+            ->map(function ($t) {
+                $reviewCount = \App\Models\Review::where('therapist_id', $t->id)
+                    ->where('is_visible', true)
+                    ->whereNotNull('therapist_rating')
+                    ->count();
+
+                return [
+                    'id'               => $t->id,
+                    'name'             => $t->user->name,
+                    'specialty'        => $t->specialty,
+                    'bio'              => $t->bio,
+                    'rating'           => $t->rating,
+                    'review_count'     => $reviewCount,
+                    'experience_years' => $t->experience_years,
+                    'gender'           => $t->gender,
+                    'day_off'          => $t->day_off,
+                    'shift_start'      => Carbon::parse($t->shift_start)->format('g:i A'),
+                    'shift_end'        => Carbon::parse($t->shift_end)->format('g:i A'),
+                    'zones'            => $t->zones->pluck('zone_name')->toArray(),
+                    // Avatar initials for the UI
+                    'avatar'           => strtoupper(substr($t->user->name, 0, 1))
+                                         . strtoupper(substr(explode(' ', $t->user->name)[1] ?? '', 0, 1)),
+                ];
+            });
+
+        return response()->json($therapists);
+    }
+
+    // ── Step 4: Get available time slots ─────────────────────────────────────
+    // Now accepts optional therapist_id.
+    // When therapist_id is provided, slots are blocked based ONLY on that
+    // therapist's existing bookings — so Rochelle's 2AM shows as unavailable
+    // to every other customer who picks her, while other therapists stay open.
     public function getAvailableSlots(Request $request)
     {
         $request->validate([
-            'service_id' => 'required|exists:services,id',
-            'zone_name'  => 'required|string',
-            'date'       => 'required|date|after:today',
+            'service_id'   => 'required|exists:services,id',
+            'zone_name'    => 'required|string',
+            'date' => 'required|date',
+            'therapist_id' => 'nullable|exists:therapists,id',
         ]);
 
-        $service  = Service::findOrFail($request->service_id);
-        $date     = $request->date;
-        $zoneName = $request->zone_name;
+        $service      = Service::findOrFail($request->service_id);
+        $date         = $request->date;
+        $zoneName     = $request->zone_name;
+        $therapistId  = $request->therapist_id; // null = any therapist (legacy fallback)
 
-        // ── Check if requested date is a day off ──────────────────────────
-        $dayName = Carbon::parse($date)->format('l'); // "Monday", "Tuesday"...
-        
-        // Check if ALL therapists are off on this day
-        $anyAvailable = Therapist::where('is_active', true)
-            ->where('day_off', '!=', $dayName)
-            ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
-            ->exists();
+        // ── Day-off check ─────────────────────────────────────────────────
+        $dayName = Carbon::parse($date)->format('l');
 
-        if (!$anyAvailable) {
-            return response()->json([
-                'day_off' => true,
-                'message' => 'No therapists available on ' . $dayName . 's.',
-                'slots'   => [],
-            ]);
+        if ($therapistId) {
+            // Check only the selected therapist's day off
+            $therapist = Therapist::findOrFail($therapistId);
+            if ($therapist->day_off === $dayName) {
+                return response()->json([
+                    'day_off' => true,
+                    'message' => "{$therapist->user->name} is off on {$dayName}s.",
+                    'slots'   => [],
+                ]);
+            }
+        } else {
+            // Legacy: check if ALL therapists are off
+            $anyAvailable = Therapist::where('is_active', true)
+                ->where('day_off', '!=', $dayName)
+                ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
+                ->exists();
+
+            if (!$anyAvailable) {
+                return response()->json([
+                    'day_off' => true,
+                    'message' => 'No therapists available on ' . $dayName . 's.',
+                    'slots'   => [],
+                ]);
+            }
         }
 
         // ── Generate valid time slots ─────────────────────────────────────
-        // Shift: 4:00 PM to 4:00 AM (next day)
-        // Last valid slot = 4:00 AM - duration - buffer
-        $shiftStart    = Carbon::parse($date . ' 16:00:00'); // 4:00 PM
-        $shiftEnd      = Carbon::parse($date . ' 04:00:00')->addDay(); // 4:00 AM next day
-
+        $shiftStart    = Carbon::parse($date . ' 16:00:00');
+        $shiftEnd      = Carbon::parse($date . ' 04:00:00')->addDay();
         $maxBuffer     = 30;
-        $lastValidTime = $shiftEnd->copy()
-            ->subMinutes($service->duration_minutes + $maxBuffer);
+        $lastValidTime = $shiftEnd->copy()->subMinutes($service->duration_minutes + $maxBuffer);
 
-        // Generate hourly slots from 4PM to last valid time
-        $slots    = [];
-        $current  = $shiftStart->copy();
+        $slots   = [];
+        $current = $shiftStart->copy();
 
         while ($current->lessThanOrEqualTo($lastValidTime)) {
             $slotDateTime = Carbon::parse($date . ' ' . $current->format('H:i:s'));
 
-            // Handle midnight crossing
             if ($current->format('H') < 16) {
                 $slotDateTime->addDay();
             }
 
-            $hasAvailable = $this->hasAvailableTherapist(
-                $slotDateTime,
-                $service->duration_minutes,
-                $zoneName,
-                $dayName
-            );
+            if ($therapistId) {
+                // Check availability for the SPECIFIC selected therapist only
+                $slotResult = $this->getTherapistSlotStatus(
+                    $therapistId,
+                    $slotDateTime,
+                    $service->duration_minutes,
+                    $zoneName
+                );
+            } else {
+                // Legacy fallback: any therapist in the zone
+                $isAvail    = $this->hasAvailableTherapist(
+                    $slotDateTime,
+                    $service->duration_minutes,
+                    $zoneName,
+                    $dayName
+                );
+                $slotResult = ['available' => $isAvail, 'reason' => $isAvail ? null : 'booked'];
+            }
 
             $slots[] = [
                 'time'      => $slotDateTime->format('H:i'),
                 'datetime'  => $slotDateTime->toDateTimeString(),
                 'label'     => $slotDateTime->format('g:i A'),
-                'available' => $hasAvailable,
+                'available' => $slotResult['available'],
+                'reason'    => $slotResult['reason'], // null | 'travel' | 'booked' | 'buffer'
             ];
 
             $current->addHour();
@@ -112,69 +171,6 @@ class BookingController extends Controller
             'day_off' => false,
             'slots'   => $slots,
         ]);
-    }
-
-    // ── Step 4: Get available therapists ─────────────────────────────────────
-    public function getAvailableTherapists(Request $request)
-    {
-        $request->validate([
-            'service_id' => 'required|exists:services,id',
-            'zone_name'  => 'required|string',
-            'datetime'   => 'required|string',
-        ]);
-
-        $service      = Service::findOrFail($request->service_id);
-        $slotDatetime = Carbon::parse($request->datetime);
-        $zoneName     = $request->zone_name;
-        $dayName      = $slotDatetime->format('l');
-
-        $therapists = Therapist::with(['user', 'zones'])
-            ->where('is_active', true)
-            ->where('day_off', '!=', $dayName)
-            ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
-            ->get();
-
-        $result = $therapists->map(function ($therapist) use (
-            $slotDatetime, $service, $zoneName
-        ) {
-            $travelMinutes = $therapist->getTravelTime($zoneName);
-            $timeBlocks    = Booking::computeTimeBlocks(
-                $slotDatetime->toDateTimeString(),
-                $service->duration_minutes,
-                $travelMinutes
-            );
-
-            $isAvailable = !$this->hasConflict(
-                $therapist->id,
-                $timeBlocks['travel_start'],
-                $timeBlocks['buffer_end']
-            );
-
-            $nextAvailable = null;
-            if (!$isAvailable) {
-                $nextAvailable = $this->findNextAvailableSlot(
-                    $therapist->id,
-                    $slotDatetime,
-                    $service->duration_minutes,
-                    $travelMinutes
-                );
-            }
-
-            return [
-                'id'             => $therapist->id,
-                'name'           => $therapist->user->name,
-                'specialty'      => $therapist->specialty,
-                'rating'         => $therapist->rating,
-                'experience'     => $therapist->experience_years,
-                'gender'         => $therapist->gender,
-                'avatar'         => strtoupper(substr($therapist->user->name, 0, 1))
-                                    . strtoupper(substr(explode(' ', $therapist->user->name)[1] ?? '', 0, 1)),
-                'available'      => $isAvailable,
-                'next_available' => $nextAvailable,
-            ];
-        });
-
-        return response()->json($result);
     }
 
     // ── Step 5: Store booking ─────────────────────────────────────────────────
@@ -192,6 +188,9 @@ class BookingController extends Controller
         $service   = Service::findOrFail($request->service_id);
         $therapist = Therapist::findOrFail($request->therapist_id);
 
+        $downpaymentAmount = round($service->price * 0.20, 2);
+        $remainingAmount   = round($service->price * 0.80, 2);
+
         $slotDatetime  = Carbon::parse($request->datetime);
         $travelMinutes = $therapist->getTravelTime($request->zone_name);
         $timeBlocks    = Booking::computeTimeBlocks(
@@ -200,7 +199,7 @@ class BookingController extends Controller
             $travelMinutes
         );
 
-        // Final conflict check
+        // Final conflict check before saving
         if ($this->hasConflict(
             $therapist->id,
             $timeBlocks['travel_start'],
@@ -222,7 +221,10 @@ class BookingController extends Controller
             'travel_start'    => $timeBlocks['travel_start'],
             'buffer_end'      => $timeBlocks['buffer_end'],
             'payment_method'  => $request->payment_method,
-            'status'          => 'pending',
+            'status'               => 'pending_payment', // ← BAGO
+            'downpayment_amount'   => $downpaymentAmount,
+            'remaining_amount'     => $remainingAmount,
+            'downpayment_status'   => 'pending',
         ]);
 
         return response()->json([
@@ -256,9 +258,17 @@ class BookingController extends Controller
                 'payment_method'   => $b->payment_method,
                 'status'           => $b->status,
                 'rejection_reason' => $b->rejection_reason,
-                'can_review'      => $this->canReview($b, auth()->id()),
-                'hours_remaining' => $b->updated_at
-                    ? max(0, 48 - \Carbon\Carbon::parse($b->updated_at)->diffInHours(now()))
+                'can_review'       => $this->canReview($b, auth()->id()),
+                'hours_remaining'  => $b->updated_at
+                    ? max(0, 48 - Carbon::parse($b->updated_at)->diffInHours(now()))
+                    : null,
+                'downpayment_amount'   => $b->downpayment_amount,
+                'remaining_amount'     => $b->remaining_amount,
+                'downpayment_status'   => $b->downpayment_status,
+                'downpayment_proof'    => $b->downpayment_proof,
+                'cancellation_type'    => $b->cancellation_type,
+                'cancelled_at'         => $b->cancelled_at
+                    ? Carbon::parse($b->cancelled_at)->format('M d, Y g:i A')
                     : null,
             ]);
 
@@ -270,81 +280,64 @@ class BookingController extends Controller
         ]);
     }
 
-    private function canReview(Booking $booking, int $customerId): bool
-    {
-        if ($booking->status !== 'completed') return false;
-
-        // Check 48 hour window
-        $hoursElapsed = \Carbon\Carbon::parse($booking->updated_at)
-            ->diffInHours(now());
-        if ($hoursElapsed > 48) return false;
-
-        // Check if already reviewed
-        if (\App\Models\Review::where('booking_id', $booking->id)->exists()) {
-            return false;
-        }
-
-        // Check if either rating is still available
-        $canServiceRate = \App\Models\ServiceRatingLog::canRate(
-            $customerId,
-            $booking->service->group_name
-        );
-
-        $canTherapistRate = \App\Models\TherapistRatingLog::canRate(
-            $customerId,
-            $booking->therapist_id
-        );
-
-        return $canServiceRate || $canTherapistRate;
-    }
-
-    // Sa BookingController.php — idagdag:
-    public function getTherapists()
-    {
-        $therapists = Therapist::with(['user', 'zones'])
-            ->where('is_active', true)
-            ->orderByDesc('rating')
-            ->get()
-            ->map(function ($t) {
-                // Count total reviews
-                $reviewCount = \App\Models\Review::where('therapist_id', $t->id)
-                    ->where('is_visible', true)
-                    ->whereNotNull('therapist_rating')
-                    ->count();
-
-                return [
-                    'id'               => $t->id,
-                    'name'             => $t->user->name,
-                    'specialty'        => $t->specialty,
-                    'bio'              => $t->bio,
-                    'rating'           => $t->rating,
-                    'review_count'     => $reviewCount,
-                    'experience_years' => $t->experience_years,
-                    'gender'           => $t->gender,
-                    'day_off'          => $t->day_off,
-                    'shift_start'      => \Carbon\Carbon::parse($t->shift_start)->format('g:i A'),
-                    'shift_end'        => \Carbon\Carbon::parse($t->shift_end)->format('g:i A'),
-                    'zones'            => $t->zones->pluck('zone_name')->toArray(),
-                ];
-            });
-
-        return response()->json($therapists);
-    }
-
     // ── Private Helpers ───────────────────────────────────────────────────────
 
-    private function hasConflict(
+    /**
+     * Returns availability status AND reason for a specific therapist's slot.
+     * reason: null = available, 'travel' = falls in travel window,
+     *         'booked' = exact booking conflict, 'buffer' = falls in buffer window
+     */
+    private function getTherapistSlotStatus(
         int    $therapistId,
-        Carbon $travelStart,
-        Carbon $bufferEnd
-    ): bool {
-        return Booking::where('therapist_id', $therapistId)
+        Carbon $slotDatetime,
+        int    $duration,
+        string $zoneName
+    ): array {
+        $therapist     = Therapist::with('zones')->findOrFail($therapistId);
+        $travelMinutes = $therapist->getTravelTime($zoneName);
+
+        // What would THIS slot's time blocks look like if booked?
+        $thisBlocks = Booking::computeTimeBlocks(
+            $slotDatetime->toDateTimeString(),
+            $duration,
+            $travelMinutes
+        );
+
+        // Get all active bookings for this therapist
+        $activeBookings = Booking::where('therapist_id', $therapistId)
             ->whereIn('status', ['pending', 'accepted'])
-            ->where('travel_start', '<', $bufferEnd)
-            ->where('buffer_end',   '>', $travelStart)
-            ->exists();
+            ->get(['travel_start', 'scheduled_start', 'scheduled_end', 'buffer_end']);
+
+        foreach ($activeBookings as $booking) {
+            $existingTravelStart = Carbon::parse($booking->travel_start);
+            $existingBufferEnd   = Carbon::parse($booking->buffer_end);
+            $existingStart       = Carbon::parse($booking->scheduled_start);
+            $existingEnd         = Carbon::parse($booking->scheduled_end);
+
+            // Does this slot's window overlap with the existing booking's window?
+            $overlaps = $thisBlocks['travel_start']->lt($existingBufferEnd)
+                     && $thisBlocks['buffer_end']->gt($existingTravelStart);
+
+            if (!$overlaps) continue;
+
+            // Determine the reason — what part of the existing booking does this slot hit?
+            if ($slotDatetime->gte($existingStart) && $slotDatetime->lt($existingEnd)) {
+                return ['available' => false, 'reason' => 'booked'];
+            }
+
+            if ($slotDatetime->lt($existingStart)) {
+                return ['available' => false, 'reason' => 'travel'];
+            }
+
+            return ['available' => false, 'reason' => 'buffer'];
+        }
+
+        return ['available' => true, 'reason' => null];
     }
 
+    /**
+     * Legacy: check if ANY therapist in the zone is free.
+     */
     private function hasAvailableTherapist(
         Carbon $slotDatetime,
         int    $duration,
@@ -377,13 +370,25 @@ class BookingController extends Controller
         return false;
     }
 
+    private function hasConflict(
+        int    $therapistId,
+        Carbon $travelStart,
+        Carbon $bufferEnd
+    ): bool {
+        return Booking::where('therapist_id', $therapistId)
+            ->whereIn('status', ['pending', 'accepted'])
+            ->where('travel_start', '<', $bufferEnd)
+            ->where('buffer_end',   '>', $travelStart)
+            ->exists();
+    }
+
     private function findNextAvailableSlot(
         int    $therapistId,
         Carbon $currentSlot,
         int    $duration,
         int    $travelMinutes
     ): ?string {
-        $next = $currentSlot->copy()->addHour();
+        $next     = $currentSlot->copy()->addHour();
         $shiftEnd = $currentSlot->copy()->setTime(4, 0)->addDay();
 
         while ($next->lessThan($shiftEnd)) {
@@ -405,5 +410,29 @@ class BookingController extends Controller
         }
 
         return null;
+    }
+
+    private function canReview(Booking $booking, int $customerId): bool
+    {
+        if ($booking->status !== 'completed') return false;
+
+        $hoursElapsed = Carbon::parse($booking->updated_at)->diffInHours(now());
+        if ($hoursElapsed > 48) return false;
+
+        if (\App\Models\Review::where('booking_id', $booking->id)->exists()) {
+            return false;
+        }
+
+        $canServiceRate = \App\Models\ServiceRatingLog::canRate(
+            $customerId,
+            $booking->service->group_name
+        );
+
+        $canTherapistRate = \App\Models\TherapistRatingLog::canRate(
+            $customerId,
+            $booking->therapist_id
+        );
+
+        return $canServiceRate || $canTherapistRate;
     }
 }

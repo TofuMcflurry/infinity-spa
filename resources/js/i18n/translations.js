@@ -75,27 +75,66 @@ const translations = {
       },
     },
     booking: {
-      title: 'Book Your Session',
-      step1: 'Select Service',
-      step2: 'Choose Therapist',
-      step3: 'Date & Location',
-      next: 'Next',
-      back: 'Back',
-      confirm: 'Confirm Booking',
-      selectService: 'Select a service to continue',
-      selectTherapist: 'Choose your therapist',
-      selectDateTime: 'Pick date & time',
-      selectLocation: 'Confirm location',
-      chooseDate: 'Choose Date',
-      chooseTime: 'Choose Time',
-      location: 'Location',
-      rating: 'Rating',
-      experience: 'Experience',
-      years: 'years',
-      specialty: 'Specialty',
+      // ── General ────────────────────────────────────────────────────────────
+      title:             'Book a Session',
+      next:              'Next',
+      back:              'Back',
+      confirm:           'Confirm Booking',
       confirmingBooking: 'Confirming...',
-      bookingConfirmed: 'Booking confirmed!',
-      phoneRequired: 'Phone number is required',
+      bookingConfirmed:  'Booking Confirmed!',
+      waitingConfirm:    'Waiting for therapist confirmation...',
+      dismiss:           'Dismiss',
+      phoneRequired:     'Phone number is required',
+
+      // ── Stepper labels ─────────────────────────────────────────────────────
+      stepService:      'Service',
+      stepTherapist:    'Therapist',
+      stepDateLocation: 'Date & Location',
+      stepTime:         'Time',
+      stepPayment:      'Payment',
+
+      // ── Step 1: Service ────────────────────────────────────────────────────
+      selectService:   'Choose a service to get started',
+      from:            'From',
+      minutes_suffix:  'min',
+      new_rating:      'New',
+
+      // ── Step 2: Therapist ──────────────────────────────────────────────────
+      selectTherapist:   'Choose your therapist',
+      findingTherapists: 'Finding available therapists...',
+      genderAll:         'All',
+      genderMale:        'Male',
+      genderFemale:      'Female',
+
+      // ── Step 3: Date & Location ────────────────────────────────────────────
+      chooseDate:  'Choose a date',
+      location:    'Select your location',
+      noAddresses: 'No addresses found. Add one in your profile.',
+
+      // ── Step 4: Time ───────────────────────────────────────────────────────
+      chooseTime:       'Choose a time slot',
+      checkingAvail:    'Checking availability...',
+      slotUnavailable:  'No therapists available on this day.',
+
+      // ── Step 5: Payment / Summary ──────────────────────────────────────────
+      summary:          'Booking Summary',
+      summaryService:   'Service',
+      summaryTherapist: 'Therapist',
+      summaryDateTime:  'Date & Time',
+      summaryLocation:  'Location',
+      summaryTotal:     'Total',
+
+      // ── Legacy keys (kept for other pages that still use them) ────────────
+      step1:           'Select Service',
+      step2:           'Choose Therapist',
+      step3:           'Date & Location',
+      selectDateTime:  'Pick date & time',
+      selectLocation:  'Confirm location',
+      chooseTime_old:  'Choose Time',
+      rating:          'Rating',
+      experience:      'Experience',
+      years:           'years',
+      specialty:       'Specialty',
     },
     profile: {
       title: 'Profile Settings',
@@ -148,6 +187,7 @@ const translations = {
       avgRating: 'Avg Rating',
     },
   },
+
   ar: {
     nav: {
       home: 'الرئيسية',
@@ -222,27 +262,65 @@ const translations = {
       },
     },
     booking: {
-      title: 'احجز جلستك',
-      step1: 'اختر الخدمة',
-      step2: 'اختر المعالج',
-      step3: 'التاريخ والموقع',
-      next: 'التالي',
-      back: 'رجوع',
-      confirm: 'تأكيد الحجز',
-      selectService: 'اختر خدمة للمتابعة',
-      selectTherapist: 'اختر المعالج',
+      // ── General ────────────────────────────────────────────────────────────
+      title:             'احجز جلستك',
+      next:              'التالي',
+      back:              'رجوع',
+      confirm:           'تأكيد الحجز',
+      confirmingBooking: 'جاري التأكيد...',
+      bookingConfirmed:  'تم تأكيد الحجز!',
+      waitingConfirm:    'في انتظار تأكيد المعالج...',
+      dismiss:           'إغلاق',
+      phoneRequired:     'رقم الهاتف مطلوب',
+
+      // ── Stepper labels ─────────────────────────────────────────────────────
+      stepService:      'الخدمة',
+      stepTherapist:    'المعالج',
+      stepDateLocation: 'التاريخ والموقع',
+      stepTime:         'الوقت',
+      stepPayment:      'الدفع',
+
+      // ── Step 1: Service ────────────────────────────────────────────────────
+      selectService:  'اختر خدمة للبدء',
+      from:           'من',
+      minutes_suffix: 'دقيقة',
+      new_rating:     'جديد',
+
+      // ── Step 2: Therapist ──────────────────────────────────────────────────
+      selectTherapist:   'اختر معالجك',
+      findingTherapists: 'البحث عن المعالجين المتاحين...',
+      genderAll:         'الكل',
+      genderMale:        'ذكر',
+      genderFemale:      'أنثى',
+
+      // ── Step 3: Date & Location ────────────────────────────────────────────
+      chooseDate:  'اختر التاريخ',
+      location:    'اختر موقعك',
+      noAddresses: 'لا توجد عناوين. أضف عنواناً من ملفك الشخصي.',
+
+      // ── Step 4: Time ───────────────────────────────────────────────────────
+      chooseTime:      'اختر وقت الجلسة',
+      checkingAvail:   'جاري التحقق من التوفر...',
+      slotUnavailable: 'لا يوجد معالجون متاحون في هذا اليوم.',
+
+      // ── Step 5: Payment / Summary ──────────────────────────────────────────
+      summary:          'ملخص الحجز',
+      summaryService:   'الخدمة',
+      summaryTherapist: 'المعالج',
+      summaryDateTime:  'التاريخ والوقت',
+      summaryLocation:  'الموقع',
+      summaryTotal:     'الإجمالي',
+
+      // ── Legacy keys (kept for other pages that still use them) ────────────
+      step1:          'اختر الخدمة',
+      step2:          'اختر المعالج',
+      step3:          'التاريخ والموقع',
       selectDateTime: 'اختر التاريخ والوقت',
       selectLocation: 'تأكيد الموقع',
-      chooseDate: 'اختر التاريخ',
-      chooseTime: 'اختر الوقت',
-      location: 'الموقع',
-      rating: 'التقييم',
-      experience: 'الخبرة',
-      years: 'سنوات',
-      specialty: 'التخصص',
-      confirmingBooking: 'جاري التأكيد...',
-      bookingConfirmed: 'تم تأكيد الحجز!',
-      phoneRequired: 'رقم الهاتف مطلوب',
+      rating:         'التقييم',
+      experience:     'الخبرة',
+      years:          'سنوات',
+      specialty:      'التخصص',
     },
     profile: {
       title: 'إعدادات الملف الشخصي',

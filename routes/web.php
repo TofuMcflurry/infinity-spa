@@ -5,6 +5,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
 use App\Http\Controllers\CustomerProfileController;
 use App\Http\Controllers\CustomerDashboardController;
+use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
 use Illuminate\Foundation\Application;
@@ -75,6 +76,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('api.profile.update');
         Route::post('/profile-avatar', [CustomerProfileController::class, 'uploadAvatar'])
             ->name('api.profile.avatar');
+
+        Route::get('/downpayment/bank-details',      [DownpaymentController::class, 'getBankDetails'])->name('api.downpayment.bank');
+        Route::post('/downpayment/upload-proof',     [DownpaymentController::class, 'uploadProof'])->name('api.downpayment.upload');
+        Route::post('/downpayment/cancel',           [DownpaymentController::class, 'cancel'])->name('api.downpayment.cancel');
+        Route::get('/downpayment/status',            [DownpaymentController::class, 'status'])->name('api.downpayment.status');
     });
 });
 

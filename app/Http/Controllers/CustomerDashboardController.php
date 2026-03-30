@@ -26,7 +26,7 @@ class CustomerDashboardController extends Controller
 
         // ── Favorite Therapist ────────────────────────────────────────────────
         $favoriteTherapist = Booking::where('customer_id', $customerId)
-            ->whereIn('status', ['completed', 'accepted'])
+            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
             ->select('therapist_id', DB::raw('COUNT(*) as booking_count'))
             ->groupBy('therapist_id')
             ->orderByDesc('booking_count')

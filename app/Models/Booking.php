@@ -23,6 +23,14 @@ class Booking extends Model
         'payment_method',
         'status',
         'rejection_reason',
+        'downpayment_amount',
+        'remaining_amount',
+        'downpayment_status',
+        'downpayment_proof',
+        'downpayment_submitted_at',
+        'downpayment_verified_at',
+        'cancelled_at',
+        'cancellation_type',
     ];
 
     protected $casts = [
@@ -30,6 +38,11 @@ class Booking extends Model
         'scheduled_end'   => 'datetime',
         'travel_start'    => 'datetime',
         'buffer_end'      => 'datetime',
+        'downpayment_submitted_at' => 'datetime',
+        'downpayment_verified_at'  => 'datetime',
+        'cancelled_at'             => 'datetime',
+        'downpayment_amount'       => 'decimal:2',
+        'remaining_amount'         => 'decimal:2',
     ];
 
     // Booking belongs to a Customer (User)
