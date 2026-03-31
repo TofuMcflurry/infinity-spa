@@ -35,9 +35,14 @@ class CustomerDashboardController extends Controller
 
         // ── Upcoming Booking ──────────────────────────────────────────────────
         $upcomingBooking = Booking::where('customer_id', $customerId)
-            ->whereIn('status', ['pending', 'accepted'])
+            ->whereIn('status', ['accepted', 'pending', 'pending_payment'])
             ->where('scheduled_start', '>=', now())
             ->with(['service', 'therapist.user'])
+            ->orderByRaw("CASE
+                WHEN status = 'accepted'        THEN 1
+                WHEN status = 'pending'         THEN 2
+                WHEN status = 'pending_payment' THEN 3
+                ELSE 4 END")
             ->orderBy('scheduled_start')
             ->first();
 
