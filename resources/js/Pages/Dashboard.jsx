@@ -1,36 +1,56 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
 import {
     Bell, LogOut, MapPin, Clock, Calendar,
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
-    Loader2, Banknote, Home
+    Loader2, Banknote
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
 
-async function apiFetch(url) {
+// ── API helper ─────────────────────────────────────────────────────────────
+function getCsrf() {
+    const cookie = document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+}
+
+async function apiFetch(url, options = {}) {
     const res = await fetch(url, {
-        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        ...options,
         credentials: 'same-origin',
+        headers: {
+            'Accept':           'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN':     getCsrf(),
+            ...(options.headers ?? {}),
+        },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
 const STATUS_STEPS = [
-    { key: 'pending',  label: 'Pending',  icon: Clock        },
-    { key: 'accepted', label: 'Accepted', icon: CheckCircle2 },
-    { key: 'en_route', label: 'En Route', icon: Navigation   },
-    { key: 'arrived',  label: 'Arrived',  icon: MapPin       },
+    { key: 'pending',         label: 'Pending',  icon: Clock        },
+    { key: 'accepted',        label: 'Accepted', icon: CheckCircle2 },
+    { key: 'en_route',        label: 'En Route', icon: Navigation   },
+    { key: 'arrived',         label: 'Arrived',  icon: MapPin       },
 ];
 
 function StatusTracker({ booking }) {
     const currentIdx = STATUS_STEPS.findIndex(s => s.key === booking.status);
     const progress   = currentIdx < 0 ? 0 : (currentIdx / (STATUS_STEPS.length - 1)) * 100;
+
+    const statusLabel = {
+        pending_payment: 'Awaiting Payment',
+        pending:         'Pending Booking',
+        accepted:        'Active Booking',
+        en_route:        'On The Way',
+        arrived:         'Therapist Arrived',
+    }[booking.status] ?? 'Pending Booking';
 
     return (
         <motion.section
@@ -41,14 +61,13 @@ function StatusTracker({ booking }) {
         >
             <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"
                 style={{ background: 'rgba(226,183,100,0.05)' }} />
-
             <div className="relative z-10">
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-3"
                             style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981' }}>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {booking.status === 'accepted' ? 'Active Booking' : 'Pending Booking'}
+                            {statusLabel}
                         </div>
                         <h2 className="text-2xl font-display font-semibold text-white mb-1">{booking.service}</h2>
                         <p className="flex items-center gap-2 text-sm" style={{ color: '#94a3b8' }}>
@@ -60,12 +79,10 @@ function StatusTracker({ booking }) {
                         <p className="text-3xl font-display font-light text-white">{booking.time}</p>
                     </div>
                 </div>
-
                 <div className="relative">
                     <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: '#1e2740' }} />
                     <div className="absolute top-5 left-5 h-px hidden sm:block transition-all duration-1000"
                         style={{ background: '#e2b764', width: `calc(${progress}% - 40px)` }} />
-
                     <div className="relative z-10 flex flex-col sm:flex-row justify-between gap-6 sm:gap-0">
                         {STATUS_STEPS.map((step, i) => {
                             const done   = i <= currentIdx;
@@ -81,9 +98,7 @@ function StatusTracker({ booking }) {
                                         <Icon size={18} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
                                     </div>
                                     <div className="sm:text-center">
-                                        <p className={`text-sm font-medium ${done ? 'text-white' : 'text-slate-500'}`}>
-                                            {step.label}
-                                        </p>
+                                        <p className={`text-sm font-medium ${done ? 'text-white' : 'text-slate-500'}`}>{step.label}</p>
                                         {active && (
                                             <p className="text-xs mt-0.5 sm:mt-1" style={{ color: '#e2b764' }}>
                                                 {step.key === 'en_route' ? '5 mins away' : 'In progress'}
@@ -120,25 +135,12 @@ function UsualBookingCard({ yourUsual }) {
                         </div>
                         <h3 className="text-2xl font-display font-semibold text-white mb-4">{yourUsual.service?.name}</h3>
                         <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm" style={{ color: '#cbd5e1' }}>
-                            {yourUsual.therapist?.name && (
-                                <div className="flex items-center gap-2">
-                                    <User size={14} style={{ color: '#e2b764' }} />{yourUsual.therapist.name}
-                                </div>
-                            )}
-                            {yourUsual.time && (
-                                <div className="flex items-center gap-2">
-                                    <Clock size={14} style={{ color: '#e2b764' }} />{yourUsual.time}
-                                </div>
-                            )}
-                            {yourUsual.location && (
-                                <div className="flex items-center gap-2">
-                                    <MapPin size={14} style={{ color: '#e2b764' }} />{yourUsual.location}
-                                </div>
-                            )}
+                            {yourUsual.therapist?.name && <div className="flex items-center gap-2"><User size={14} style={{ color: '#e2b764' }} />{yourUsual.therapist.name}</div>}
+                            {yourUsual.time && <div className="flex items-center gap-2"><Clock size={14} style={{ color: '#e2b764' }} />{yourUsual.time}</div>}
+                            {yourUsual.location && <div className="flex items-center gap-2"><MapPin size={14} style={{ color: '#e2b764' }} />{yourUsual.location}</div>}
                         </div>
                     </div>
-                    <button
-                        onClick={() => router.visit(route('bookings'))}
+                    <button onClick={() => router.visit(route('bookings'))}
                         className="shrink-0 w-full md:w-auto px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                         style={{ background: '#e2b764', color: '#0b1120', boxShadow: '0 8px 20px rgba(226,183,100,0.3)' }}
                         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 30px rgba(226,183,100,0.5)'}
@@ -180,8 +182,7 @@ function TherapistCard({ therapist }) {
                     <span>{therapist.experience} yrs</span>
                     <span>{therapist.gender === 'female' ? '♀ Female' : '♂ Male'}</span>
                 </div>
-                <button
-                    onClick={() => router.visit(route('bookings'))}
+                <button onClick={() => router.visit(route('bookings'))}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all w-full sm:w-auto"
                     style={{ background: '#1e2740', color: '#fff' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#e2b764'; e.currentTarget.style.color = '#0b1120'; }}
@@ -205,25 +206,14 @@ function RecentActivityItem({ item }) {
                 </div>
                 <div>
                     <h4 className="font-medium text-white mb-1">{item.service}</h4>
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>
-                        {item.date} • {item.therapist} • {item.duration} mins
-                    </p>
+                    <p className="text-sm" style={{ color: '#94a3b8' }}>{item.date} • {item.therapist} • {item.duration} mins</p>
                 </div>
             </div>
-            <button
-                onClick={() => router.visit(route('my.bookings'))}
+            <button onClick={() => router.visit(route('my.bookings'))}
                 className="shrink-0 px-4 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 transition-all"
                 style={{ borderColor: '#1e2740', color: '#cbd5e1' }}
-                onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)';
-                    e.currentTarget.style.color = '#e2b764';
-                    e.currentTarget.style.background = 'rgba(226,183,100,0.05)';
-                }}
-                onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = '#1e2740';
-                    e.currentTarget.style.color = '#cbd5e1';
-                    e.currentTarget.style.background = 'transparent';
-                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)'; e.currentTarget.style.color = '#e2b764'; e.currentTarget.style.background = 'rgba(226,183,100,0.05)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#1e2740'; e.currentTarget.style.color = '#cbd5e1'; e.currentTarget.style.background = 'transparent'; }}
             >
                 Book Again
             </button>
@@ -234,8 +224,7 @@ function RecentActivityItem({ item }) {
 function PreferenceItem({ icon: Icon, label, value }) {
     return (
         <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: '#141d33', color: '#94a3b8' }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#141d33', color: '#94a3b8' }}>
                 <Icon size={14} />
             </div>
             <div>
@@ -250,12 +239,10 @@ function LoyaltyWidget({ stats }) {
     const sessions = stats?.total_sessions ?? 0;
     const goal     = 10;
     const pct      = Math.min((sessions / goal) * 100, 100);
-
     return (
         <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
             <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
                     <Activity size={16} />
                 </div>
                 <h3 className="font-display font-semibold text-white">Wellness Journey</h3>
@@ -266,13 +253,8 @@ function LoyaltyWidget({ stats }) {
                     <span className="font-medium" style={{ color: '#e2b764' }}>{sessions}/{goal} Bookings</span>
                 </div>
                 <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: '#1e2740' }}>
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                        className="h-full rounded-full"
-                        style={{ background: '#e2b764' }}
-                    />
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, delay: 0.5 }}
+                        className="h-full rounded-full" style={{ background: '#e2b764' }} />
                 </div>
                 {sessions < goal && (
                     <p className="text-xs mt-3" style={{ color: '#64748b' }}>
@@ -284,9 +266,7 @@ function LoyaltyWidget({ stats }) {
                 <h4 className="text-sm font-medium text-white mb-4">Your Stats</h4>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
-                        <div className="text-2xl font-display text-white mb-1">
-                            {sessions ? `${Math.round(sessions * 1.2)}h` : '0h'}
-                        </div>
+                        <div className="text-2xl font-display text-white mb-1">{sessions ? `${Math.round(sessions * 1.2)}h` : '0h'}</div>
                         <div className="text-xs" style={{ color: '#94a3b8' }}>Relaxation Time</div>
                     </div>
                     <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
@@ -310,21 +290,12 @@ function AutoPreferencesWidget({ prefs }) {
                 <div className="space-y-4">
                     {prefs.time && <PreferenceItem icon={Clock} label="Preferred Time" value={prefs.time} />}
                     {prefs.location && <PreferenceItem icon={MapPin} label="Favorite Location" value={`Home (${prefs.location})`} />}
-                    {prefs.payment && (
-                        <PreferenceItem
-                            icon={prefs.payment === 'Cashless' ? CreditCard : Banknote}
-                            label="Preferred Payment"
-                            value={prefs.payment}
-                        />
-                    )}
+                    {prefs.payment && <PreferenceItem icon={prefs.payment === 'Cashless' ? CreditCard : Banknote} label="Preferred Payment" value={prefs.payment} />}
                 </div>
             ) : (
-                <p className="text-sm text-center py-4" style={{ color: '#64748b' }}>
-                    Complete your first booking to unlock personalized preferences!
-                </p>
+                <p className="text-sm text-center py-4" style={{ color: '#64748b' }}>Complete your first booking to unlock personalized preferences!</p>
             )}
-            <button
-                onClick={() => router.visit(route('my.profile'))}
+            <button onClick={() => router.visit(route('my.profile'))}
                 className="w-full mt-6 py-2 text-sm transition-colors"
                 style={{ color: '#94a3b8' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
@@ -340,12 +311,24 @@ export default function Dashboard() {
     const { t } = useLanguage();
     const { props } = usePage();
 
-    const [data,            setData]            = useState(null);
-    const [loading,         setLoading]         = useState(true);
-    const [avatarUrl,       setAvatarUrl]       = useState(null);
-    const [userProfile,     setUserProfile]     = useState(null);
-    const [pendingReview,   setPendingReview]   = useState(null);
-    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [data,               setData]               = useState(null);
+    const [loading,            setLoading]            = useState(true);
+    const [avatarUrl,          setAvatarUrl]          = useState(null);
+    const [userProfile,        setUserProfile]        = useState(null);
+    const [pendingReview,      setPendingReview]      = useState(null);
+    const [showReviewModal,    setShowReviewModal]    = useState(false);
+    const [showNotifications,  setShowNotifications]  = useState(false);
+    const [notifications,      setNotifications]      = useState([]);
+    const [unreadCount,        setUnreadCount]        = useState(0);
+
+    const fetchNotifications = useCallback(() => {
+        apiFetch('/api/notifications')
+            .then(data => {
+                setNotifications(data.notifications ?? []);
+                setUnreadCount(data.unread_count ?? 0);
+            })
+            .catch(console.error);
+    }, []);
 
     useEffect(() => {
         apiFetch('/api/dashboard-data')
@@ -361,15 +344,30 @@ export default function Dashboard() {
                 }
             })
             .catch(console.error);
+
+        fetchNotifications();
     }, []);
 
     useEffect(() => {
         apiFetch('/api/profile-data')
-            .then(data => {
-                setUserProfile(data);
-                setAvatarUrl(data.avatar);
-            })
+            .then(data => { setUserProfile(data); setAvatarUrl(data.avatar); })
             .catch(console.error);
+    }, []);
+
+    const handleMarkAllRead = useCallback(async () => {
+        await apiFetch('/api/notifications/read-all', { method: 'POST' });
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+    }, []);
+
+    const handleNotifClick = useCallback(async (notif) => {
+        if (!notif.read) {
+            await apiFetch(`/api/notifications/${notif.id}/read`, { method: 'POST' });
+            setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+            setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+        setShowNotifications(false);
+        router.visit(notif.url ?? '/my-bookings');
     }, []);
 
     const handleLogout = () => router.post(route('logout'));
@@ -404,38 +402,103 @@ export default function Dashboard() {
                     style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}>
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="relative group">
-                                <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-gold/40 flex-shrink-0">
-                                    {avatarUrl ? (
-                                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full gold-gradient flex items-center justify-center">
-                                            <span className="text-sm font-display font-bold text-primary-foreground">
-                                                {initials}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-gold/40 flex-shrink-0">
+                                {avatarUrl ? (
+                                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full gold-gradient flex items-center justify-center">
+                                        <span className="text-sm font-display font-bold text-primary-foreground">{initials}</span>
+                                    </div>
+                                )}
                             </div>
-                            <div>
-                                <h1 className="text-lg font-display font-semibold text-white leading-tight">
-                                    {greeting}, {user?.name?.split(' ')[0] ?? 'Guest'}
-                                </h1>
-                            </div>
+                            <h1 className="text-lg font-display font-semibold text-white leading-tight">
+                                {greeting}, {user?.name?.split(' ')[0] ?? 'Guest'}
+                            </h1>
                         </div>
+
                         <div className="flex items-center gap-3">
                             <LanguageToggle />
-                            <button className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors"
-                                style={{ background: '#141d33', color: '#94a3b8' }}
-                                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-                            >
-                                <Bell size={18} />
-                                <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-red-500 border-2"
-                                    style={{ borderColor: '#141d33' }} />
-                            </button>
-                            <button
-                                onClick={handleLogout}
+
+                            {/* ── Notification Bell ── */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowNotifications(o => !o)}
+                                    className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors"
+                                    style={{ background: '#141d33', color: '#94a3b8' }}
+                                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                >
+                                    <Bell size={18} />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2"
+                                            style={{ borderColor: '#141d33' }} />
+                                    )}
+                                </button>
+
+                                {/* Notification Dropdown */}
+                                <AnimatePresence>
+                                    {showNotifications && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0,  scale: 1    }}
+                                                exit={{ opacity: 0,  y: -8, scale: 0.95  }}
+                                                className="absolute right-0 top-12 w-80 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                                                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                                            >
+                                                {/* Header */}
+                                                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#1e2740' }}>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="font-display font-bold text-sm text-white">Notifications</h3>
+                                                        {unreadCount > 0 && (
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                                                                style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
+                                                                {unreadCount}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {unreadCount > 0 && (
+                                                        <button onClick={handleMarkAllRead} className="text-[11px] transition-colors" style={{ color: '#e2b764' }}>
+                                                            Mark all read
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* List */}
+                                                <div className="max-h-96 overflow-y-auto">
+                                                    {notifications.length === 0 ? (
+                                                        <div className="py-10 text-center">
+                                                            <Bell size={24} className="mx-auto mb-2 opacity-20 text-white" />
+                                                            <p className="text-xs" style={{ color: '#64748b' }}>No notifications yet</p>
+                                                        </div>
+                                                    ) : (
+                                                        notifications.map(notif => (
+                                                            <button key={notif.id} onClick={() => handleNotifClick(notif)}
+                                                                className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b last:border-0"
+                                                                style={{ borderColor: '#1e2740', background: notif.read ? 'transparent' : 'rgba(226,183,100,0.04)' }}
+                                                                onMouseEnter={e => e.currentTarget.style.background = '#141d33'}
+                                                                onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : 'rgba(226,183,100,0.04)'}
+                                                            >
+                                                                {!notif.read && (
+                                                                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
+                                                                )}
+                                                                <div className={`flex-1 min-w-0 ${notif.read ? 'pl-3.5' : ''}`}>
+                                                                    <p className="text-xs font-semibold text-white mb-0.5">{notif.title}</p>
+                                                                    <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>{notif.message}</p>
+                                                                    <p className="text-[10px] mt-1" style={{ color: '#64748b' }}>{notif.created_at}</p>
+                                                                </div>
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        </>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            <button onClick={handleLogout}
                                 className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
                                 style={{ background: '#141d33', color: '#94a3b8' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
@@ -452,7 +515,6 @@ export default function Dashboard() {
                     {upcoming && <StatusTracker booking={upcoming} />}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-
                         <div className="lg:col-span-2 space-y-12">
 
                             {yourUsual ? (
@@ -470,15 +532,11 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="font-display font-bold text-lg text-white mb-1">Book Your First Session</h3>
-                                            <p className="text-sm" style={{ color: '#94a3b8' }}>
-                                                Experience premium spa services delivered to your doorstep
-                                            </p>
+                                            <p className="text-sm" style={{ color: '#94a3b8' }}>Experience premium spa services delivered to your doorstep</p>
                                         </div>
-                                        <button
-                                            onClick={() => router.visit(route('bookings'))}
+                                        <button onClick={() => router.visit(route('bookings'))}
                                             className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm"
-                                            style={{ background: '#e2b764', color: '#0b1120' }}
-                                        >
+                                            style={{ background: '#e2b764', color: '#0b1120' }}>
                                             Book Now
                                         </button>
                                     </div>
@@ -488,10 +546,8 @@ export default function Dashboard() {
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold text-white">Top Therapists For You</h2>
-                                    <button
-                                        onClick={() => router.visit(route('bookings'))}
-                                        className="text-sm flex items-center gap-1 transition-colors"
-                                        style={{ color: '#e2b764' }}
+                                    <button onClick={() => router.visit(route('bookings'))}
+                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                                         onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
                                     >
@@ -508,10 +564,8 @@ export default function Dashboard() {
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold text-white">Recent Activity</h2>
-                                    <button
-                                        onClick={() => router.visit(route('my.bookings'))}
-                                        className="text-sm flex items-center gap-1 transition-colors"
-                                        style={{ color: '#e2b764' }}
+                                    <button onClick={() => router.visit(route('my.bookings'))}
+                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                                         onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
                                     >

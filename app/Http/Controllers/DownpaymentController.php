@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Notifications\BookingNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +28,7 @@ class DownpaymentController extends Controller
     {
         $request->validate([
             'booking_id' => 'required|exists:bookings,id',
-            'proof'      => 'required|image|mimes:jpg,jpeg,png|max:5120', // 5MB max
+            'proof'      => 'required|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
         $customerId = auth()->id();
@@ -36,24 +37,48 @@ class DownpaymentController extends Controller
             ->where('downpayment_status', 'pending')
             ->firstOrFail();
 
-        // Store the proof image
         $path = $request->file('proof')->store(
             'downpayments/' . $booking->id,
             'public'
         );
 
-        // Update booking
         $booking->update([
             'downpayment_proof'        => Storage::url($path),
             'downpayment_status'       => 'submitted',
             'downpayment_submitted_at' => now(),
-            'status'                   => 'pending', // Move from pending_payment to pending
+            'status'                   => 'pending',
         ]);
 
         return response()->json([
-            'message'      => 'Payment proof uploaded successfully!',
-            'proof_url'    => Storage::url($path),
-            'booking_id'   => $booking->id,
+            'message'    => 'Payment proof uploaded successfully!',
+            'proof_url'  => Storage::url($path),
+            'booking_id' => $booking->id,
+        ]);
+    }
+
+    // ── Admin verifies downpayment ────────────────────────────────────────────
+    public function verify(Request $request)
+    {
+        $request->validate([
+            'booking_id' => 'required|exists:bookings,id',
+        ]);
+
+        $booking = Booking::with(['service', 'therapist.user', 'customer'])
+            ->findOrFail($request->booking_id);
+
+        $booking->update([
+            'downpayment_status'      => 'verified',
+            'downpayment_verified_at' => now(),
+            'status'                  => 'pending',
+        ]);
+
+        // Notify customer
+        $booking->customer->notify(
+            new BookingNotification($booking, 'downpayment_verified')
+        );
+
+        return response()->json([
+            'message' => 'Downpayment verified!',
         ]);
     }
 
@@ -71,24 +96,19 @@ class DownpaymentController extends Controller
             ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
             ->firstOrFail();
 
-        // ── Check grace period (24 hours before session) ──────────────────
-        $sessionStart   = Carbon::parse($booking->scheduled_start);
-        $hoursUntil     = now()->diffInHours($sessionStart, false); // false = signed diff
-        $withinGrace    = $hoursUntil > 24; // more than 24hrs away = within grace
+        $sessionStart = Carbon::parse($booking->scheduled_start);
+        $hoursUntil   = now()->diffInHours($sessionStart, false);
+        $withinGrace  = $hoursUntil > 24;
 
-        // Determine cancellation type
         if ($booking->downpayment_status === 'pending') {
-            // Downpayment not yet submitted — just cancel, no charge
-            $cancellationType    = 'refunded';
-            $downpaymentStatus   = 'refunded';
+            $cancellationType  = 'refunded';
+            $downpaymentStatus = 'refunded';
         } elseif ($withinGrace) {
-            // Cancelled before 24hrs → REFUND
-            $cancellationType    = 'refunded';
-            $downpaymentStatus   = 'refunded';
+            $cancellationType  = 'refunded';
+            $downpaymentStatus = 'refunded';
         } else {
-            // Cancelled within 24hrs → FORFEITED
-            $cancellationType    = 'forfeited';
-            $downpaymentStatus   = 'forfeited';
+            $cancellationType  = 'forfeited';
+            $downpaymentStatus = 'forfeited';
         }
 
         $booking->update([

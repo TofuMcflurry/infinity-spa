@@ -4,18 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use App\Notifications\BookingNotification;
 
 class TherapistBookingController extends Controller
 {
-    // List all bookings for this therapist
+    // ── List all bookings for this therapist ──────────────────────────────────
     public function index()
     {
         $therapist = auth()->user()->therapist;
 
         $bookings = Booking::with(['customer', 'service'])
             ->where('therapist_id', $therapist->id)
-            ->orderBy('scheduled_date', 'asc')
             ->orderBy('scheduled_start', 'asc')
             ->get()
             ->groupBy('status');
@@ -23,22 +22,24 @@ class TherapistBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // Accept a booking
+    // ── Accept a booking ──────────────────────────────────────────────────────
     public function accept(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
         $booking->update(['status' => 'accepted']);
 
-        // TODO: Notify customer (email/push notification)
+        // Notify customer
+        $booking->load('customer', 'service', 'therapist.user');
+        $booking->customer->notify(new BookingNotification($booking, 'accepted'));
 
         return response()->json([
             'message' => 'Booking accepted!',
-            'booking' => $booking->load('customer', 'service'),
+            'booking' => $booking,
         ]);
     }
 
-    // Reject a booking
+    // ── Reject a booking ──────────────────────────────────────────────────────
     public function reject(Request $request, Booking $booking)
     {
         $this->authorizeTherapist($booking);
@@ -52,28 +53,68 @@ class TherapistBookingController extends Controller
             'rejection_reason' => $request->reason,
         ]);
 
-        // TODO: Notify customer (email/push notification)
+        // Notify customer
+        $booking->load('customer', 'service', 'therapist.user');
+        $booking->customer->notify(new BookingNotification($booking, 'rejected'));
 
         return response()->json([
             'message' => 'Booking rejected.',
-            'booking' => $booking->load('customer', 'service'),
+            'booking' => $booking,
         ]);
     }
 
-    // Complete a booking
+    // ── Mark as en route ──────────────────────────────────────────────────────
+    public function enRoute(Booking $booking)
+    {
+        $this->authorizeTherapist($booking);
+
+        $booking->update(['status' => 'en_route']);
+
+        // Notify customer
+        $booking->load('customer', 'service', 'therapist.user');
+        $booking->customer->notify(new BookingNotification($booking, 'en_route'));
+
+        return response()->json([
+            'message' => 'Status updated to en route!',
+            'booking' => $booking,
+        ]);
+    }
+
+    // ── Mark as arrived ───────────────────────────────────────────────────────
+    public function arrived(Booking $booking)
+    {
+        $this->authorizeTherapist($booking);
+
+        $booking->update(['status' => 'arrived']);
+
+        // Notify customer
+        $booking->load('customer', 'service', 'therapist.user');
+        $booking->customer->notify(new BookingNotification($booking, 'arrived'));
+
+        return response()->json([
+            'message' => 'Status updated to arrived!',
+            'booking' => $booking,
+        ]);
+    }
+
+    // ── Complete a booking ────────────────────────────────────────────────────
     public function complete(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
         $booking->update(['status' => 'completed']);
 
+        // Notify customer
+        $booking->load('customer', 'service', 'therapist.user');
+        $booking->customer->notify(new BookingNotification($booking, 'completed'));
+
         return response()->json([
             'message' => 'Booking marked as completed!',
-            'booking' => $booking->load('customer', 'service'),
+            'booking' => $booking,
         ]);
     }
 
-    // Ensure therapist owns this booking
+    // ── Authorize therapist ───────────────────────────────────────────────────
     private function authorizeTherapist(Booking $booking): void
     {
         $therapist = auth()->user()->therapist;

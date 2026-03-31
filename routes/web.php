@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\TherapistBookingController;
 use App\Http\Controllers\CustomerProfileController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CustomerDashboardController;
 use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
@@ -81,6 +82,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/downpayment/upload-proof',     [DownpaymentController::class, 'uploadProof'])->name('api.downpayment.upload');
         Route::post('/downpayment/cancel',           [DownpaymentController::class, 'cancel'])->name('api.downpayment.cancel');
         Route::get('/downpayment/status',            [DownpaymentController::class, 'status'])->name('api.downpayment.status');
+
+        // Notifications
+        Route::get('/notifications',             [NotificationController::class, 'index'])->name('api.notifications');
+        Route::get('/notifications/unread-count',[NotificationController::class, 'unreadCount'])->name('api.notifications.count');
+        Route::post('/notifications/read-all',   [NotificationController::class, 'markAllRead'])->name('api.notifications.read-all');
+        Route::post('/notifications/{id}/read',  [NotificationController::class, 'markRead'])->name('api.notifications.read');
+
+        // Downpayment verify (admin)
+        Route::post('/downpayment/verify',       [DownpaymentController::class, 'verify'])->name('api.downpayment.verify');
+
+        // Therapist status updates
+        Route::post('/therapist/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute'])->name('api.therapist.en-route');
+        Route::post('/therapist/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived'])->name('api.therapist.arrived');
     });
 });
 
