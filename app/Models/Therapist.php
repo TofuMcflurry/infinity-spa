@@ -18,6 +18,10 @@ class Therapist extends Model
         'gender',
         'specialty',
         'is_active',
+        'day_off',
+        'shift_start',
+        'shift_end',
+        'crosses_midnight',
     ];
 
     protected $casts = [

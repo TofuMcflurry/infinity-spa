@@ -24,12 +24,14 @@ Route::get('/', function () {
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard',     fn() => Inertia::render('Dashboard'))->name('dashboard');
-    Route::get('/book-session',  fn() => Inertia::render('Bookings'))->name('bookings');
-    Route::get('/my-bookings',   fn() => Inertia::render('MyBookings'))->name('my.bookings');
-    Route::get('/therapists', fn() => Inertia::render('Therapists'))->name('therapists');
-    Route::get('/my-profile',    fn() => Inertia::render('Profile'))->name('my.profile');
-    Route::get('/services',      fn() => Inertia::render('Services'))->name('services');
+    Route::middleware('customer')->group(function () {
+        Route::get('/dashboard',    fn() => Inertia::render('Dashboard'))->name('dashboard');
+        Route::get('/book-session', fn() => Inertia::render('Bookings'))->name('bookings');
+        Route::get('/my-bookings',  fn() => Inertia::render('MyBookings'))->name('my.bookings');
+        Route::get('/therapists',   fn() => Inertia::render('Therapists'))->name('therapists');
+        Route::get('/my-profile',   fn() => Inertia::render('Profile'))->name('my.profile');
+        Route::get('/services',     fn() => Inertia::render('Services'))->name('services');
+    });
 
     // ── API Routes ────────────────────────────────────────────────────────────
     Route::prefix('api')->group(function () {
@@ -93,19 +95,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/downpayment/verify',       [DownpaymentController::class, 'verify'])->name('api.downpayment.verify');
 
         // Therapist status updates
-        Route::post('/therapist/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute'])->name('api.therapist.en-route');
-        Route::post('/therapist/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived'])->name('api.therapist.arrived');
+        Route::middleware('therapist')->group(function () {
+            Route::post('/therapist/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute'])->name('api.therapist.en-route');
+            Route::post('/therapist/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived'])->name('api.therapist.arrived');
+        });
     });
 });
 
 // ── Therapist Routes ──────────────────────────────────────────────────────────
-Route::middleware(['auth', 'verified'])
+Route::middleware(['auth', 'verified', 'therapist'])
     ->prefix('therapist')
     ->name('therapist.')
     ->group(function () {
+        // Pages
         Route::get('/dashboard', fn() => Inertia::render('Therapist/Dashboard'))
             ->name('dashboard');
+        Route::get('/bookings',  fn() => Inertia::render('Therapist/Bookings'))
+            ->name('bookings');
+        Route::get('/profile',   fn() => Inertia::render('Therapist/Profile'))
+            ->name('profile');
 
+        // API
         Route::prefix('api')->group(function () {
             Route::get('/bookings',                     [TherapistBookingController::class, 'index'])
                 ->name('api.bookings');
@@ -115,6 +125,12 @@ Route::middleware(['auth', 'verified'])
                 ->name('api.bookings.reject');
             Route::post('/bookings/{booking}/complete', [TherapistBookingController::class, 'complete'])
                 ->name('api.bookings.complete');
+            Route::get('/profile',                      [TherapistBookingController::class, 'profile'])
+                ->name('api.profile');
+            Route::post('/profile',                     [TherapistBookingController::class, 'updateProfile'])
+                ->name('api.profile.update');
+            Route::post('/profile/avatar',              [TherapistBookingController::class, 'updateAvatar'])
+                ->name('api.profile.avatar');
         });
     });
 

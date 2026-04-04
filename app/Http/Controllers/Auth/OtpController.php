@@ -66,7 +66,8 @@ class OtpController extends Controller
             // Regenerate session
             $request->session()->regenerate();
 
-            return redirect()->intended('dashboard');
+            $destination = $user->isTherapist() ? '/therapist/dashboard' : '/dashboard';
+            return redirect()->intended($destination);
         }
 
         return back()->withErrors([

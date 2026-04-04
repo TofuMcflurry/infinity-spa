@@ -114,6 +114,74 @@ class TherapistBookingController extends Controller
         ]);
     }
 
+    // ── Get therapist profile ─────────────────────────────────────────────────
+    public function profile()
+    {
+        $therapist = auth()->user()->therapist;
+        $therapist->load('user', 'zones');
+
+        return response()->json([
+            'name'             => $therapist->user->name,
+            'email'            => $therapist->user->email,
+            'phone'            => $therapist->user->phone,
+            'avatar'           => $therapist->user->avatar,
+            'bio'              => $therapist->bio,
+            'specialty'        => $therapist->specialty,
+            'experience_years' => $therapist->experience_years,
+            'gender'           => $therapist->gender,
+            'base_location'    => $therapist->base_location,
+            'rating'           => $therapist->rating,
+            'is_active'        => $therapist->is_active,
+            'day_off'          => $therapist->day_off,
+            'shift_start'      => $therapist->shift_start,
+            'shift_end'        => $therapist->shift_end,
+            'crosses_midnight' => $therapist->crosses_midnight,
+            'zones'            => $therapist->zones,
+        ]);
+    }
+
+    // ── Update therapist profile ──────────────────────────────────────────────
+    public function updateProfile(Request $request)
+    {
+        $request->validate([
+            'bio'   => 'nullable|string|max:1000',
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        $user      = auth()->user();
+        $therapist = $user->therapist;
+
+        if ($request->has('bio')) {
+            $therapist->update(['bio' => $request->bio]);
+        }
+
+        if ($request->has('phone')) {
+            $user->update(['phone' => $request->phone]);
+        }
+
+        return response()->json(['message' => 'Profile updated successfully.']);
+    }
+
+    // ── Upload avatar ─────────────────────────────────────────────────────────
+    public function updateAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
+        ]);
+
+        $user = auth()->user();
+
+        $path = $request->file('avatar')->store('avatars', 'public');
+        $url  = asset('storage/' . $path);
+
+        $user->update(['avatar' => $url]);
+
+        return response()->json([
+            'message' => 'Avatar updated successfully.',
+            'avatar'  => $url,
+        ]);
+    }
+
     // ── Authorize therapist ───────────────────────────────────────────────────
     private function authorizeTherapist(Booking $booking): void
     {

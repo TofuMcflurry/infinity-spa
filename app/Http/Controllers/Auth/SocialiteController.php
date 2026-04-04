@@ -64,7 +64,8 @@ class SocialiteController extends Controller
 
             // Log the user in
             Auth::login($user);
-            return redirect()->intended('dashboard');
+            $destination = $user->isTherapist() ? '/therapist/dashboard' : '/dashboard';
+            return redirect()->intended($destination);
 
         } catch (\Exception $e) {
             return redirect()->route('login')->withErrors([

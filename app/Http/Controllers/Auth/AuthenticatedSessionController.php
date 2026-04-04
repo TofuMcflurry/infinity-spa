@@ -61,8 +61,8 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('otp.form', ['email' => $user->email]);
         }
 
-        // GAMITIN ITO - direct path
-        return redirect()->intended('/dashboard');
+        $destination = $user->isTherapist() ? '/therapist/dashboard' : '/dashboard';
+        return redirect()->intended($destination);
     }
 
     /**
