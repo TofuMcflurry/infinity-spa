@@ -1,6 +1,12 @@
 import '../css/app.css';
-import '../css/dashboard.css'; 
+import '../css/dashboard.css';
 import './bootstrap';
+
+// Apply saved theme before first render to prevent flash
+(function () {
+    const t = localStorage.getItem('theme') ?? 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+})();
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';

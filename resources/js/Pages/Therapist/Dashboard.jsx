@@ -113,8 +113,8 @@ function StatCard({ icon: Icon, label, value, accent, delay = 0 }) {
             transition={{ delay }}
             className="relative overflow-hidden rounded-2xl border p-5"
             style={{
-                background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)',
-                borderColor: '#1e2740',
+                background: 'var(--theme-card)',
+                borderColor: 'var(--theme-border)',
             }}
         >
             <div
@@ -123,10 +123,10 @@ function StatCard({ icon: Icon, label, value, accent, delay = 0 }) {
             />
             <div className="relative z-10 flex items-start justify-between">
                 <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--theme-text-muted)' }}>
                         {label}
                     </p>
-                    <p className="text-2xl font-display font-bold text-white">{value}</p>
+                    <p className="text-2xl font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>{value}</p>
                 </div>
                 <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -178,8 +178,8 @@ function ActiveSessionTracker({ bookings, onAction, actionLoading }) {
             transition={{ delay: 0.25 }}
             className="rounded-2xl border p-6"
             style={{
-                background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)',
-                borderColor: '#1e2740',
+                background: 'var(--theme-card)',
+                borderColor: 'var(--theme-border)',
             }}
         >
             {/* Top: pulse badge + service + customer */}
@@ -194,12 +194,12 @@ function ActiveSessionTracker({ bookings, onAction, actionLoading }) {
                             Active Session
                         </span>
                     </div>
-                    <h3 className="font-display font-bold text-white text-lg leading-tight">
+                    <h3 className="font-display font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                         {activeBooking.service?.name ?? '—'}
                     </h3>
                     <div className="flex items-center gap-1.5 mt-1">
-                        <User size={12} style={{ color: '#64748b' }} />
-                        <p className="text-sm" style={{ color: '#94a3b8' }}>
+                        <User size={12} style={{ color: 'var(--theme-text-muted)' }} />
+                        <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>
                             {activeBooking.customer?.name ?? '—'}
                         </p>
                     </div>
@@ -220,7 +220,7 @@ function ActiveSessionTracker({ bookings, onAction, actionLoading }) {
                                 <div
                                     className="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all"
                                     style={{
-                                        borderColor: isDone ? '#e2b764' : '#1e2740',
+                                        borderColor: isDone ? '#e2b764' : 'var(--theme-border)',
                                         background:  isDone ? 'rgba(226,183,100,0.12)' : 'transparent',
                                     }}
                                 >
@@ -239,7 +239,7 @@ function ActiveSessionTracker({ bookings, onAction, actionLoading }) {
                             {!isLast && (
                                 <div
                                     className="flex-1 h-0.5 mx-1 mb-4"
-                                    style={{ background: idx < currentIndex ? '#e2b764' : '#1e2740' }}
+                                    style={{ background: idx < currentIndex ? '#e2b764' : 'var(--theme-border)' }}
                                 />
                             )}
                         </div>
@@ -252,12 +252,12 @@ function ActiveSessionTracker({ bookings, onAction, actionLoading }) {
                 {activeBooking.location_address && (
                     <div className="flex items-start gap-2">
                         <MapPin size={13} className="mt-0.5 flex-shrink-0" style={{ color: '#e2b764' }} />
-                        <p className="text-xs" style={{ color: '#94a3b8' }}>{activeBooking.location_address}</p>
+                        <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>{activeBooking.location_address}</p>
                     </div>
                 )}
                 <div className="flex items-center gap-2">
-                    <Clock size={13} style={{ color: '#64748b' }} />
-                    <p className="text-xs" style={{ color: '#64748b' }}>{fmt(activeBooking.scheduled_start)}</p>
+                    <Clock size={13} style={{ color: 'var(--theme-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{fmt(activeBooking.scheduled_start)}</p>
                 </div>
             </div>
 
@@ -335,14 +335,14 @@ function RecentBookings({ bookings, loading }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0f1629', borderColor: '#1e2740' }}
+            style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
         >
             {/* Header */}
             <div
                 className="flex items-center justify-between px-5 py-4 border-b"
-                style={{ borderColor: '#1e2740' }}
+                style={{ borderColor: 'var(--theme-border)' }}
             >
-                <h3 className="font-display font-bold text-white text-sm">Recent Bookings</h3>
+                <h3 className="font-display font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>Recent Bookings</h3>
                 <Link
                     href="/therapist/bookings"
                     className="text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -353,20 +353,20 @@ function RecentBookings({ bookings, loading }) {
             </div>
 
             {/* List */}
-            <div className="divide-y" style={{ borderColor: '#1e2740' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
                 {loading ? (
                     [0, 1, 2].map(i => (
                         <div key={i} className="px-5 py-4 flex items-center justify-between gap-3">
                             <div className="space-y-2 flex-1">
-                                <div className="h-3.5 w-32 rounded animate-pulse" style={{ background: '#141d33' }} />
-                                <div className="h-3 w-24 rounded animate-pulse" style={{ background: '#141d33' }} />
+                                <div className="h-3.5 w-32 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+                                <div className="h-3 w-24 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
                             </div>
-                            <div className="h-6 w-20 rounded-full animate-pulse" style={{ background: '#141d33' }} />
+                            <div className="h-6 w-20 rounded-full animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
                         </div>
                     ))
                 ) : sorted.length === 0 ? (
                     <div className="px-5 py-10 text-center">
-                        <p className="text-sm" style={{ color: '#64748b' }}>No bookings yet</p>
+                        <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No bookings yet</p>
                     </div>
                 ) : (
                     sorted.map(booking => (
@@ -375,13 +375,13 @@ function RecentBookings({ bookings, loading }) {
                             className="px-5 py-4 flex items-center justify-between gap-3"
                         >
                             <div className="min-w-0">
-                                <p className="text-sm font-medium text-white truncate">
+                                <p className="text-sm font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>
                                     {booking.service?.name ?? '—'}
                                 </p>
-                                <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: '#64748b' }}>
+                                <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--theme-text-muted)' }}>
                                     <User size={11} />
                                     {booking.customer?.name ?? '—'}
-                                    <span style={{ color: '#1e2740' }}>·</span>
+                                    <span style={{ color: 'var(--theme-border)' }}>·</span>
                                     {fmt(booking.scheduled_start)}
                                 </p>
                             </div>
@@ -465,25 +465,25 @@ export default function Dashboard() {
 
     return (
         <TherapistLayout>
-            <div className="min-h-screen pb-24 md:pb-8" style={{ background: '#0b1120' }}>
+            <div className="min-h-screen pb-24 md:pb-8" style={{ background: 'var(--theme-bg)' }}>
 
                 {/* ── Page header ─────────────────────────────────────────── */}
                 <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-2">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs" style={{ color: '#64748b' }}>{greeting},</p>
-                            <h1 className="font-display font-bold text-white text-2xl">{user?.name ?? 'Therapist'}</h1>
+                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{greeting},</p>
+                            <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</h1>
                         </div>
                         <button
                             onClick={fetchBookings}
                             disabled={loading}
                             className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-                            style={{ background: '#141d33', border: '1px solid #1e2740' }}
+                            style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
                             title="Refresh"
                         >
                             <RefreshCw
                                 size={15}
-                                style={{ color: '#94a3b8' }}
+                                style={{ color: 'var(--theme-text-2)' }}
                                 className={loading ? 'animate-spin' : ''}
                             />
                         </button>
@@ -496,7 +496,7 @@ export default function Dashboard() {
                     {loading ? (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[0, 1, 2, 3].map(i => (
-                                <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: '#141d33' }} />
+                                <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
                             ))}
                         </div>
                     ) : (
@@ -533,7 +533,7 @@ export default function Dashboard() {
                         className="fixed bottom-6 left-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-semibold"
                         style={{
                             transform: 'translateX(-50%)',
-                            background: toast.type === 'error' ? '#7f1d1d' : '#0f1629',
+                            background: toast.type === 'error' ? '#7f1d1d' : 'var(--theme-card)',
                             border: `1px solid ${toast.type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(226,183,100,0.3)'}`,
                             color: toast.type === 'error' ? '#fca5a5' : '#e2b764',
                             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',

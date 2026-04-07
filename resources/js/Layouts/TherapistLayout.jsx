@@ -6,6 +6,7 @@ import {
     Crown, LogOut, Menu, X, ChevronRight,
     Bell, CheckCheck,
 } from 'lucide-react';
+import ThemeToggle from '@/Components/ThemeToggle';
 
 // ── Nav items ────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
@@ -98,9 +99,9 @@ function NotificationBell() {
             <button
                 onClick={() => setOpen(o => !o)}
                 className="relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-                style={{ background: '#141d33', border: '1px solid #1e2740' }}
+                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
             >
-                <Bell size={16} style={{ color: '#94a3b8' }} />
+                <Bell size={16} style={{ color: 'var(--theme-text-2)' }} />
                 {unreadCount > 0 && (
                     <span
                         className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full text-[10px] font-bold flex items-center justify-center px-1"
@@ -114,7 +115,6 @@ function NotificationBell() {
             <AnimatePresence>
                 {open && (
                     <>
-                        {/* backdrop */}
                         <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
                         <motion.div
@@ -123,16 +123,15 @@ function NotificationBell() {
                             exit={{ opacity: 0,  y: -8, scale: 0.95  }}
                             transition={{ duration: 0.15 }}
                             className="absolute right-0 top-11 z-50 w-80 rounded-2xl shadow-2xl overflow-hidden"
-                            style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                            style={{ background: 'var(--theme-notif-bg)', border: '1px solid var(--theme-border)' }}
                         >
-                            {/* Header */}
                             <div
                                 className="flex items-center justify-between px-4 py-3 border-b"
-                                style={{ borderColor: '#1e2740' }}
+                                style={{ borderColor: 'var(--theme-border)' }}
                             >
                                 <div className="flex items-center gap-2">
                                     <Bell size={13} style={{ color: '#e2b764' }} />
-                                    <span className="text-sm font-display font-bold text-white">Notifications</span>
+                                    <span className="text-sm font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>Notifications</span>
                                     {unreadCount > 0 && (
                                         <span
                                             className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
@@ -145,22 +144,21 @@ function NotificationBell() {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={markAllRead}
-                                        className="flex items-center gap-1 text-[10px] font-semibold transition-colors"
-                                        style={{ color: '#64748b' }}
+                                        className="flex items-center gap-1 text-[10px] font-semibold"
+                                        style={{ color: 'var(--theme-text-muted)' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#e2b764'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
                                     >
                                         <CheckCheck size={11} /> Mark all read
                                     </button>
                                 )}
                             </div>
 
-                            {/* List */}
                             <div className="max-h-80 overflow-y-auto">
                                 {notifications.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-10 text-center">
-                                        <Bell size={24} style={{ color: '#1e2740' }} />
-                                        <p className="text-sm mt-3" style={{ color: '#64748b' }}>No notifications yet</p>
+                                        <Bell size={24} style={{ color: 'var(--theme-border)' }} />
+                                        <p className="text-sm mt-3" style={{ color: 'var(--theme-text-muted)' }}>No notifications yet</p>
                                     </div>
                                 ) : (
                                     notifications.map(n => (
@@ -169,23 +167,20 @@ function NotificationBell() {
                                             onClick={() => { markRead(n.id); setOpen(false); }}
                                             className="w-full text-left px-4 py-3 transition-colors border-b last:border-b-0"
                                             style={{
-                                                borderColor: '#1e2740',
+                                                borderColor: 'var(--theme-border)',
                                                 background: n.read ? 'transparent' : 'rgba(226,183,100,0.04)',
                                             }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-divider)'}
                                             onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(226,183,100,0.04)'}
                                         >
                                             <div className="flex items-start gap-3">
                                                 {!n.read && (
-                                                    <span
-                                                        className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                                                        style={{ background: '#e2b764' }}
-                                                    />
+                                                    <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
                                                 )}
                                                 <div className={`flex-1 min-w-0 ${n.read ? 'pl-4' : ''}`}>
-                                                    <p className="text-xs font-semibold text-white leading-snug">{n.title}</p>
-                                                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#94a3b8' }}>{n.message}</p>
-                                                    <p className="text-[10px] mt-1" style={{ color: '#64748b' }}>{timeAgo(n.created_at)}</p>
+                                                    <p className="text-xs font-semibold leading-snug" style={{ color: 'var(--theme-text-head)' }}>{n.title}</p>
+                                                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>{n.message}</p>
+                                                    <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{timeAgo(n.created_at)}</p>
                                                 </div>
                                             </div>
                                         </button>
@@ -280,8 +275,8 @@ function TherapistSidebar({ user }) {
                         </div>
                     </div>
                     <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{user?.name ?? 'Therapist'}</p>
-                        <p className="text-[10px] text-muted-foreground">Therapist</p>
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Therapist</p>
                     </div>
                 </div>
             </div>
@@ -295,8 +290,8 @@ function MobileTopBar({ user, menuOpen, setMenuOpen }) {
         <header
             className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b"
             style={{
-                background: 'rgba(11,17,32,0.9)',
-                borderColor: '#1e2740',
+                background: 'var(--theme-header-bg)',
+                borderColor: 'var(--theme-border)',
                 backdropFilter: 'blur(16px)',
             }}
         >
@@ -308,21 +303,22 @@ function MobileTopBar({ user, menuOpen, setMenuOpen }) {
                     <Crown size={14} />
                 </div>
                 <div>
-                    <p className="text-[10px]" style={{ color: '#64748b' }}>Infinity Home Spa</p>
-                    <p className="text-sm font-display font-bold text-white leading-tight">{user?.name ?? 'Therapist'}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Infinity Home Spa</p>
+                    <p className="text-sm font-display font-bold leading-tight" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
                 </div>
             </div>
 
             <div className="flex items-center gap-2">
+                <ThemeToggle />
                 <NotificationBell />
                 <button
                     onClick={() => setMenuOpen(o => !o)}
                     className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{ background: '#141d33', border: '1px solid #1e2740' }}
+                    style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
                 >
                     {menuOpen
                         ? <X size={16} style={{ color: '#e2b764' }} />
-                        : <Menu size={16} style={{ color: '#94a3b8' }} />
+                        : <Menu size={16} style={{ color: 'var(--theme-text-2)' }} />
                     }
                 </button>
             </div>
@@ -344,7 +340,7 @@ function MobileMenu({ user, onClose }) {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
             className="md:hidden fixed inset-x-0 top-[57px] z-30 border-b shadow-2xl"
-            style={{ background: '#0f1629', borderColor: '#1e2740' }}
+            style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
         >
             <nav className="p-3 space-y-1">
                 {NAV_ITEMS.map(item => {
@@ -356,7 +352,7 @@ function MobileMenu({ user, onClose }) {
                             <div
                                 key={item.label}
                                 className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
-                                style={{ color: '#374151' }}
+                                style={{ color: 'var(--theme-text-muted)', opacity: 0.5 }}
                             >
                                 <Icon size={16} className="flex-shrink-0" />
                                 <span className="flex-1">{item.label}</span>
@@ -382,7 +378,7 @@ function MobileMenu({ user, onClose }) {
                             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
                             style={{
                                 background: active ? 'rgba(226,183,100,0.1)' : 'transparent',
-                                color:      active ? '#e2b764' : '#94a3b8',
+                                color:      active ? '#e2b764' : 'var(--theme-text-2)',
                                 border:     active ? '1px solid rgba(226,183,100,0.2)' : '1px solid transparent',
                             }}
                         >
@@ -393,7 +389,7 @@ function MobileMenu({ user, onClose }) {
                 })}
             </nav>
 
-            <div className="p-3 border-t" style={{ borderColor: '#1e2740' }}>
+            <div className="p-3 border-t" style={{ borderColor: 'var(--theme-border)' }}>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5 px-3 py-2">
                         <div
@@ -403,8 +399,8 @@ function MobileMenu({ user, onClose }) {
                             {initials(user?.name)}
                         </div>
                         <div>
-                            <p className="text-sm font-medium text-white">{user?.name ?? 'Therapist'}</p>
-                            <p className="text-[10px]" style={{ color: '#64748b' }}>Therapist</p>
+                            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
+                            <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Therapist</p>
                         </div>
                     </div>
                     <button
@@ -434,10 +430,10 @@ function TherapistBottomNav() {
         <nav
             className="fixed bottom-0 left-0 right-0 z-50 md:hidden px-2 pb-[env(safe-area-inset-bottom)]"
             style={{
-                background: 'hsla(30,10%,8%,0.9)',
+                background: 'var(--theme-header-bg)',
                 backdropFilter: 'blur(20px)',
-                borderTop: '1px solid hsla(43,72%,55%,0.15)',
-                boxShadow: '0 -4px 24px hsla(0,0%,0%,0.4)',
+                borderTop: '1px solid var(--theme-border)',
+                boxShadow: '0 -4px 24px rgba(0,0,0,0.2)',
             }}
         >
             <div className="flex items-center justify-around py-2">
@@ -452,8 +448,8 @@ function TherapistBottomNav() {
                                 className="relative flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px]"
                                 style={{ opacity: 0.3, cursor: 'not-allowed' }}
                             >
-                                <Icon className="w-5 h-5" style={{ color: '#64748b' }} />
-                                <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>{tab.label}</span>
+                                <Icon className="w-5 h-5" style={{ color: 'var(--theme-text-muted)' }} />
+                                <span className="text-[10px] font-medium" style={{ color: 'var(--theme-text-muted)' }}>{tab.label}</span>
                             </div>
                         );
                     }
@@ -474,11 +470,11 @@ function TherapistBottomNav() {
                             )}
                             <Icon
                                 className="w-5 h-5 transition-colors"
-                                style={{ color: active ? '#e2b764' : '#64748b' }}
+                                style={{ color: active ? '#e2b764' : 'var(--theme-text-muted)' }}
                             />
                             <span
                                 className="text-[10px] font-medium transition-colors"
-                                style={{ color: active ? '#e2b764' : '#64748b' }}
+                                style={{ color: active ? '#e2b764' : 'var(--theme-text-muted)' }}
                             >
                                 {tab.label}
                             </span>
@@ -502,7 +498,7 @@ export default function TherapistLayout({ children }) {
     const initials  = user?.name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'T';
 
     return (
-        <div className="flex min-h-screen w-full" style={{ background: '#0b1120' }}>
+        <div className="flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
             <TherapistSidebar user={user} />
 
             <div className="flex-1 min-h-screen overflow-y-auto pb-24 md:pb-0">
@@ -527,7 +523,7 @@ export default function TherapistLayout({ children }) {
                 {/* ── Desktop header ── */}
                 <header
                     className="hidden md:flex items-center justify-between border-b backdrop-blur-xl sticky top-0 z-30"
-                    style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}
+                    style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}
                 >
                     <div className="max-w-7xl mx-auto w-full px-6 h-20 flex items-center justify-between">
                         {/* Left: Avatar + Greeting */}
@@ -539,22 +535,23 @@ export default function TherapistLayout({ children }) {
                                 </div>
                             </div>
                             <div>
-                                <h1 className="text-lg font-display font-semibold text-white leading-tight">
+                                <h1 className="text-lg font-display font-semibold leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                                     {greeting}, {firstName}
                                 </h1>
-                                <p className="text-xs text-muted-foreground">Therapist Portal</p>
+                                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Therapist Portal</p>
                             </div>
                         </div>
 
-                        {/* Right: Notification + Logout */}
+                        {/* Right: Theme + Notification + Logout */}
                         <div className="flex items-center gap-3">
+                            <ThemeToggle />
                             <NotificationBell />
                             <button
                                 onClick={() => router.post(route('logout'))}
                                 className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                                style={{ background: '#141d33', color: '#94a3b8' }}
+                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#141d33'; e.currentTarget.style.color = '#94a3b8'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-2)'; }}
                                 title="Logout"
                             >
                                 <LogOut size={18} />

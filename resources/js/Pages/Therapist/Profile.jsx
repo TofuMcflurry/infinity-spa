@@ -38,8 +38,8 @@ const DUBAI_ZONES = [
 // ── Section label ─────────────────────────────────────────────────────────────
 function SectionLabel({ children }) {
     return (
-        <div className="mb-4 pb-2 border-b border-gray-700/30">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <div className="mb-4 pb-2 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
                 {children}
             </p>
         </div>
@@ -54,8 +54,8 @@ function InfoRow({ icon: Icon, iconColor, label, value }) {
                 <Icon size={16} style={{ color: iconColor }} />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
-                <p className="text-sm font-medium text-white mt-0.5">{value || '—'}</p>
+                <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>{label}</p>
+                <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--theme-text-head)' }}>{value || '—'}</p>
             </div>
         </div>
     );
@@ -84,7 +84,10 @@ function StarRating({ rating }) {
 // ── Card component ────────────────────────────────────────────────────────────
 function Card({ children, className = '' }) {
     return (
-        <div className={`bg-[#0f1222] rounded-xl border border-gray-800/50 overflow-hidden ${className}`}>
+        <div
+            className={`rounded-xl overflow-hidden ${className}`}
+            style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
+        >
             {children}
         </div>
     );
@@ -97,10 +100,10 @@ function Skeleton() {
             {[1, 2, 3, 4].map(i => (
                 <Card key={i}>
                     <div className="p-5 animate-pulse">
-                        <div className="h-4 bg-gray-700/50 rounded w-1/4 mb-4"></div>
+                        <div className="h-4 rounded w-1/4 mb-4" style={{ background: 'var(--theme-skeleton)' }}></div>
                         <div className="space-y-3">
-                            <div className="h-10 bg-gray-700/30 rounded"></div>
-                            <div className="h-10 bg-gray-700/30 rounded"></div>
+                            <div className="h-10 rounded" style={{ background: 'var(--theme-skeleton)' }}></div>
+                            <div className="h-10 rounded" style={{ background: 'var(--theme-skeleton)' }}></div>
                         </div>
                     </div>
                 </Card>
@@ -240,12 +243,12 @@ export default function Profile() {
 
     return (
         <TherapistLayout>
-            <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+            <div className="min-h-screen" style={{ background: 'var(--theme-bg)' }}>
                 
                 {/* Page header */}
                 <div className="max-w-5xl mx-auto px-4 md:px-6 pt-8 pb-4">
-                    <h1 className="text-3xl font-bold text-white tracking-tight">My Profile</h1>
-                    <p className="text-gray-400 mt-1">Manage your account and professional details</p>
+                    <h1 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--theme-text-head)' }}>My Profile</h1>
+                    <p className="mt-1" style={{ color: 'var(--theme-text-muted)' }}>Manage your account and professional details</p>
                 </div>
 
                 <div className="max-w-5xl mx-auto px-4 md:px-6 pb-12">
@@ -287,7 +290,7 @@ export default function Profile() {
 
                                         {/* Identity Section */}
                                         <div className="flex-1">
-                                            <h2 className="text-2xl font-bold text-white">{profile.name}</h2>
+                                            <h2 className="text-2xl font-bold" style={{ color: 'var(--theme-text-head)' }}>{profile.name}</h2>
                                             <div className="flex flex-wrap items-center gap-2 mt-2">
                                                 <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold bg-[#e2b764]/10 border border-[#e2b764]/30 text-[#e2b764]">
                                                     <Shield size={12} /> Therapist
@@ -297,7 +300,7 @@ export default function Profile() {
                                                         <CheckCircle2 size={12} /> Available
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold bg-gray-500/10 border border-gray-500/30 text-gray-400">
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold" style={{ background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.3)', color: 'var(--theme-text-muted)' }}>
                                                         Unavailable
                                                     </span>
                                                 )}
@@ -312,11 +315,12 @@ export default function Profile() {
                                             <button
                                                 onClick={toggleAvailability}
                                                 disabled={togglingActive}
-                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                                                    profile.is_active
-                                                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                                                        : 'bg-gray-500/10 border border-gray-500/30 text-gray-400 hover:bg-gray-500/20'
-                                                } disabled:opacity-50`}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-50"
+                                                style={{
+                                                    background: profile.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(107,114,128,0.1)',
+                                                    border: `1px solid ${profile.is_active ? 'rgba(16,185,129,0.3)' : 'rgba(107,114,128,0.3)'}`,
+                                                    color: profile.is_active ? '#10b981' : 'var(--theme-text-muted)',
+                                                }}
                                             >
                                                 {profile.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                                                 {profile.is_active ? 'Available' : 'Unavailable'}
@@ -353,15 +357,15 @@ export default function Profile() {
                                                 {profile.zones.map((zone, idx) => (
                                                     <div
                                                         key={idx}
-                                                        className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                                                            zone.zone_name === profile.current_zone
-                                                                ? 'bg-[#e2b764]/5 border border-[#e2b764]/20'
-                                                                : 'bg-gray-800/30 border border-gray-700/30'
-                                                        }`}
+                                                        className="flex items-center justify-between p-3 rounded-lg transition-all"
+                                                        style={zone.zone_name === profile.current_zone
+                                                            ? { background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }
+                                                            : { background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }
+                                                        }
                                                     >
                                                         <div className="flex items-center gap-2">
                                                             <MapPin size={14} className="text-[#e2b764]" />
-                                                            <span className="text-sm font-medium text-white">{zone.zone_name}</span>
+                                                            <span className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{zone.zone_name}</span>
                                                             {zone.zone_name === profile.current_zone && (
                                                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#e2b764]/20 text-[#e2b764]">
                                                                     Current
@@ -376,8 +380,8 @@ export default function Profile() {
                                             </div>
                                         ) : (
                                             <div className="text-center py-8">
-                                                <MapPin size={32} className="text-gray-600 mx-auto mb-2" />
-                                                <p className="text-sm text-gray-400">No service zones configured</p>
+                                                <MapPin size={32} className="mx-auto mb-2" style={{ color: 'var(--theme-text-muted)' }} />
+                                                <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No service zones configured</p>
                                             </div>
                                         )}
                                     </div>
@@ -388,7 +392,7 @@ export default function Profile() {
                             <Card>
                                 <div className="p-5">
                                     <SectionLabel>About Me</SectionLabel>
-                                    <p className="text-gray-300 leading-relaxed">
+                                    <p className="leading-relaxed" style={{ color: 'var(--theme-text)' }}>
                                         {profile.bio || 'No bio has been added yet.'}
                                     </p>
                                 </div>
@@ -412,12 +416,12 @@ export default function Profile() {
                                     <div className="space-y-3">
                                         {/* Email */}
                                         <div className="flex items-start gap-3 py-2">
-                                            <Mail size={16} className="text-gray-400 mt-0.5" />
+                                            <Mail size={16} className="mt-0.5" style={{ color: 'var(--theme-text-muted)' }} />
                                             <div className="flex-1">
-                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Email</p>
-                                                <p className="text-sm text-gray-300 mt-0.5">{profile.email}</p>
+                                                <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Email</p>
+                                                <p className="text-sm mt-0.5" style={{ color: 'var(--theme-text-2)' }}>{profile.email}</p>
                                             </div>
-                                            <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700/50 text-gray-400">read-only</span>
+                                            <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>read-only</span>
                                         </div>
 
                                         {/* Phone */}
@@ -425,17 +429,17 @@ export default function Profile() {
                                             {editingContact ? (
                                                 <motion.div key="edit" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3 pt-2">
                                                     <div>
-                                                        <label className="block text-xs font-medium text-gray-400 mb-1">Phone Number</label>
+                                                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--theme-text-muted)' }}>Phone Number</label>
                                                         <input
                                                             type="tel"
                                                             value={phoneValue}
                                                             onChange={e => setPhoneValue(e.target.value)}
                                                             placeholder="+971 50 000 0000"
-                                                            className="w-full px-3 py-2 rounded-lg bg-gray-800/50 border border-gray-700 text-white text-sm focus:outline-none focus:border-[#e2b764] transition-colors"
+                                                            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-colors" style={{ background: 'var(--theme-input-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-head)' }}
                                                         />
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => setEditingContact(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+                                                        <button onClick={() => setEditingContact(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
                                                             <X size={12} /> Cancel
                                                         </button>
                                                         <button onClick={saveContact} disabled={savingContact} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#e2b764] text-gray-900 hover:bg-[#d4a94e] transition-colors disabled:opacity-50">
@@ -448,8 +452,8 @@ export default function Profile() {
                                                 <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 py-2">
                                                     <Phone size={16} className="text-emerald-400 mt-0.5" />
                                                     <div className="flex-1">
-                                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">Phone</p>
-                                                        <p className="text-sm text-white mt-0.5">{profile.phone || 'Not set'}</p>
+                                                        <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Phone</p>
+                                                        <p className="text-sm mt-0.5" style={{ color: 'var(--theme-text-head)' }}>{profile.phone || 'Not set'}</p>
                                                     </div>
                                                 </motion.div>
                                             )}
@@ -479,15 +483,15 @@ export default function Profile() {
                                                 <select
                                                     value={zoneValue}
                                                     onChange={e => setZoneValue(e.target.value)}
-                                                    className="w-full px-3 py-2 rounded-lg bg-gray-800/50 border border-gray-700 text-white text-sm focus:outline-none focus:border-[#e2b764] transition-colors"
+                                                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-colors" style={{ background: 'var(--theme-input-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-head)' }}
                                                 >
-                                                    <option value="" disabled className="text-gray-400">Select a zone…</option>
+                                                    <option value="" disabled className="">Select a zone…</option>
                                                     {DUBAI_ZONES.map(zone => (
                                                         <option key={zone} value={zone}>{zone}</option>
                                                     ))}
                                                 </select>
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setEditingLocation(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+                                                    <button onClick={() => setEditingLocation(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
                                                         <X size={12} /> Cancel
                                                     </button>
                                                     <button onClick={saveLocation} disabled={savingLocation || !zoneValue} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#e2b764] text-gray-900 hover:bg-[#d4a94e] transition-colors disabled:opacity-50">
@@ -503,8 +507,8 @@ export default function Profile() {
                                                         <div className="flex items-center gap-3">
                                                             <MapPin size={18} className="text-[#e2b764]" />
                                                             <div>
-                                                                <p className="text-sm font-semibold text-white">{profile.current_zone}</p>
-                                                                <p className="text-xs text-gray-400">Current zone</p>
+                                                                <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{profile.current_zone}</p>
+                                                                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Current zone</p>
                                                             </div>
                                                         </div>
                                                         {currentZoneTravelTime && (
@@ -515,8 +519,8 @@ export default function Profile() {
                                                     </div>
                                                 ) : (
                                                     <div className="text-center py-6">
-                                                        <MapPin size={32} className="text-gray-600 mx-auto mb-2" />
-                                                        <p className="text-sm text-gray-400">No current location set</p>
+                                                        <MapPin size={32} className="mx-auto mb-2" style={{ color: 'var(--theme-text-muted)' }} />
+                                                        <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No current location set</p>
                                                     </div>
                                                 )}
                                             </motion.div>

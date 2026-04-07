@@ -1,16 +1,27 @@
 import { Link } from "@inertiajs/react";
+import { useEffect } from "react";
 import spaHero from "@/assets/spa-hero.jpg";
 
 const Index = () => {
+  // ── Force dark theme on welcome page always ──────────────────────────────
+  useEffect(() => {
+    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
+  }, []);
+
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      style={{ background: '#0b0c0e' }}>
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${spaHero})` }}
       />
-      {/* Dark overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/80" />
+      {/* Dark overlay — hardcoded, not CSS variable */}
+      <div className="absolute inset-0"
+        style={{ background: 'linear-gradient(to bottom, rgba(11,12,14,0.7), rgba(11,12,14,0.5), rgba(11,12,14,0.8))' }}
+      />
       {/* Mashrabiya pattern */}
       <div className="absolute inset-0 mashrabiya-pattern" />
 

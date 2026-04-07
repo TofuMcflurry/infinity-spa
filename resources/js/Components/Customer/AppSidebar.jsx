@@ -3,6 +3,7 @@ import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, Histo
 import { Link, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from "@/Components/Customer/LanguageToggle";
+import ThemeToggle from "@/Components/ThemeToggle";
 
 // API helper
 async function apiFetch(url) {
@@ -169,7 +170,10 @@ export default function AppSidebar() {
 
       {/* ── Footer ── */}
       <div className="p-4 border-t border-glass-border space-y-3">
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <div className="flex-1"><LanguageToggle /></div>
+          <ThemeToggle />
+        </div>
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
             {avatarUrl ? (

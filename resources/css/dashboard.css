@@ -4,6 +4,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme CSS variables (dark = default) ────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --theme-bg:           #0b1120;
+  --theme-card:         #0f1629;
+  --theme-card-hover:   #141d33;
+  --theme-border:       #1e2740;
+  --theme-text:         #cbd5e1;
+  --theme-text-head:    #ffffff;
+  --theme-text-2:       #94a3b8;
+  --theme-text-muted:   #64748b;
+  --theme-header-bg:    rgba(11,17,32,0.85);
+  --theme-btn-bg:       #141d33;
+  --theme-input-bg:     #0b1120;
+  --theme-notif-bg:     #0f1629;
+  --theme-sidebar-bg:   hsla(30,10%,8%,0.6);
+  --theme-skeleton:     #141d33;
+  --theme-divider:      rgba(255,255,255,0.03);
+}
+
+[data-theme="light"] {
+  --theme-bg:           #f5f0eb;
+  --theme-card:         #ffffff;
+  --theme-card-hover:   #faf7f4;
+  --theme-border:       #e8e0d8;
+  --theme-text:         #1a1a1a;
+  --theme-text-head:    #1a1a1a;
+  --theme-text-2:       #4a4a4a;
+  --theme-text-muted:   #6b6b6b;
+  --theme-header-bg:    rgba(245,240,235,0.92);
+  --theme-btn-bg:       #ede8e1;
+  --theme-input-bg:     #faf7f4;
+  --theme-notif-bg:     #ffffff;
+  --theme-sidebar-bg:   rgba(250,247,244,0.95);
+  --theme-skeleton:     #ede8e1;
+  --theme-divider:      rgba(0,0,0,0.04);
+}
+
 @layer base {
   :root {
     --background: 228 50% 7%;
@@ -53,6 +91,45 @@
     --sidebar-border: 228 20% 20%;
     --sidebar-ring: 42 65% 58%;
   }
+}
+
+/* ── Light mode overrides (Tailwind tokens) ─────────────────────────────────── */
+[data-theme="light"] {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 42 65% 50%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 30% 94%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 30% 90%;
+  --muted-foreground: 215 16% 47%;
+
+  --accent: 42 65% 50%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 42 65% 50%;
+
+  --gold: 42 65% 50%;
+  --gold-light: 42 70% 65%;
+  --gold-dark: 42 55% 38%;
+  --midnight: 210 40% 98%;
+  --midnight-light: 0 0% 100%;
+  --glass: 0 0% 100%;
+  --glass-border: 214 32% 88%;
 }
 
 @layer base {
@@ -281,4 +358,18 @@
 
 .rdp-head {
   margin-bottom: 2px;
+}
+
+/* ── Light mode component overrides ────────────────────────────────────────── */
+[data-theme="light"] .glass-card {
+  @apply bg-white border border-slate-200 rounded-2xl;
+  backdrop-filter: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .glass-card-strong {
+  background: #faf7f4;
+  border: 1px solid #e8e0d8;
+  backdrop-filter: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }

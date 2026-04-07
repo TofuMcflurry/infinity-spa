@@ -66,6 +66,52 @@
   }
 }
 
+/* ── Light mode overrides ───────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 43 72% 48%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 30% 94%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 210 30% 90%;
+  --muted-foreground: 215 16% 47%;
+
+  --accent: 43 72% 48%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 62.8% 50%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 214 32% 88%;
+  --input: 214 32% 88%;
+  --ring: 43 72% 48%;
+
+  --gold: 43 72% 48%;
+  --gold-light: 43 80% 65%;
+  --gold-dark: 43 60% 36%;
+
+  --glass-bg: hsla(0, 0%, 100%, 0.9);
+  --glass-border: hsla(214, 32%, 88%, 1);
+  --glass-shadow: 0 4px 20px hsla(0, 0%, 0%, 0.08);
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: none;
+  border: 1px solid hsl(214, 32%, 88%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
 @layer base {
   * {
     @apply border-border;

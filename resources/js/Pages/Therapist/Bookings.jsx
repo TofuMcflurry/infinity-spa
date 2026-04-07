@@ -139,13 +139,13 @@ function RejectModal({ booking, onConfirm, onClose, loading }) {
             {/* Modal */}
             <motion.div
                 className="relative w-full max-w-md rounded-2xl border overflow-hidden"
-                style={{ background: '#0f1629', borderColor: '#1e2740' }}
+                style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
                 initial={{ scale: 0.95, y: 16 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.95, y: 16 }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: '#1e2740' }}>
+                <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
                     <div className="flex items-center gap-3">
                         <div
                             className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -154,8 +154,8 @@ function RejectModal({ booking, onConfirm, onClose, loading }) {
                             <XCircle size={15} style={{ color: '#ef4444' }} />
                         </div>
                         <div>
-                            <h3 className="font-display font-bold text-white text-sm">Reject Booking</h3>
-                            <p className="text-[11px]" style={{ color: '#64748b' }}>
+                            <h3 className="font-display font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>Reject Booking</h3>
+                            <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
                                 IHS-{String(booking.id).padStart(4, '0')}
                             </p>
                         </div>
@@ -163,22 +163,22 @@ function RejectModal({ booking, onConfirm, onClose, loading }) {
                     <button
                         onClick={onClose}
                         className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                        style={{ background: '#141d33' }}
+                        style={{ background: 'var(--theme-btn-bg)' }}
                     >
-                        <X size={14} style={{ color: '#64748b' }} />
+                        <X size={14} style={{ color: 'var(--theme-text-muted)' }} />
                     </button>
                 </div>
 
                 {/* Body */}
                 <div className="px-6 py-5 space-y-4">
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>
+                    <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>
                         You are about to reject the booking for{' '}
-                        <span className="text-white font-semibold">{booking.customer?.name ?? 'this customer'}</span>.
+                        <span className="font-semibold" style={{ color: 'var(--theme-text-head)' }}>{booking.customer?.name ?? 'this customer'}</span>.
                         Provide an optional reason below.
                     </p>
 
                     <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>
+                        <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--theme-text-muted)' }}>
                             Reason (optional)
                         </label>
                         <textarea
@@ -188,12 +188,12 @@ function RejectModal({ booking, onConfirm, onClose, loading }) {
                             placeholder="e.g. Schedule conflict, not available in this area…"
                             className="w-full rounded-xl px-4 py-3 text-sm resize-none outline-none transition-colors"
                             style={{
-                                background: '#141d33',
-                                border: '1px solid #1e2740',
-                                color: '#e2e8f0',
+                                background: 'var(--theme-input-bg)',
+                                border: '1px solid var(--theme-border)',
+                                color: 'var(--theme-text)',
                             }}
                             onFocus={e => e.currentTarget.style.borderColor = '#e2b764'}
-                            onBlur={e => e.currentTarget.style.borderColor = '#1e2740'}
+                            onBlur={e => e.currentTarget.style.borderColor = 'var(--theme-border)'}
                         />
                     </div>
 
@@ -201,7 +201,7 @@ function RejectModal({ booking, onConfirm, onClose, loading }) {
                         <button
                             onClick={onClose}
                             className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                            style={{ background: '#141d33', color: '#94a3b8', border: '1px solid #1e2740' }}
+                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}
                         >
                             Cancel
                         </button>
@@ -343,8 +343,8 @@ function BookingCard({ booking, onAction, actionLoading }) {
                 exit={{ opacity: 0, scale: 0.97 }}
                 className="relative overflow-hidden rounded-2xl border p-5"
                 style={{
-                    background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)',
-                    borderColor: '#1e2740',
+                    background: 'var(--theme-card)',
+                    borderColor: 'var(--theme-border)',
                 }}
             >
                 {/* Subtle glow */}
@@ -360,7 +360,7 @@ function BookingCard({ booking, onAction, actionLoading }) {
                             <p className="text-[11px] font-mono font-semibold" style={{ color: '#e2b764' }}>
                                 IHS-{String(booking.id).padStart(4, '0')}
                             </p>
-                            <h4 className="font-display font-bold text-white mt-0.5 text-base leading-tight">
+                            <h4 className="font-display font-bold mt-0.5 text-base leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                                 {booking.service?.name ?? '—'}
                             </h4>
                         </div>
@@ -378,8 +378,8 @@ function BookingCard({ booking, onAction, actionLoading }) {
                                 <User size={13} style={{ color: '#e2b764' }} />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748b' }}>Customer</p>
-                                <p className="text-sm text-white font-medium truncate">{booking.customer?.name ?? '—'}</p>
+                                <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Customer</p>
+                                <p className="text-sm font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{booking.customer?.name ?? '—'}</p>
                             </div>
                         </div>
 
@@ -392,8 +392,8 @@ function BookingCard({ booking, onAction, actionLoading }) {
                                 <Calendar size={13} style={{ color: '#3b82f6' }} />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748b' }}>Date</p>
-                                <p className="text-sm text-white font-medium">{fmt(booking.scheduled_start)}</p>
+                                <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Date</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{fmt(booking.scheduled_start)}</p>
                             </div>
                         </div>
 
@@ -406,8 +406,8 @@ function BookingCard({ booking, onAction, actionLoading }) {
                                 <Clock size={13} style={{ color: '#8b5cf6' }} />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748b' }}>Time</p>
-                                <p className="text-sm text-white font-medium">{fmtTime(booking.scheduled_start)}</p>
+                                <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Time</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{fmtTime(booking.scheduled_start)}</p>
                             </div>
                         </div>
 
@@ -420,8 +420,8 @@ function BookingCard({ booking, onAction, actionLoading }) {
                                 <Banknote size={13} style={{ color: '#10b981' }} />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748b' }}>Fee</p>
-                                <p className="text-sm text-white font-medium">
+                                <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--theme-text-muted)' }}>Fee</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
                                     {booking.service?.price ? `AED ${booking.service.price}` : '—'}
                                 </p>
                             </div>
@@ -432,10 +432,10 @@ function BookingCard({ booking, onAction, actionLoading }) {
                     {booking.location_address && (
                         <div
                             className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
-                            style={{ background: '#0b1120', border: '1px solid #1e2740' }}
+                            style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}
                         >
                             <MapPin size={13} className="mt-0.5 flex-shrink-0" style={{ color: '#e2b764' }} />
-                            <p className="text-xs leading-relaxed" style={{ color: '#94a3b8' }}>
+                            <p className="text-xs leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>
                                 {booking.location_address}
                             </p>
                         </div>
@@ -500,8 +500,8 @@ function EmptyState({ tab }) {
             >
                 <Icon size={24} style={{ color: '#e2b764' }} />
             </div>
-            <p className="font-display font-semibold text-white mb-1">{cfg.title}</p>
-            <p className="text-sm" style={{ color: '#64748b' }}>{cfg.sub}</p>
+            <p className="font-display font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>{cfg.title}</p>
+            <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>{cfg.sub}</p>
         </motion.div>
     );
 }
@@ -563,12 +563,12 @@ export default function Bookings() {
 
     return (
         <TherapistLayout>
-            <div className="min-h-screen pb-24 md:pb-8" style={{ background: '#0b1120' }}>
+            <div className="min-h-screen pb-24 md:pb-8" style={{ background: 'var(--theme-bg)' }}>
 
                 {/* ── Page header ───────────────────────────────────────────── */}
                 <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-2">
-                    <h1 className="font-display font-bold text-white text-2xl">Bookings</h1>
-                    <p className="text-sm" style={{ color: '#64748b' }}>Manage your client sessions</p>
+                    <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--theme-text-head)' }}>Bookings</h1>
+                    <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>Manage your client sessions</p>
                 </div>
 
                 {/* ── Tabs container ────────────────────────────────────────── */}
@@ -578,10 +578,10 @@ export default function Bookings() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
                         className="rounded-2xl border overflow-hidden"
-                        style={{ background: '#0f1629', borderColor: '#1e2740' }}
+                        style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
                     >
                         {/* Tab bar */}
-                        <div className="relative flex border-b" style={{ borderColor: '#1e2740' }}>
+                        <div className="relative flex border-b" style={{ borderColor: 'var(--theme-border)' }}>
                             {TABS.map(tab => {
                                 const count = (tabKeys[tab.key] ?? []).flatMap(k => bookings[k] ?? []).length;
                                 const isActive = activeTab === tab.key;
@@ -590,7 +590,7 @@ export default function Bookings() {
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key)}
                                         className="relative flex-1 py-3.5 text-xs font-semibold transition-colors"
-                                        style={{ color: isActive ? '#e2b764' : '#64748b' }}
+                                        style={{ color: isActive ? '#e2b764' : 'var(--theme-text-muted)' }}
                                     >
                                         {isActive && (
                                             <motion.div
@@ -606,8 +606,8 @@ export default function Bookings() {
                                                 <span
                                                     className="w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold"
                                                     style={{
-                                                        background: isActive ? '#e2b764' : '#1e2740',
-                                                        color: isActive ? '#0b1120' : '#94a3b8',
+                                                        background: isActive ? '#e2b764' : 'var(--theme-border)',
+                                                        color: isActive ? '#0b1120' : 'var(--theme-text-2)',
                                                     }}
                                                 >
                                                     {count > 9 ? '9+' : count}
@@ -635,7 +635,7 @@ export default function Bookings() {
                                         <div
                                             key={i}
                                             className="h-40 rounded-2xl animate-pulse"
-                                            style={{ background: '#141d33' }}
+                                            style={{ background: 'var(--theme-skeleton)' }}
                                         />
                                     ))}
                                 </div>
@@ -670,7 +670,7 @@ export default function Bookings() {
                         className="fixed bottom-6 left-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-sm font-semibold"
                         style={{
                             transform: 'translateX(-50%)',
-                            background: toast.type === 'error' ? '#7f1d1d' : '#0f1629',
+                            background: toast.type === 'error' ? '#7f1d1d' : 'var(--theme-card)',
                             border: `1px solid ${toast.type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(226,183,100,0.3)'}`,
                             color: toast.type === 'error' ? '#fca5a5' : '#e2b764',
                             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',

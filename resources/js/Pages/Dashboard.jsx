@@ -11,6 +11,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
+import ThemeToggle from '@/Components/ThemeToggle';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -395,11 +396,11 @@ export default function Dashboard() {
 
     return (
         <AuthenticatedLayout>
-            <div className="min-h-screen pb-24 relative" style={{ background: '#0b1120', color: '#cbd5e1' }}>
+            <div className="min-h-screen pb-24 relative" style={{ background: 'var(--theme-bg)', color: 'var(--theme-text)' }}>
 
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
-                    style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}>
+                    style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-gold/40 flex-shrink-0">
@@ -411,22 +412,23 @@ export default function Dashboard() {
                                     </div>
                                 )}
                             </div>
-                            <h1 className="text-lg font-display font-semibold text-white leading-tight">
+                            <h1 className="text-lg font-display font-semibold leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                                 {greeting}, {user?.name?.split(' ')[0] ?? 'Guest'}
                             </h1>
                         </div>
 
                         <div className="flex items-center gap-3">
                             <LanguageToggle />
+                            <ThemeToggle />
 
                             {/* ── Notification Bell ── */}
                             <div className="relative">
                                 <button
                                     onClick={() => setShowNotifications(o => !o)}
                                     className="w-10 h-10 rounded-full flex items-center justify-center relative transition-colors"
-                                    style={{ background: '#141d33', color: '#94a3b8' }}
-                                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
+                                    onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                                    onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-2)'}
                                 >
                                     <Bell size={18} />
                                     {unreadCount > 0 && (
@@ -445,12 +447,12 @@ export default function Dashboard() {
                                                 animate={{ opacity: 1, y: 0,  scale: 1    }}
                                                 exit={{ opacity: 0,  y: -8, scale: 0.95  }}
                                                 className="absolute right-0 top-12 w-80 rounded-2xl shadow-2xl z-50 overflow-hidden"
-                                                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                                                style={{ background: 'var(--theme-notif-bg)', border: '1px solid var(--theme-border)' }}
                                             >
                                                 {/* Header */}
-                                                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#1e2740' }}>
+                                                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--theme-border)' }}>
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="font-display font-bold text-sm text-white">Notifications</h3>
+                                                        <h3 className="font-display font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>Notifications</h3>
                                                         {unreadCount > 0 && (
                                                             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                                                                 style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
@@ -476,17 +478,17 @@ export default function Dashboard() {
                                                         notifications.map(notif => (
                                                             <button key={notif.id} onClick={() => handleNotifClick(notif)}
                                                                 className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b last:border-0"
-                                                                style={{ borderColor: '#1e2740', background: notif.read ? 'transparent' : 'rgba(226,183,100,0.04)' }}
-                                                                onMouseEnter={e => e.currentTarget.style.background = '#141d33'}
+                                                                style={{ borderColor: 'var(--theme-border)', background: notif.read ? 'transparent' : 'rgba(226,183,100,0.04)' }}
+                                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-card-hover)'}
                                                                 onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : 'rgba(226,183,100,0.04)'}
                                                             >
                                                                 {!notif.read && (
                                                                     <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
                                                                 )}
                                                                 <div className={`flex-1 min-w-0 ${notif.read ? 'pl-3.5' : ''}`}>
-                                                                    <p className="text-xs font-semibold text-white mb-0.5">{notif.title}</p>
-                                                                    <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>{notif.message}</p>
-                                                                    <p className="text-[10px] mt-1" style={{ color: '#64748b' }}>{notif.created_at}</p>
+                                                                    <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--theme-text-head)' }}>{notif.title}</p>
+                                                                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>{notif.message}</p>
+                                                                    <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{notif.created_at}</p>
                                                                 </div>
                                                             </button>
                                                         ))
@@ -500,9 +502,9 @@ export default function Dashboard() {
 
                             <button onClick={handleLogout}
                                 className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                                style={{ background: '#141d33', color: '#94a3b8' }}
+                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#141d33'; e.currentTarget.style.color = '#94a3b8'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-2)'; }}
                             >
                                 <LogOut size={18} />
                             </button>
