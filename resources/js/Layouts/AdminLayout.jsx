@@ -1,0 +1,194 @@
+import { useMemo, useState } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { BarChart3, LayoutDashboard, Menu, Shield, X, LogOut } from 'lucide-react';
+import ThemeToggle from '@/Components/ThemeToggle';
+
+const NAV = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
+  { icon: BarChart3, label: 'Reports', href: '/admin/reports', soon: true },
+];
+
+function cn(...v) {
+  return v.filter(Boolean).join(' ');
+}
+
+function initials(name = '') {
+  return (
+    name
+      .split(' ')
+      .filter(Boolean)
+      .map(w => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'A'
+  );
+}
+
+export default function AdminLayout({ title = 'Admin', children }) {
+  const { url, props } = usePage();
+  const user = props.auth?.user;
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const firstName = useMemo(() => (user?.name || 'Admin').split(' ')[0], [user?.name]);
+
+  const Sidebar = ({ onNavigate }) => (
+    <div className="flex h-full flex-col">
+      <div className="p-5 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
+          >
+            <Shield size={18} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>
+              Infinity Home Spa
+            </div>
+            <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+              Admin Panel
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="p-3 space-y-1 flex-1">
+        {NAV.map(item => {
+          const Icon = item.icon;
+          const active = item.href && (url === item.href || url.startsWith(item.href + '/'));
+
+          if (item.soon) {
+            return (
+              <div
+                key={item.label}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm cursor-not-allowed"
+                style={{ color: 'var(--theme-text-muted)', opacity: 0.5 }}
+              >
+                <Icon size={18} />
+                <span className="flex-1">{item.label}</span>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                  style={{
+                    background: 'rgba(226,183,100,0.08)',
+                    border: '1px solid rgba(226,183,100,0.15)',
+                    color: '#b7882a',
+                  }}
+                >
+                  Soon
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors',
+                active ? 'bg-secondary text-foreground font-medium' : 'hover:bg-secondary/60'
+              )}
+              style={{ color: active ? 'var(--theme-text-head)' : 'var(--theme-text-2)' }}
+            >
+              <Icon size={18} />
+              <span className="flex-1">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-display font-bold"
+            style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-head)' }}
+          >
+            {initials(user?.name)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: 'var(--theme-text-head)' }}>
+              {user?.name ?? 'Admin'}
+            </div>
+            <div className="text-[10px] truncate" style={{ color: 'var(--theme-text-muted)' }}>
+              {user?.email ?? ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen flex w-full" style={{ background: 'var(--theme-bg)' }}>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:sticky lg:top-0 lg:h-screen glass-card-strong rounded-none border-y-0 border-s-0">
+        <Sidebar />
+      </aside>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-40">
+          <button className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] glass-card-strong">
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+              <div className="text-sm font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>Menu</div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+              >
+                <X size={16} style={{ color: 'var(--theme-text-2)' }} />
+              </button>
+            </div>
+            <Sidebar onNavigate={() => setMobileOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-screen overflow-y-auto pb-6">
+        <header
+          className="sticky top-0 z-30 border-b backdrop-blur-xl"
+          style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}
+        >
+          <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center"
+                onClick={() => setMobileOpen(true)}
+                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+              >
+                <Menu size={16} style={{ color: 'var(--theme-text-2)' }} />
+              </button>
+              <div className="min-w-0">
+                <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                  Welcome, {firstName}
+                </div>
+                <h1 className="text-base font-display font-semibold truncate" style={{ color: 'var(--theme-text-head)' }}>
+                  {title}
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={() => router.post(route('logout'))}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+                title="Logout"
+              >
+                <LogOut size={16} style={{ color: 'var(--theme-text-2)' }} />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
