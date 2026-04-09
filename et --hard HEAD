@@ -1,0 +1,42 @@
+[33me0c2a85[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/admin-dashboard-working[m[33m, [m[1;31morigin/feature/admin-dashboard-working[m[33m)[m HEAD@{0}: commit: feat: admin dashboard with stats, chart, and recent bookings
+[33m9c59a73[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{1}: checkout: moving from main to feature/admin-dashboard-working
+[33m9c59a73[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{2}: commit: fix: theme toggle working on therapist dashboard and non-landing pages
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{3}: merge feature/customer-dashboard: Fast-forward
+[33macceb65[m HEAD@{4}: checkout: moving from main to main
+[33macceb65[m HEAD@{5}: reset: moving to origin/main
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{6}: checkout: moving from main to main
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{7}: reset: moving to HEAD
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{8}: checkout: moving from feature/admin-dashboard-v2 to main
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{9}: checkout: moving from main to feature/admin-dashboard-v2
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{10}: checkout: moving from feature/admin-dashboard to main
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{11}: checkout: moving from main to feature/admin-dashboard
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{12}: merge feature/customer-dashboard: Fast-forward
+[33macceb65[m HEAD@{13}: checkout: moving from feature/customer-dashboard to main
+[33m928ace6[m[33m ([m[1;32mfeature/customer-dashboard[m[33m)[m HEAD@{14}: commit: Therapist/Customer dashboard dark/ight mode incomplete
+[33me8ff76c[m[33m ([m[1;31morigin/feature/customer-dashboard[m[33m)[m HEAD@{15}: commit: feat: therapist dashboard + RBAC
+[33m4e17e83[m HEAD@{16}: commit: feat: notification system + customer dashboard polish
+[33m51cf62b[m HEAD@{17}: commit: fix: booking system improvements
+[33mb834ef3[m HEAD@{18}: reset: moving to HEAD
+[33mb834ef3[m HEAD@{19}: commit: feat: implement 20% downpayment system with bank transfer
+[33m38e2420[m HEAD@{20}: commit: feat(api): create therapists endpoint
+[33m3cad009[m HEAD@{21}: commit: feat: add review modal with rating system for completed bookings
+[33mb77eea0[m HEAD@{22}: commit: feat(reviews): implement CSAT rating system
+[33ma353116[m HEAD@{23}: commit: feat: add 2-step address modal with zone selection and full localization
+[33m8e83fa4[m HEAD@{24}: commit: feat: real data booking system with grouped services
+[33ma6244d9[m HEAD@{25}: commit: feat(customer): complete customer-facing features
+[33m092c8f5[m HEAD@{26}: commit: feat(backend): add CustomerDashboardController with real data aggregation
+[33m66e15c1[m HEAD@{27}: commit: feat(frontend): refactor Profile and Bookings pages
+[33mdd8df12[m HEAD@{28}: commit: feat(profile): add CustomerProfileController with avatar upload and profile routes
+[33m070929d[m HEAD@{29}: commit: feat(backend): add customer address book
+[33m4155cb8[m HEAD@{30}: commit: feat(backend): implement booking system with availability checking
+[33m0befe0a[m HEAD@{31}: commit: feat(bookings): redesign multi-step booking flow with payment step
+[33m5f2ab35[m HEAD@{32}: commit: feat: Integrate Lovable customer dashboard with Laravel Inertia
+[33macceb65[m HEAD@{33}: reset: moving to HEAD
+[33macceb65[m HEAD@{34}: checkout: moving from main to feature/customer-dashboard
+[33macceb65[m HEAD@{35}: reset: moving to origin/main
+[33macceb65[m HEAD@{36}: checkout: moving from feature/customer-dashboard to main
+[33macceb65[m HEAD@{37}: checkout: moving from main to feature/customer-dashboard
+[33macceb65[m HEAD@{38}: commit: feat: Complete OTP email verification system with Google login
+[33m391c52e[m HEAD@{39}: commit: feat: Complete Google OAuth and OTP authentication system
+[33m6f14215[m HEAD@{40}: reset: moving to HEAD
+[33m6f14215[m HEAD@{41}: clone: from https://github.com/TofuMcflurry/infinity-spa.git

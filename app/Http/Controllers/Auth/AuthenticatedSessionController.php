@@ -61,7 +61,13 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('otp.form', ['email' => $user->email]);
         }
 
-        $destination = $user->isTherapist() ? '/therapist/dashboard' : '/dashboard';
+        if ($user->role === 'admin') {
+            $destination = '/admin';
+        } elseif ($user->isTherapist()) {
+            $destination = '/therapist/dashboard';
+        } else {
+            $destination = '/dashboard';
+        }
         return redirect()->intended($destination);
     }
 

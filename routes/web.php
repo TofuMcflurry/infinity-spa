@@ -163,12 +163,23 @@ Route::middleware('auth')->group(function () {
 });
 
 // ── Admin Routes ───────────────────────────────────────────────────────────────
+
 Route::middleware(['auth', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
         Route::get('/', [App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])
             ->name('dashboard');
+
+        // ── Therapists ────────────────────────────────────────────────────────
+        Route::get('/therapists',                          [App\Http\Controllers\Admin\AdminTherapistController::class, 'index'])
+            ->name('therapists');
+        Route::post('/therapists/{therapist}/approve',     [App\Http\Controllers\Admin\AdminTherapistController::class, 'approve'])
+            ->name('therapists.approve');
+        Route::post('/therapists/{therapist}/deactivate',  [App\Http\Controllers\Admin\AdminTherapistController::class, 'deactivate'])
+            ->name('therapists.deactivate');
+        Route::delete('/therapists/{therapist}',           [App\Http\Controllers\Admin\AdminTherapistController::class, 'reject'])
+            ->name('therapists.reject');
     });
 
 require __DIR__.'/auth.php';
