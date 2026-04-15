@@ -4,22 +4,67 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Notifications\BookingNotification;
 
 class TherapistBookingController extends Controller
 {
-    // ── List all bookings for this therapist ──────────────────────────────────
-    public function index()
+    // ── List all bookings for this therapist (paginated) ────────────────────────
+    public function index(Request $request)
     {
         $therapist = auth()->user()->therapist;
+        $perPage = $request->query('per_page', 15);
+        $status = $request->query('status');
 
-        $bookings = Booking::with(['customer', 'service'])
+        // Auto-cancel past due bookings (only pending & accepted, not completed/cancelled)
+        Booking::where('therapist_id', $therapist->id)
+            ->whereIn('status', ['pending', 'accepted'])
+            ->where('scheduled_start', '<', now())
+            ->update(['status' => 'cancelled']);
+
+        $query = Booking::with(['customer', 'service'])
             ->where('therapist_id', $therapist->id)
-            ->orderBy('scheduled_start', 'asc')
-            ->get()
-            ->groupBy('status');
+            ->orderBy('scheduled_start', 'asc');
+
+        // Filter by status if provided (comma-separated: e.g., "pending,accepted,en_route")
+        if ($status) {
+            $statusList = array_filter(array_map('trim', explode(',', $status)));
+            if (!empty($statusList)) {
+                $query->whereIn('status', $statusList);
+            }
+        }
+
+        $bookings = $query->paginate($perPage);
 
         return response()->json($bookings);
+    }
+
+    // ── Get dashboard stats for this therapist ─────────────────────────────────
+    public function stats()
+    {
+        $therapist = auth()->user()->therapist;
+        $today = now()->toDateString();
+
+        $allBookings = Booking::where('therapist_id', $therapist->id)->get();
+
+        $todayCount = $allBookings->filter(function ($b) use ($today) {
+            return $b->scheduled_start->toDateString() === $today;
+        })->count();
+
+        $pendingCount = $allBookings->where('status', 'pending')->count();
+        $completedCount = $allBookings->where('status', 'completed')->count();
+        $earnings = $allBookings
+            ->where('status', 'completed')
+            ->sum(function ($b) {
+                return $b->service?->price ?? 0;
+            });
+
+        return response()->json([
+            'today_sessions' => $todayCount,
+            'pending_count'  => $pendingCount,
+            'completed_count' => $completedCount,
+            'earnings'       => $earnings,
+        ]);
     }
 
     // ── Accept a booking ──────────────────────────────────────────────────────

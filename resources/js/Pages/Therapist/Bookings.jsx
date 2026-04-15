@@ -508,7 +508,7 @@ function EmptyState({ tab }) {
 
 // ── Main Bookings page ────────────────────────────────────────────────────────
 export default function Bookings() {
-    const [bookings, setBookings]           = useState({});
+    const [bookings, setBookings]           = useState([]);
     const [loading, setLoading]             = useState(true);
     const [activeTab, setActiveTab]         = useState('pending');
     const [actionLoading, setActionLoading] = useState(null);
@@ -516,8 +516,13 @@ export default function Bookings() {
 
     // ── Fetch bookings ────────────────────────────────────────────────────────
     const fetchBookings = useCallback(() => {
-        apiFetch('/therapist/api/bookings')
-            .then(data => setBookings(data))
+        setLoading(true);
+        // Fetch ALL bookings without status filter to get complete history
+        apiFetch('/therapist/api/bookings?per_page=100')
+            .then(data => {
+                const bookingsArray = data.data || [];
+                setBookings(bookingsArray);
+            })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -559,7 +564,7 @@ export default function Bookings() {
     }, [fetchBookings]);
 
     // ── Tab bookings ──────────────────────────────────────────────────────────
-    const tabBookings = (tabKeys[activeTab] ?? []).flatMap(k => bookings[k] ?? []);
+    const tabBookings = bookings.filter(b => (tabKeys[activeTab] ?? []).includes(b.status));
 
     return (
         <TherapistLayout>
@@ -583,7 +588,7 @@ export default function Bookings() {
                         {/* Tab bar */}
                         <div className="relative flex border-b" style={{ borderColor: 'var(--theme-border)' }}>
                             {TABS.map(tab => {
-                                const count = (tabKeys[tab.key] ?? []).flatMap(k => bookings[k] ?? []).length;
+                                const count = bookings.filter(b => (tabKeys[tab.key] ?? []).includes(b.status)).length;
                                 const isActive = activeTab === tab.key;
                                 return (
                                     <button

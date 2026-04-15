@@ -119,6 +119,8 @@ Route::middleware(['auth', 'verified', 'therapist'])
         Route::prefix('api')->group(function () {
             Route::get('/bookings',                     [TherapistBookingController::class, 'index'])
                 ->name('api.bookings');
+            Route::get('/bookings/stats',               [TherapistBookingController::class, 'stats'])
+                ->name('api.bookings.stats');
             Route::post('/bookings/{booking}/accept',   [TherapistBookingController::class, 'accept'])
                 ->name('api.bookings.accept');
             Route::post('/bookings/{booking}/reject',   [TherapistBookingController::class, 'reject'])

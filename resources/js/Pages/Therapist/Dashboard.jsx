@@ -324,7 +324,8 @@ function RecentBookings({ bookings, loading }) {
                d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     };
 
-    const allFlat = Object.values(bookings).flat();
+    // Handle both flat array and grouped object formats
+    const allFlat = Array.isArray(bookings) ? bookings : Object.values(bookings).flat();
     const sorted  = [...allFlat]
         .sort((a, b) => new Date(b.scheduled_start) - new Date(a.scheduled_start))
         .slice(0, 5);
@@ -401,7 +402,8 @@ export default function Dashboard() {
     const { props } = usePage();
     const user = props.auth?.user;
 
-    const [bookings, setBookings]           = useState({});
+    const [bookings, setBookings]           = useState([]);
+    const [stats, setStats]                 = useState(null);
     const [loading, setLoading]             = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
     const [toast, setToast]                 = useState(null);
@@ -410,24 +412,33 @@ export default function Dashboard() {
     const hour     = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-    // ── Derived stats ─────────────────────────────────────────────────────────
-    const allFlat        = Object.values(bookings).flat();
-    const today          = new Date().toDateString();
-    const todayCount     = allFlat.filter(b => new Date(b.scheduled_start).toDateString() === today).length;
-    const pendingCount   = (bookings.pending ?? []).length;
-    const completedCount = (bookings.completed ?? []).length;
-    const earnings       = (bookings.completed ?? []).reduce((acc, b) => acc + Number(b.service?.price ?? 0), 0);
+    // ── Fetch stats ───────────────────────────────────────────────────────────
+    const fetchStats = useCallback(() => {
+        apiFetch('/therapist/api/bookings/stats')
+            .then(data => setStats(data))
+            .catch(console.error);
+    }, []);
 
     // ── Fetch bookings ────────────────────────────────────────────────────────
-    const fetchBookings = useCallback(() => {
+    const fetchBookings = useCallback((includeCompleted = false) => {
         setLoading(true);
-        apiFetch('/therapist/api/bookings')
-            .then(data => setBookings(data))
+        // Fetch active bookings by default, or all bookings after an action
+        const statusFilter = includeCompleted ? '' : 'pending,accepted,en_route,arrived';
+        const params = statusFilter ? `?status=${statusFilter}&per_page=30` : '?per_page=30';
+
+        apiFetch(`/therapist/api/bookings${params}`)
+            .then(data => {
+                const bookingsArray = data.data || [];
+                setBookings(bookingsArray);
+            })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { fetchBookings(); }, [fetchBookings]);
+    useEffect(() => {
+        fetchBookings();
+        fetchStats();
+    }, [fetchBookings, fetchStats]);
 
     // ── Toast helper ──────────────────────────────────────────────────────────
     const showToast = (message, type = 'success') => {
@@ -455,13 +466,16 @@ export default function Dashboard() {
                 body: JSON.stringify(body),
             });
             showToast(data.message ?? 'Booking updated!');
-            fetchBookings();
+            // After completing or rejecting a booking, fetch all bookings to update stats properly
+            const shouldFetchAll = ['complete', 'reject'].includes(action);
+            fetchBookings(shouldFetchAll);
+            fetchStats();
         } catch (err) {
             showToast('Something went wrong. Please try again.', 'error');
         } finally {
             setActionLoading(null);
         }
-    }, [fetchBookings]);
+    }, [fetchBookings, fetchStats]);
 
     return (
         <TherapistLayout>
@@ -499,19 +513,23 @@ export default function Dashboard() {
                                 <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
                             ))}
                         </div>
-                    ) : (
+                    ) : stats ? (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <StatCard icon={Calendar}      label="Today's Sessions" value={todayCount}                         delay={0}    />
-                            <StatCard icon={ClipboardList} label="Pending"          value={pendingCount}                       delay={0.05} accent="#f59e0b" />
-                            <StatCard icon={Star}          label="Completed"        value={completedCount}                     delay={0.1}  accent="#10b981" />
-                            <StatCard icon={Banknote}      label="Total Earnings"   value={`AED ${earnings.toLocaleString()}`} delay={0.15} accent="#3b82f6" />
+                            <StatCard icon={Calendar}      label="Today's Sessions" value={stats.today_sessions}                         delay={0}    />
+                            <StatCard icon={ClipboardList} label="Pending"          value={stats.pending_count}                       delay={0.05} accent="#f59e0b" />
+                            <StatCard icon={Star}          label="Completed"        value={stats.completed_count}                     delay={0.1}  accent="#10b981" />
+                            <StatCard icon={Banknote}      label="Total Earnings"   value={`AED ${stats.earnings.toLocaleString()}`} delay={0.15} accent="#3b82f6" />
                         </div>
-                    )}
+                    ) : null}
 
                     {/* ── Active Session Tracker ─────────────────────────── */}
-                    {!loading && (
+                    {!loading && bookings.length > 0 && (
                         <ActiveSessionTracker
-                            bookings={bookings}
+                            bookings={{
+                                accepted: bookings.filter(b => b.status === 'accepted'),
+                                en_route: bookings.filter(b => b.status === 'en_route'),
+                                arrived: bookings.filter(b => b.status === 'arrived'),
+                            }}
                             onAction={handleAction}
                             actionLoading={actionLoading}
                         />
