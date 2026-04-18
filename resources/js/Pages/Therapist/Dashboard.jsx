@@ -455,8 +455,8 @@ export default function Dashboard() {
             accept:     `/therapist/api/bookings/${bookingId}/accept`,
             reject:     `/therapist/api/bookings/${bookingId}/reject`,
             complete:   `/therapist/api/bookings/${bookingId}/complete`,
-            'en-route': `/api/therapist/bookings/${bookingId}/en-route`,
-            arrived:    `/api/therapist/bookings/${bookingId}/arrived`,
+            'en-route': `/therapist/api/bookings/${bookingId}/en-route`, 
+            arrived:    `/therapist/api/bookings/${bookingId}/arrived`, 
         };
 
         try {

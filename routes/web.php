@@ -93,12 +93,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Downpayment verify (admin)
         Route::post('/downpayment/verify',       [DownpaymentController::class, 'verify'])->name('api.downpayment.verify');
-
-        // Therapist status updates
-        Route::middleware('therapist')->group(function () {
-            Route::post('/therapist/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute'])->name('api.therapist.en-route');
-            Route::post('/therapist/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived'])->name('api.therapist.arrived');
-        });
     });
 });
 
@@ -133,6 +127,9 @@ Route::middleware(['auth', 'verified', 'therapist'])
                 ->name('api.profile.update');
             Route::post('/profile/avatar',              [TherapistBookingController::class, 'updateAvatar'])
                 ->name('api.profile.avatar');
+
+            Route::post('/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute']);
+            Route::post('/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived']);
         });
     });
 
