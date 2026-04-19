@@ -1,5 +1,6 @@
-import { Button } from "@/components/ui/button";
+import { Link } from "@inertiajs/react"
 import { CheckCircle2 } from "lucide-react";
+import { Button } from "@/Components/Landing/ui/button";
 import heroImage from "@/assets/hero-spa.jpg";
 
 const points = [
@@ -40,7 +41,7 @@ export const About = () => {
             <span className="gold-divider text-xs uppercase tracking-[0.3em] text-primary">
               About Us
             </span>
-            <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl">
+            <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl text-foreground">
               Wellness, <span className="italic text-gradient-gold">redefined</span> at home.
             </h2>
             <p className="mt-6 text-lg text-muted-foreground">

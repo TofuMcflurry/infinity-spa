@@ -3,22 +3,12 @@ import { format } from "date-fns";
 import { CalendarIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button } from "@/Components/Landing/ui/button";
+import { Input } from "@/Components/Landing/ui/input";
+import { Label } from "@/Components/Landing/ui/label";
+import { Calendar } from "@/Components/Landing/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/Components/Landing/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/Components/Landing/ui/select";
 
 const services = [
   "Deep Tissue Massage",
@@ -33,14 +23,14 @@ const times = [
 ];
 
 export const BookingForm = () => {
-  const [date, setDate] = useState<Date>();
+  const [date, setDate] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const name = String(fd.get("name") ?? "");
-    const service = String(fd.get("service") ?? "");
+    const name = fd.get("name") || "";
+    const service = fd.get("service") || "";
     if (!name || !service || !date) {
       toast.error("Please complete all required fields");
       return;
@@ -49,10 +39,10 @@ export const BookingForm = () => {
     setTimeout(() => {
       setSubmitting(false);
       toast.success("Booking confirmed", {
-        description: `${service} · ${format(date!, "PPP")} · See you soon, ${name}.`,
+        description: `${service} · ${format(date, "PPP")} · See you soon, ${name}.`,
       });
-      (e.target as HTMLFormElement).reset();
-      setDate(undefined);
+      e.target.reset();
+      setDate(null);
     }, 700);
   };
 
@@ -65,7 +55,7 @@ export const BookingForm = () => {
             <span className="gold-divider text-xs uppercase tracking-[0.3em] text-primary">
               Reserve Your Ritual
             </span>
-            <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl">
+            <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl text-foreground">
               Book Your <span className="italic text-gradient-gold">Experience</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -75,7 +65,7 @@ export const BookingForm = () => {
 
           <form
             onSubmit={onSubmit}
-            className="mt-12 rounded-3xl border border-border/60 bg-card/60 p-6 shadow-luxe backdrop-blur-xl sm:p-10"
+            className="mt-12 rounded-3xl border border-border/60 bg-card/60 p-6 shadow-luxe backdrop-blur-xl sm:p-10 glass"
           >
             <div className="grid gap-5 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -115,7 +105,7 @@ export const BookingForm = () => {
                       onSelect={setDate}
                       disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
                       initialFocus
-                      className={cn("p-3 pointer-events-auto")}
+                      className="p-3 pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>

@@ -6,32 +6,32 @@
 
 @layer base {
   :root {
-    --background: 30 10% 5%;
-    --foreground: 40 20% 90%;
+    --background: 220 13% 9%;
+    --foreground: 40 20% 95%;
 
-    --card: 30 10% 8%;
-    --card-foreground: 40 20% 90%;
+    --card: 220 13% 11%;
+    --card-foreground: 40 20% 95%;
 
-    --popover: 30 10% 8%;
-    --popover-foreground: 40 20% 90%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 40 20% 95%;
 
     --primary: 43 72% 55%;
-    --primary-foreground: 30 10% 5%;
+    --primary-foreground: 220 13% 9%;
 
-    --secondary: 30 8% 15%;
-    --secondary-foreground: 40 20% 85%;
+    --secondary: 220 9% 16%;
+    --secondary-foreground: 40 20% 90%;
 
-    --muted: 30 8% 18%;
+    --muted: 220 9% 19%;
     --muted-foreground: 40 10% 55%;
 
     --accent: 43 72% 55%;
-    --accent-foreground: 30 10% 5%;
+    --accent-foreground: 220 13% 9%;
 
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 40 15% 20%;
-    --input: 40 15% 20%;
+    --border: 40 15% 25%;
+    --input: 40 15% 25%;
     --ring: 43 72% 55%;
 
     --radius: 0.5rem;
@@ -40,28 +40,28 @@
     --gold: 43 72% 55%;
     --gold-light: 43 80% 70%;
     --gold-dark: 43 60% 40%;
-    --onyx: 30 10% 5%;
-    --marble: 40 20% 92%;
+    --onyx: 220 13% 9%;
+    --marble: 40 20% 95%;
     --champagne: 38 40% 80%;
 
     --font-display: 'Playfair Display', serif;
     --font-body: 'Montserrat', sans-serif;
     --font-accent: 'Cormorant Garamond', serif;
 
-    --glass-bg: hsla(30, 10%, 8%, 0.6);
-    --glass-border: hsla(43, 72%, 55%, 0.15);
-    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.4);
+    --glass-bg: hsla(220, 13%, 11%, 0.8);
+    --glass-border: hsla(43, 72%, 55%, 0.2);
+    --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.6);
 
-    --glow-gold: 0 0 20px hsla(43, 72%, 55%, 0.3), 0 0 60px hsla(43, 72%, 55%, 0.1);
-    --glow-gold-strong: 0 0 20px hsla(43, 72%, 55%, 0.5), 0 0 60px hsla(43, 72%, 55%, 0.2), 0 0 100px hsla(43, 72%, 55%, 0.1);
+    --glow-gold: 0 0 20px hsla(43, 72%, 55%, 0.4), 0 0 60px hsla(43, 72%, 55%, 0.15);
+    --glow-gold-strong: 0 0 20px hsla(43, 72%, 55%, 0.6), 0 0 60px hsla(43, 72%, 55%, 0.25), 0 0 100px hsla(43, 72%, 55%, 0.1);
 
-    --sidebar-background: 30 10% 8%;
-    --sidebar-foreground: 40 20% 90%;
+    --sidebar-background: 220 13% 11%;
+    --sidebar-foreground: 40 20% 95%;
     --sidebar-primary: 43 72% 55%;
-    --sidebar-primary-foreground: 30 10% 5%;
-    --sidebar-accent: 30 8% 15%;
-    --sidebar-accent-foreground: 40 20% 90%;
-    --sidebar-border: 40 15% 20%;
+    --sidebar-primary-foreground: 220 13% 9%;
+    --sidebar-accent: 220 9% 16%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 40 15% 25%;
     --sidebar-ring: 43 72% 55%;
   }
 }
@@ -117,9 +117,15 @@
     @apply border-border;
   }
 
+  html {
+    background: hsl(var(--background));
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -241,7 +247,49 @@
   opacity: 0;
 }
 
-.animate-fade-up-delay-3 {
-  animation: fade-up 0.8s ease-out 0.6s forwards;
-  opacity: 0;
+@layer utilities {
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)), hsl(var(--gold)));
+  }
+
+  .bg-radial-gold {
+    background: radial-gradient(circle at center, hsl(var(--gold) / 0.1) 0%, transparent 70%);
+  }
+
+  .bg-gradient-hero {
+    background: linear-gradient(135deg, hsl(var(--background) / 0.8) 0%, hsl(var(--background) / 0.9) 100%);
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-light)), hsl(var(--gold)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .shadow-gold {
+    box-shadow: 0 10px 40px -10px hsl(var(--gold) / 0.4), 0 4px 25px -5px hsl(var(--gold) / 0.1);
+  }
+
+  .shadow-luxe {
+    box-shadow: 0 20px 60px -10px hsl(var(--background) / 0.8), 0 8px 30px -5px hsl(var(--gold) / 0.2);
+  }
+
+  .border-gold {
+    border-color: hsl(var(--gold));
+  }
+
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .gold-divider::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(var(--gold)), transparent);
+    margin-right: 8px;
+    vertical-align: middle;
+  }
 }

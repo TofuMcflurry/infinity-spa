@@ -18,7 +18,7 @@ export const Gallery = () => {
           <span className="gold-divider text-xs uppercase tracking-[0.3em] text-primary">
             Inside the Experience
           </span>
-          <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl">
+          <h2 className="mt-4 font-display text-4xl sm:text-5xl md:text-6xl text-foreground">
             A Glimpse of <span className="italic text-gradient-gold">Serenity</span>
           </h2>
         </div>

@@ -1,6 +1,7 @@
-import { Button } from "@/components/ui/button";
+import { Link } from "@inertiajs/react"
 import heroImage from "@/assets/hero-spa.jpg";
 import { Sparkles } from "lucide-react";
+import { Button } from "@/Components/Landing/ui/button";
 
 export const Hero = () => {
   return (

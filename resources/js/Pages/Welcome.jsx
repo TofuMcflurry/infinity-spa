@@ -1,12 +1,12 @@
-import { Navbar } from "@/Components/spa/Navbar";
-import { Hero } from "@/Components/Landing/Hero"; 
-import { Features } from "@/Components/spa/Features";
-import { Services } from "@/Components/spa/Services";
-import { BookingForm } from "@/Components/spa/BookingForm";
-import { Gallery } from "@/Components/spa/Gallery";
-import { About } from "@/Components/spa/About";
-import { Footer } from "@/Components/spa/Footer";
 import { useEffect } from "react";
+import { Navbar } from "@/Components/Landing/Navbar";
+import { Hero } from "@/Components/Landing/Hero";
+import { Features } from "@/Components/Landing/Features";
+import { Services } from "@/Components/Landing/PopularServices";
+import { BookingForm } from "@/Components/Landing/BookingForm";
+import { Gallery } from "@/Components/Landing/Gallery";
+import { About } from "@/Components/Landing/About";
+import { Footer } from "@/Components/Landing/Footer";
 
 const Index = () => {
   useEffect(() => {
@@ -37,9 +37,9 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       <Navbar />
-      <main>
+      <main className="bg-background">
         <Hero />
         <Features />
         <Services />
