@@ -43,8 +43,10 @@ export const Hero = () => {
             <Button variant="luxe" size="xl" asChild>
               <a href="#booking">Book Now</a>
             </Button>
-            <Button variant="outlineGold" size="xl">
-              Member Login
+            <Button variant="outlineGold" size="xl" asChild>
+              <Link href="/login">
+                Member Login
+              </Link>
             </Button>
           </div>
 

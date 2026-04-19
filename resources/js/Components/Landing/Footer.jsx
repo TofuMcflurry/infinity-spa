@@ -66,7 +66,7 @@ export const Footer = () => {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-6 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} Infinity Home Spa. All rights reserved.</p>
-          <p>Crafted with care in Dubai · UAE</p>
+          <p>Designed & Developed by Aisly Miles Pantig · Software Engineer</p>
         </div>
       </div>
     </footer>
