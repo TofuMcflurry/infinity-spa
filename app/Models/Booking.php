@@ -31,6 +31,11 @@ class Booking extends Model
         'downpayment_verified_at',
         'cancelled_at',
         'cancellation_type',
+        'guest_email',
+        'guest_name',
+        'guest_phone',
+        'is_converted',
+        'converted_to_customer_id',
     ];
 
     protected $casts = [

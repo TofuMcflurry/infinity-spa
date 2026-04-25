@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Services\OtpService;
+use App\Models\Booking;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
+use App\Services\OtpService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -78,6 +79,15 @@ class RegisteredUserController extends Controller
         ]);
 
         event(new Registered($user));
+
+        // Convert any guest bookings tied to this email
+        Booking::where('guest_email', $user->email)
+            ->whereNull('customer_id')
+            ->update([
+                'customer_id'               => $user->id,
+                'is_converted'              => true,
+                'converted_to_customer_id'  => $user->id,
+            ]);
 
         // Generate and send OTP - GAMITIN ANG CONSTRUCTOR
         $this->otpService->generateOtp($user);  // <--- ITO ANG TAMA

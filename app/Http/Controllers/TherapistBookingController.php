@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendGuestConversionEmail;
 use App\Models\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -149,9 +150,15 @@ class TherapistBookingController extends Controller
 
         $booking->update(['status' => 'completed']);
 
-        // Notify customer
-        $booking->load('customer', 'service', 'therapist.user');
-        $booking->customer->notify(new BookingNotification($booking, 'completed'));
+        $booking->load('service', 'therapist.user');
+
+        if ($booking->customer_id) {
+            $booking->load('customer');
+            $booking->customer->notify(new BookingNotification($booking, 'completed'));
+        } else {
+            // Guest booking — queue promo email after 1 day
+            SendGuestConversionEmail::dispatch($booking)->delay(now()->addDay());
+        }
 
         return response()->json([
             'message' => 'Booking marked as completed!',

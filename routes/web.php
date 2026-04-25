@@ -9,9 +9,14 @@ use App\Http\Controllers\CustomerDashboardController;
 use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\GuestBookingController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+// ── Public Guest Booking ──────────────────────────────────────────────────────
+Route::get('/api/guest/services', [GuestBookingController::class, 'services'])->name('guest.services');
+Route::post('/guest-booking', [GuestBookingController::class, 'store'])->name('guest.booking.store');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -179,6 +184,16 @@ Route::middleware(['auth', 'admin'])
             ->name('therapists.deactivate');
         Route::delete('/therapists/{therapist}',           [App\Http\Controllers\Admin\AdminTherapistController::class, 'reject'])
             ->name('therapists.reject');
+
+        // ── Guest Bookings ────────────────────────────────────────────────────
+        Route::post('/guest-bookings/{booking}/approve',    [App\Http\Controllers\Admin\AdminDashboardController::class, 'approvePendingBooking'])
+            ->name('guest-bookings.approve');
+        Route::post('/guest-bookings/{booking}/reject',     [App\Http\Controllers\Admin\AdminDashboardController::class, 'rejectPendingBooking'])
+            ->name('guest-bookings.reject');
+        Route::post('/guest-bookings/{booking}/complete',   [App\Http\Controllers\Admin\AdminDashboardController::class, 'completeGuestBooking'])
+            ->name('guest-bookings.complete');
+        Route::post('/guest-bookings/{booking}/send-promo', [App\Http\Controllers\Admin\AdminDashboardController::class, 'sendConversionPromo'])
+            ->name('guest-bookings.send-promo');
     });
 
 require __DIR__.'/auth.php';
