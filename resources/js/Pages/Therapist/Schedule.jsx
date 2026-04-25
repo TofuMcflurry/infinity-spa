@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { addDays, format, startOfWeek, getDay, parseISO, isToday } from 'date-fns';
+import { addDays, format, startOfWeek, parseISO, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import TherapistLayout from '@/Layouts/TherapistLayout';
 import {
@@ -33,7 +33,7 @@ async function api(url, opts = {}) {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 9); // 9–21
+const HOURS = Array.from({ length: 13 }, (_, i) => i + 16); // 16–28 (4PM–4AM)
 
 const DAYS = [
     { dow: 1, short: 'Mon' },
@@ -45,9 +45,17 @@ const DAYS = [
     { dow: 0, short: 'Sun' },
 ];
 
+const formatHourLabel = (h) => {
+    const h24 = h % 24;
+    if (h24 === 0) return '12:00 AM';
+    if (h24 < 12) return `${h24}:00 AM`;
+    if (h24 === 12) return '12:00 PM';
+    return `${h24 - 12}:00 PM`;
+};
+
 const TIME_OPTIONS = HOURS.map(h => ({
-    value: `${String(h).padStart(2, '0')}:00`,
-    label: h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`,
+    value: `${String(h % 24).padStart(2, '0')}:00`,
+    label: formatHourLabel(h),
 }));
 
 const STATUS = {
@@ -115,13 +123,13 @@ function Modal({ title, onClose, children }) {
 
 // ── Input helpers ─────────────────────────────────────────────────────────────
 const inputCls = "w-full rounded-lg px-3 py-2.5 text-sm bg-background border border-gold/20 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 transition-colors";
-const labelCls = "block text-xs font-semibold uppercase tracking-wider mb-1.5 text-gold" ;
+const labelCls = "block text-xs font-semibold uppercase tracking-wider mb-1.5 text-gold";
 
 function SubmitBtn({ loading, children }) {
     return (
         <button type="submit" disabled={loading}
             className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all"
-            style={{ background: 'linear-gradient(135deg,#c8a45d,#a07840)', color: '#000' }}>
+            style={{ background: 'linear-gradient(135deg,#6B5A3E,#4A3C28)', color: '#F5EDD8' }}>
             {loading ? <Loader2 size={15} className="animate-spin" /> : children}
         </button>
     );
@@ -129,10 +137,7 @@ function SubmitBtn({ loading, children }) {
 
 // ── UNAVAILABLE MODAL ─────────────────────────────────────────────────────────
 function UnavailableModal({ slot, onClose, onSaved, toast }) {
-    const [form, setForm] = useState({
-        is_full_day: false,
-        reason: '',
-    });
+    const [form, setForm] = useState({ is_full_day: false, reason: '' });
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -381,17 +386,17 @@ function BookingCell({ booking, onClick }) {
 function UnavailableCell({ slot, onRemove }) {
     return (
         <div className="w-full h-full px-1.5 py-1 rounded-lg relative group"
-             style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>
+             style={{ background: 'rgba(185,120,120,0.12)', border: '1px solid rgba(185,120,120,0.30)' }}>
             <div className="flex items-center gap-1">
-                <CalendarOff size={9} style={{ color: '#ef4444' }} className="shrink-0" />
-                <span className="text-[10px] font-semibold" style={{ color: '#ef4444' }}>Unavailable</span>
+                <CalendarOff size={9} style={{ color: '#B97878' }} className="shrink-0" />
+                <span className="text-[10px] font-semibold" style={{ color: '#B97878' }}>Unavailable</span>
             </div>
             {slot.reason && (
                 <div className="text-[10px] mt-0.5 truncate text-muted-foreground">{slot.reason}</div>
             )}
             <button onClick={onRemove}
                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
-                style={{ color: '#ef4444' }}
+                style={{ color: '#B97878' }}
                 title="Remove">
                 <X size={10} />
             </button>
@@ -405,9 +410,9 @@ function EmptyCell({ onClick }) {
         <button onClick={onClick}
             className="w-full h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity group rounded-lg"
             style={{ border: '1px dashed transparent' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(200,164,93,0.3)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(139,115,85,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-            <Plus size={12} style={{ color: 'rgba(200,164,93,0.6)' }} />
+            <Plus size={12} style={{ color: 'rgba(139,115,85,0.6)' }} />
         </button>
     );
 }
@@ -420,9 +425,8 @@ export default function Schedule() {
     const [data, setData]           = useState({ bookings: [], unavailable_slots: [], rest_day_requests: [] });
     const [loading, setLoading]     = useState(true);
 
-    // Modal states
-    const [unavailModal, setUnavailModal]       = useState(null); // { date, hour }
-    const [rescheduleModal, setRescheduleModal] = useState(null); // booking obj
+    const [unavailModal, setUnavailModal]       = useState(null);
+    const [rescheduleModal, setRescheduleModal] = useState(null);
     const [restDayModal, setRestDayModal]       = useState(false);
     const [showRequests, setShowRequests]       = useState(false);
 
@@ -442,7 +446,6 @@ export default function Schedule() {
 
     useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
 
-    // ── Cell data lookup ──────────────────────────────────────────────────────
     const getBooking = (date, hour) => {
         const d = format(date, 'yyyy-MM-dd');
         const h = String(hour).padStart(2, '0');
@@ -461,7 +464,6 @@ export default function Schedule() {
         });
     };
 
-    // ── Actions ───────────────────────────────────────────────────────────────
     const removeUnavailable = async (slotId) => {
         if (!confirm('Remove this unavailable slot?')) return;
         try {
@@ -473,18 +475,13 @@ export default function Schedule() {
         }
     };
 
-    const formatHour = (h) => {
-        if (h < 12) return `${h}:00 AM`;
-        if (h === 12) return '12:00 PM';
-        return `${h - 12}:00 PM`;
-    };
+    const formatHour = (h) => formatHourLabel(h);
 
     const pendingRequests = data.rest_day_requests.filter(r => r.status === 'pending').length;
 
-    // ── RENDER ────────────────────────────────────────────────────────────────
     return (
         <TherapistLayout title="My Schedule">
-            <div className="max-w-7xl mx-auto px-1 sm:px-2 md:px-4 py-3">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4">
                 <Toasts toasts={toasts} />
 
                 {/* ── Header ── */}
@@ -521,9 +518,9 @@ export default function Schedule() {
                             onClick={() => setRestDayModal(true)}
                             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
                             style={{
-                                background: 'linear-gradient(135deg,rgba(200,164,93,0.2),rgba(160,120,64,0.2))',
-                                border: '1px solid rgba(200,164,93,0.3)',
-                                color: '#c8a45d',
+                                background: 'linear-gradient(135deg,#6B5A3E,#4A3C28)',
+                                border: '1px solid #6B5A3E',
+                                color: '#F5EDD8',
                             }}>
                             <BedDouble size={14} />
                             Request Rest Day
@@ -569,7 +566,7 @@ export default function Schedule() {
                         </div>
                     ))}
                     <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ background: '#ef4444' }} />
+                        <span className="w-2 h-2 rounded-full" style={{ background: '#B97878' }} />
                         <span className="text-xs text-muted-foreground">Unavailable</span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -587,9 +584,9 @@ export default function Schedule() {
                             <div className="grid" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
                                 <div className="p-2 bg-background" />
                                 {DAYS.map((day, idx) => {
-                                    const date    = weekDates[idx];
-                                    const today   = isToday(date);
-                                    const isTue   = day.isRest;
+                                    const date  = weekDates[idx];
+                                    const today = isToday(date);
+                                    const isTue = day.isRest;
                                     return (
                                         <div key={day.dow}
                                             className={cn("p-2 text-center border-l border-border/20",
@@ -615,12 +612,10 @@ export default function Schedule() {
                                     gridTemplateColumns: '64px repeat(7, 1fr)',
                                     minHeight: '60px',
                                 }}>
-                                    {/* Hour Label */}
                                     <div className="flex items-center justify-end pr-3 text-[11px] font-medium shrink-0 text-muted-foreground bg-background">
                                         {formatHour(hour)}
                                     </div>
 
-                                    {/* Day Cells */}
                                     {DAYS.map((day, idx) => {
                                         const date    = weekDates[idx];
                                         const isTue   = day.isRest;
@@ -661,20 +656,17 @@ export default function Schedule() {
                     </div>
                 </div>
 
-                {/* Loading overlay */}
                 {loading && (
                     <div className="flex justify-center py-8">
-                        <Loader2 className="animate-spin" style={{ color: '#c8a45d' }} size={22} />
+                        <Loader2 className="animate-spin" style={{ color: '#8B7355' }} size={22} />
                     </div>
                 )}
 
-                {/* ── Instruction hint ── */}
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                     <AlertCircle size={12} />
                     <span>Click an empty slot to mark unavailable · Click a booking to request reschedule</span>
                 </div>
 
-                {/* ── Modals ── */}
                 {unavailModal && (
                     <UnavailableModal
                         slot={unavailModal}
