@@ -113,6 +113,8 @@ Route::middleware(['auth', 'verified', 'therapist'])
             ->name('bookings');
         Route::get('/profile',   fn() => Inertia::render('Therapist/Profile'))
             ->name('profile');
+        Route::get('/schedule',  [App\Http\Controllers\TherapistScheduleController::class, 'index'])
+            ->name('schedule');
 
         // API
         Route::prefix('api')->group(function () {
@@ -135,6 +137,20 @@ Route::middleware(['auth', 'verified', 'therapist'])
 
             Route::post('/bookings/{booking}/en-route', [TherapistBookingController::class, 'enRoute']);
             Route::post('/bookings/{booking}/arrived',  [TherapistBookingController::class, 'arrived']);
+
+            // ── Schedule ──────────────────────────────────────────────────────
+            Route::get('/schedule',                          [App\Http\Controllers\TherapistScheduleController::class, 'schedule'])
+                ->name('api.schedule');
+            Route::post('/unavailable',                      [App\Http\Controllers\TherapistScheduleController::class, 'storeUnavailable'])
+                ->name('api.unavailable.store');
+            Route::delete('/unavailable/{slot}',             [App\Http\Controllers\TherapistScheduleController::class, 'destroyUnavailable'])
+                ->name('api.unavailable.destroy');
+            Route::post('/reschedule-request',               [App\Http\Controllers\TherapistScheduleController::class, 'storeRescheduleRequest'])
+                ->name('api.reschedule.store');
+            Route::post('/rest-day-request',                 [App\Http\Controllers\TherapistScheduleController::class, 'storeRestDayRequest'])
+                ->name('api.rest-day.store');
+            Route::get('/rest-day-requests',                 [App\Http\Controllers\TherapistScheduleController::class, 'restDayRequests'])
+                ->name('api.rest-day.index');
         });
     });
 

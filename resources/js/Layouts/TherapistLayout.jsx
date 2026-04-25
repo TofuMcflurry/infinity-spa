@@ -13,7 +13,7 @@ const NAV_ITEMS = [
     { icon: Home,        label: 'Dashboard',   href: '/therapist/dashboard' },
     { icon: CalendarDays,label: 'Bookings',    href: '/therapist/bookings'  },
     { icon: User,        label: 'Profile',     href: '/therapist/profile'   },
-    { icon: Calendar,    label: 'My Schedule', href: null, soon: true        },
+    { icon: Calendar,    label: 'My Schedule', href: '/therapist/schedule'  },
     { icon: TrendingUp,  label: 'Earnings',    href: null, soon: true        },
 ];
 
@@ -21,7 +21,7 @@ const MOBILE_TABS = [
     { icon: Home,        label: 'Dashboard', href: '/therapist/dashboard' },
     { icon: CalendarDays,label: 'Bookings',  href: '/therapist/bookings'  },
     { icon: User,        label: 'Profile',   href: '/therapist/profile'   },
-    { icon: Calendar,    label: 'Schedule',  href: null, soon: true        },
+    { icon: Calendar,    label: 'Schedule',  href: '/therapist/schedule'   },
     { icon: TrendingUp,  label: 'Earnings',  href: null, soon: true        },
 ];
 
