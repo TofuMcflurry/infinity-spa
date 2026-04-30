@@ -115,6 +115,8 @@ Route::middleware(['auth', 'verified', 'therapist'])
             ->name('profile');
         Route::get('/schedule',  [App\Http\Controllers\TherapistScheduleController::class, 'index'])
             ->name('schedule');
+        Route::get('/earnings',  fn() => Inertia::render('Therapist/Earnings'))
+            ->name('earnings');
 
         // API
         Route::prefix('api')->group(function () {
@@ -151,6 +153,16 @@ Route::middleware(['auth', 'verified', 'therapist'])
                 ->name('api.rest-day.store');
             Route::get('/rest-day-requests',                 [App\Http\Controllers\TherapistScheduleController::class, 'restDayRequests'])
                 ->name('api.rest-day.index');
+
+            // ── Earnings ──────────────────────────────────────────────────────
+            Route::get('/earnings',              [App\Http\Controllers\TherapistEarningsController::class, 'index'])
+                ->name('api.earnings');
+            Route::get('/earnings/chart',        [App\Http\Controllers\TherapistEarningsController::class, 'chart'])
+                ->name('api.earnings.chart');
+            Route::get('/earnings/transactions', [App\Http\Controllers\TherapistEarningsController::class, 'transactions'])
+                ->name('api.earnings.transactions');
+            Route::get('/earnings/export',       [App\Http\Controllers\TherapistEarningsController::class, 'export'])
+                ->name('api.earnings.export');
         });
     });
 

@@ -518,7 +518,7 @@ export default function Dashboard() {
                             <StatCard icon={Calendar}      label="Today's Sessions" value={stats.today_sessions}                         delay={0}    />
                             <StatCard icon={ClipboardList} label="Pending"          value={stats.pending_count}                       delay={0.05} accent="#f59e0b" />
                             <StatCard icon={Star}          label="Completed"        value={stats.completed_count}                     delay={0.1}  accent="#10b981" />
-                            <StatCard icon={Banknote}      label="Total Earnings"   value={`AED ${stats.earnings.toLocaleString()}`} delay={0.15} accent="#3b82f6" />
+                            <StatCard icon={Banknote}      label="This Week's Earnings"   value={`AED ${stats.week_earnings.toLocaleString()}`} delay={0.15} accent="#3b82f6" />
                         </div>
                     ) : null}
 

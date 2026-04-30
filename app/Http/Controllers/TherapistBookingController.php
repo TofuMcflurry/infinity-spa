@@ -60,11 +60,24 @@ class TherapistBookingController extends Controller
                 return $b->service?->price ?? 0;
             });
 
+        // Calculate week earnings: sum(service.price * 0.60) for completed bookings this week (Mon-Sun)
+        $startOfWeek = now()->startOfWeek();
+        $endOfWeek = now()->endOfWeek();
+        $weekEarnings = Booking::where('therapist_id', $therapist->id)
+            ->where('status', 'completed')
+            ->whereBetween('updated_at', [$startOfWeek, $endOfWeek])
+            ->with('service')
+            ->get()
+            ->sum(function ($b) {
+                return ($b->service?->price ?? 0) * 0.60;
+            });
+
         return response()->json([
             'today_sessions' => $todayCount,
             'pending_count'  => $pendingCount,
             'completed_count' => $completedCount,
             'earnings'       => $earnings,
+            'week_earnings'  => round($weekEarnings, 2),
         ]);
     }
 
