@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { addDays, format, isToday, startOfDay } from "date-fns";
-import { CalendarIcon, Loader2, MapPin, Sparkles, AlertCircle } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { addDays, format, startOfDay, getDay, addMonths, isBefore, startOfMonth } from "date-fns";
+import {
+    ChevronLeft, ChevronRight, Clock, MapPin,
+    CalendarDays, Globe, CheckCircle2, Loader2, AlertCircle, Sparkles
+} from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { cn } from "@/lib/utils";
-import { Calendar } from "@/Components/Landing/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/Components/Landing/ui/popover";
-import {
-    Select, SelectContent, SelectItem,
-    SelectTrigger, SelectValue,
-} from "@/Components/Landing/ui/select";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -25,57 +22,284 @@ const LOCATIONS = [
     "Dubai Hills Estate",
 ];
 
-// Generate time slots: 9 AM to 9 PM (1 hour intervals)
+const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const MONTHS = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+];
+
+// ── Generate time slots from 4PM to 4AM (next day) ───────────────────────────
 const generateTimeSlots = () => {
-    return Array.from({ length: 13 }, (_, i) => {
-        const hour = 9 + i;
+    const slots = [];
+    // Start at 16:00 (4PM)
+    for (let i = 0; i < 25; i++) { // 24 slots = 12 hours of 30-min intervals
+        const totalMins = 16 * 60 + i * 30; // Start at 4PM
+        const hour = Math.floor(totalMins / 60) % 24;
+        const min = totalMins % 60;
+        
+        // Stop at 4AM (04:00) next day
+        if (hour >= 4 && hour < 16 && i > 0) break;
+        
+        let displayHour = hour % 12;
+        if (displayHour === 0) displayHour = 12;
         const ampm = hour < 12 ? "AM" : "PM";
-        const displayHour = hour < 12 ? hour : hour === 12 ? 12 : hour - 12;
-        const value = String(hour).padStart(2, "0") + ":00";
-        const label = `${displayHour}:00 ${ampm}`;
-        return { value, label };
-    });
+        const label = `${displayHour}:${String(min).padStart(2, "0")} ${ampm}`;
+        const value = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+        
+        slots.push({ value, label, hour });
+    }
+    return slots;
 };
 
 const ALL_TIME_SLOTS = generateTimeSlots();
 
-// ── Styling Classes ───────────────────────────────────────────────────────────
+// ── Shared input class ───────────────────────────────────────────────────────
 
-const inputClass = cn(
-    "h-12 w-full rounded-lg border border-gold/20 bg-[#0B1220] px-4 text-sm",
-    "text-white placeholder:text-white/50",
-    "focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/50",
-    "disabled:opacity-50 disabled:cursor-not-allowed",
-    "transition-all duration-200"
-);
+const inputCls =
+    "w-full h-11 px-3 rounded-lg text-sm transition-all " +
+    "bg-[hsl(var(--input))] border border-[hsl(var(--border))] " +
+    "text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] " +
+    "focus:outline-none focus:border-[hsl(var(--gold))] focus:ring-1 focus:ring-[hsl(var(--gold))/0.3]";
 
-const selectTriggerClass = cn(
-    "h-12 w-full rounded-lg border border-gold/20 bg-[#0B1220] px-4 text-sm",
-    "text-white data-[placeholder]:text-white/50",
-    "focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/50",
-    "disabled:opacity-50 disabled:cursor-not-allowed",
-    "transition-all duration-200"
-);
+// ── Custom Scrollbar CSS ──────────────────────────────────────────────────────
+const scrollbarStyles = `
+    .custom-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+        background: hsl(var(--secondary));
+        border-radius: 10px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+        background: hsl(var(--gold) / 0.4);
+        border-radius: 10px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--gold) / 0.6);
+    }
+`;
 
-// ── Label Component ────────────────────────────────────────────────────────────
+// ── Mini Calendar ─────────────────────────────────────────────────────────────
 
-function FormLabel({ children, required }) {
+function MiniCalendar({ selectedDate, onSelect }) {
+    const today = startOfDay(new Date());
+    const tomorrow = addDays(today, 1);
+    
+    // Allow future dates up to 3 months ahead
+    const maxDate = addMonths(today, 3);
+
+    const [viewYear, setViewYear] = useState(today.getFullYear());
+    const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const startOffset = getDay(firstDay);
+
+    const cells = [];
+    for (let i = 0; i < startOffset; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(viewYear, viewMonth, d));
+
+    const canPrev = !(viewYear === today.getFullYear() && viewMonth === today.getMonth());
+    const canNext = !(viewYear === maxDate.getFullYear() && viewMonth === maxDate.getMonth());
+
+    const prevMonth = () => {
+        if (canPrev) {
+            if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+            else setViewMonth(m => m - 1);
+        }
+    };
+    
+    const nextMonth = () => {
+        if (canNext) {
+            if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+            else setViewMonth(m => m + 1);
+        }
+    };
+
+    // Check if date is disabled (past, beyond max, or Tuesday)
+    const isDisabled = (date) => {
+        if (!date) return true;
+        if (date < tomorrow) return true;
+        if (date > maxDate) return true;
+        // Tuesday is day 2 (0 = Sunday, 1 = Monday, 2 = Tuesday)
+        if (getDay(date) === 2) return true;
+        return false;
+    };
+    
+    const isSelected = (date) =>
+        date && selectedDate && format(date, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
+    const isToday = (date) =>
+        date && format(date, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
+
     return (
-        <label className="block text-xs font-semibold text-gold uppercase tracking-widest mb-2">
-            {children}
-            {required && <span className="text-red-400 ml-1">*</span>}
-        </label>
+        <div className="w-full">
+            {/* Month nav */}
+            <div className="flex items-center justify-between mb-4">
+                <button
+                    type="button"
+                    onClick={prevMonth}
+                    disabled={!canPrev}
+                    className="rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="rdp-caption_label" style={{ color: "hsl(var(--foreground))" }}>
+                    {MONTHS[viewMonth]} {viewYear}
+                </span>
+                <button
+                    type="button"
+                    onClick={nextMonth}
+                    disabled={!canNext}
+                    className="rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed"
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            </div>
+
+            {/* Day headers */}
+            <div className="grid grid-cols-7 mb-1">
+                {DAYS.map(d => (
+                    <div
+                        key={d}
+                        className="text-center text-[0.72rem] font-medium py-1"
+                        style={{ color: "hsl(var(--muted-foreground))" }}
+                    >
+                        {d}
+                    </div>
+                ))}
+            </div>
+
+            {/* Date grid */}
+            <div className="grid grid-cols-7 gap-y-0.5">
+                {cells.map((date, idx) => (
+                    <div key={idx} className="flex items-center justify-center py-px">
+                        {date ? (
+                            <button
+                                type="button"
+                                disabled={isDisabled(date)}
+                                onClick={() => !isDisabled(date) && onSelect(date)}
+                                className={cn(
+                                    "rdp-day",
+                                    isSelected(date) && "rdp-day_selected",
+                                    isToday(date) && !isSelected(date) && "rdp-day_today",
+                                    isDisabled(date) && "rdp-day_disabled",
+                                    getDay(date) === 2 && "opacity-40 cursor-not-allowed" // Tuesday indicator
+                                )}
+                            >
+                                {date.getDate()}
+                                {getDay(date) === 2 && (
+                                    <span className="absolute text-[8px] -bottom-1 left-1/2 -translate-x-1/2 opacity-50">
+                                        🚫
+                                    </span>
+                                )}
+                            </button>
+                        ) : <div className="w-9 h-9" />}
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }
 
-// ── Error Message Component ────────────────────────────────────────────────────
+// ── Error Message ─────────────────────────────────────────────────────────────
 
 function ErrorMsg({ message }) {
     if (!message) return null;
     return (
-        <div className="mt-1.5 flex items-center gap-2 text-xs text-red-400">
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-red-400">
             <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
             <span>{message}</span>
+        </div>
+    );
+}
+
+// ── Back Button ───────────────────────────────────────────────────────────────
+
+function BackBtn({ onClick }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="flex items-center gap-1 text-sm font-medium mb-5 transition-opacity hover:opacity-70"
+            style={{ color: "hsl(var(--gold))" }}
+        >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+        </button>
+    );
+}
+
+// ── Left Panel ────────────────────────────────────────────────────────────────
+
+function LeftPanel({ selectedDate, selectedTime, step }) {
+    return (
+        <div className="flex flex-col gap-5 h-full">
+            {/* Brand */}
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center font-bold text-lg shadow-lg"
+                    style={{ color: "hsl(var(--midnight))" }}>
+                    I
+                </div>
+                <span className="text-xs font-semibold uppercase tracking-widest"
+                    style={{ color: "hsl(var(--gold))" }}>
+                    Infinity Home Spa
+                </span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-display font-bold leading-tight"
+                style={{ color: "hsl(var(--foreground))" }}>
+                Book Your{" "}
+                <span className="gold-text italic">Spa Experience</span>
+            </h2>
+
+            {/* Meta info */}
+            <div className="space-y-2.5">
+                <div className="flex items-center gap-2 text-sm"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    <Clock className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                    <span>60–120 min sessions · 4PM to 4AM</span>
+                </div>
+
+                {selectedDate && (
+                    <div className="flex items-center gap-2 text-sm"
+                        style={{ color: "hsl(var(--foreground))" }}>
+                        <CalendarDays className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                        <span>
+                            {selectedTime
+                                ? `${selectedTime.label} · ${format(selectedDate, "EEE, MMM d, yyyy")}`
+                                : format(selectedDate, "EEEE, MMMM d, yyyy")}
+                        </span>
+                    </div>
+                )}
+
+                {step >= 2 && (
+                    <div className="flex items-center gap-2 text-sm"
+                        style={{ color: "hsl(var(--muted-foreground))" }}>
+                        <Globe className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                        <span>Dubai Time (GST)</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t" style={{ borderColor: "hsl(var(--border))" }} />
+
+            {/* Description */}
+            <div className="space-y-3">
+                <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Dubai's premier home spa concierge. Licensed therapists deliver luxury massages,
+                    facials, and Royal Hammam rituals directly to your door.
+                </p>
+                <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Premium products, professional therapists, and an unforgettable spa journey —
+                    on your schedule. We arrive within 90 minutes.
+                </p>
+            </div>
+
+            {/* Gold accent line */}
+            <div className="mt-auto pt-6">
+                <div className="h-px w-full gold-gradient opacity-30 rounded-full" />
+            </div>
         </div>
     );
 }
@@ -84,451 +308,363 @@ function ErrorMsg({ message }) {
 
 export const BookingForm = () => {
     const [services, setServices] = useState([]);
-    const [calendarOpen, setCalendarOpen] = useState(false);
+    const [step, setStep] = useState(0);
     const [selectedDateObj, setSelectedDateObj] = useState(null);
+    const [selectedTime, setSelectedTime] = useState(null);
+    const [confirmedData, setConfirmedData] = useState(null);
 
     const {
-        control,
+        register,
         handleSubmit,
-        watch,
-        reset: resetForm,
-        formState: { errors, isSubmitting, isValid, isDirty },
+        formState: { errors, isSubmitting },
     } = useForm({
         mode: "onChange",
         defaultValues: {
-            service_id: "",
-            booking_date: "",
-            booking_time: "",
-            location: "",
             guest_name: "",
             guest_email: "",
             guest_phone: "",
+            location: "",
+            service_id: "",
         },
     });
 
-    // Watch form values
-    const selectedDate = watch("booking_date");
-    const selectedTime = watch("booking_time");
-
-    // Date constraints: earliest booking is tomorrow, max 30 days ahead
-    const today = startOfDay(new Date());
-    const tomorrow = addDays(today, 1);
-    const maxDate = addDays(today, 30);
-
-    // Fetch services
     useEffect(() => {
-        axios
-            .get("/api/guest/services")
+        axios.get("/api/guest/services")
             .then(res => setServices(res.data))
-            .catch(() => {
-                toast.error("Failed to load services");
-            });
+            .catch(() => toast.error("Failed to load services"));
     }, []);
 
-    // Filter available times based on selected date
-    const getAvailableTimes = () => {
-        if (!selectedDateObj) return [];
-
-        // If booking for today, exclude past hours
-        if (isToday(selectedDateObj)) {
-            const currentHour = new Date().getHours();
-            return ALL_TIME_SLOTS.filter(slot => {
-                const slotHour = parseInt(slot.value.split(":")[0]);
-                return slotHour > currentHour;
-            });
-        }
-
-        return ALL_TIME_SLOTS;
-    };
-
-    const availableTimes = getAvailableTimes();
-
-    // Email validation
-    const validateEmail = (email) => {
-        if (!email) return "Email is required";
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email) || "Enter a valid email address";
-    };
-
-    // Phone validation
-    const validatePhone = (phone) => {
-        if (!phone) return "Phone number is required";
-        const digits = phone.replace(/\D/g, "");
-        return digits.length >= 10 || "Phone must have at least 10 digits";
-    };
-
-    // Form submission
     const onSubmit = async (data) => {
         try {
             await axios.post("/guest-booking", {
                 service_id: data.service_id,
-                date: data.booking_date,
-                time: data.booking_time,
+                date: format(selectedDateObj, "yyyy-MM-dd"),
+                time: selectedTime.value,
                 location: data.location,
                 guest_name: data.guest_name,
                 guest_email: data.guest_email,
                 guest_phone: data.guest_phone,
             });
-
-            toast.success("Booking submitted! Check your email for confirmation.");
-            resetForm();
-            setSelectedDateObj(null);
+            setConfirmedData(data);
+            setStep(3);
         } catch (error) {
             const errorData = error.response?.data?.errors;
             if (errorData) {
-                const firstError = Object.values(errorData)[0];
-                const message = Array.isArray(firstError) ? firstError[0] : firstError;
-                toast.error(message);
+                const first = Object.values(errorData)[0];
+                toast.error(Array.isArray(first) ? first[0] : first);
             } else {
                 toast.error("Something went wrong. Please try again.");
             }
         }
     };
 
-    // Button should be disabled if form is invalid or not dirty or submitting
-    const isButtonDisabled = !isValid || !isDirty || isSubmitting;
+    // ── Step renders ───────────────────────────────────────────────────────────
 
-    return (
-        <section id="booking" className="relative py-24">
-            {/* Background gradient */}
-            <div className="absolute inset-0 bg-gradient-radial from-gold/10 via-transparent to-transparent opacity-40" />
+    const renderStep = () => {
 
-            <div className="container relative z-10">
-                <div className="mx-auto max-w-2xl">
-                    {/* ── Section Title ── */}
-                    <div className="text-center mb-12">
-                        <div className="flex items-center justify-center gap-2 mb-3">
-                            <div className="h-px w-12 bg-gradient-to-r from-transparent to-gold" />
-                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-                                Reserve Your Ritual
-                            </span>
-                            <div className="h-px w-12 bg-gradient-to-l from-transparent to-gold" />
-                        </div>
-                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold text-white leading-tight">
-                            Book Your{" "}
-                            <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-gold via-gold/80 to-gold">
-                                Experience
-                            </span>
-                        </h2>
-                        <p className="mt-4 text-white/60 text-base">
-                            Same-day availability across Dubai. We arrive within 90 minutes.
-                        </p>
+        /* ── STEP 0: Date ── */
+        if (step === 0) return (
+            <div>
+                <h3 className="text-center text-base font-bold mb-5"
+                    style={{ color: "hsl(var(--foreground))" }}>
+                    Select a Date
+                </h3>
+                <p className="text-center text-xs mb-4 text-muted-foreground">
+                    ⚠️ Therapists are closed on <span className="text-gold font-medium">Tuesdays</span>
+                </p>
+                <MiniCalendar selectedDate={selectedDateObj} onSelect={(date) => {
+                    setSelectedDateObj(date);
+                    setSelectedTime(null);
+                }} />
+                <button
+                    type="button"
+                    onClick={() => selectedDateObj && setStep(1)}
+                    disabled={!selectedDateObj}
+                    className={cn(
+                        "btn-gold mt-6 w-full py-3 rounded-xl text-sm font-semibold tracking-wide",
+                        !selectedDateObj && "opacity-40 cursor-not-allowed pointer-events-none"
+                    )}
+                >
+                    Next
+                </button>
+            </div>
+        );
+
+        /* ── STEP 1: Time ── */
+        if (step === 1) return (
+            <div>
+                <BackBtn onClick={() => setStep(0)} />
+                <h3 className="text-lg font-bold mb-0.5" style={{ color: "hsl(var(--foreground))" }}>
+                    {format(selectedDateObj, "EEEE")}
+                </h3>
+                <p className="text-sm mb-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    {format(selectedDateObj, "MMMM d, yyyy")}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs mb-5"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>Dubai Time (GST) · 4PM to 4AM</span>
+                </div>
+
+                <p className="text-center font-semibold text-sm mb-1"
+                    style={{ color: "hsl(var(--foreground))" }}>
+                    Select a Time
+                </p>
+                <p className="text-center text-xs mb-4"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Duration: Varies by service
+                </p>
+
+                {/* Custom scrollbar container */}
+                <style>{scrollbarStyles}</style>
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scroll">
+                    {ALL_TIME_SLOTS.map(time => {
+                        const isSel = selectedTime?.value === time.value;
+                        return (
+                            <div key={time.value} className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedTime(time)}
+                                    className="flex-1 py-3 rounded-lg border text-sm font-medium transition-all hover:border-gold/50"
+                                    style={{
+                                        backgroundColor: isSel ? "hsl(var(--secondary))" : "transparent",
+                                        borderColor: isSel ? "hsl(var(--border))" : "hsl(var(--gold) / 0.3)",
+                                        color: isSel ? "hsl(var(--foreground))" : "hsl(var(--gold))",
+                                    }}
+                                >
+                                    {time.label}
+                                </button>
+                                {isSel && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep(2)}
+                                        className="btn-gold px-5 py-3 rounded-lg text-sm font-semibold"
+                                    >
+                                        Next
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+
+        /* ── STEP 2: Details ── */
+        if (step === 2) return (
+            <form onSubmit={handleSubmit(onSubmit)}>
+                <BackBtn onClick={() => setStep(1)} />
+                <h3 className="text-lg font-bold mb-5" style={{ color: "hsl(var(--foreground))" }}>
+                    Your Details
+                </h3>
+
+                <div className="space-y-4">
+                    {/* Name */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5"
+                            style={{ color: "hsl(var(--foreground))" }}>
+                            Name <span className="text-red-400">*</span>
+                        </label>
+                        <input {...register("guest_name", {
+                            required: "Full name is required",
+                            minLength: { value: 2, message: "At least 2 characters" }
+                        })}
+                            type="text" placeholder="Your full name" className={inputCls} />
+                        <ErrorMsg message={errors.guest_name?.message} />
                     </div>
 
-                    {/* ── Booking Form ── */}
-                    <form
-                        onSubmit={handleSubmit(onSubmit)}
-                        className="rounded-2xl border border-gold/20 bg-[#0B1220]/80 backdrop-blur-xl p-6 sm:p-10 shadow-2xl"
-                    >
-                        <div className="grid gap-6 sm:grid-cols-2">
-                            {/* ══════════════════════════════════════════════════
-                                SERVICE SELECTION (full width)
-                                ══════════════════════════════════════════════════ */}
-                            <div className="sm:col-span-2">
-                                <FormLabel required>Service</FormLabel>
-                                <Controller
-                                    name="service_id"
-                                    control={control}
-                                    rules={{ required: "Please select a service" }}
-                                    render={({ field }) => (
-                                        <>
-                                            <Select
-                                                value={field.value}
-                                                onValueChange={field.onChange}
-                                            >
-                                                <SelectTrigger className={selectTriggerClass}>
-                                                    <SelectValue placeholder="Select your treatment" />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-[#0B1220] border border-gold/20">
-                                                    {services.length === 0 ? (
-                                                        <div className="p-2 text-sm text-white/50">
-                                                            Loading services...
-                                                        </div>
-                                                    ) : (
-                                                        services.map(service => (
-                                                            <SelectItem
-                                                                key={service.id}
-                                                                value={String(service.id)}
-                                                                className="cursor-pointer"
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <span>{service.name}</span>
-                                                                    <span className="text-xs text-gold/60">
-                                                                        ({service.duration_minutes} min)
-                                                                    </span>
-                                                                </div>
-                                                            </SelectItem>
-                                                        ))
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <ErrorMsg message={errors.service_id?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5"
+                            style={{ color: "hsl(var(--foreground))" }}>
+                            Email <span className="text-red-400">*</span>
+                        </label>
+                        <input {...register("guest_email", {
+                            required: "Email is required",
+                            pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Enter a valid email" }
+                        })}
+                            type="email" placeholder="you@example.com" className={inputCls} />
+                        <ErrorMsg message={errors.guest_email?.message} />
+                    </div>
 
-                            {/* ══════════════════════════════════════════════════
-                                DATE PICKER
-                                ══════════════════════════════════════════════════ */}
-                            <div>
-                                <FormLabel required>Date</FormLabel>
-                                <Controller
-                                    name="booking_date"
-                                    control={control}
-                                    rules={{ required: "Please select a date" }}
-                                    render={({ field }) => (
-                                        <>
-                                            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <button
-                                                        type="button"
-                                                        className={cn(
-                                                            inputClass,
-                                                            "flex items-center justify-between gap-2",
-                                                            !selectedDateObj && "text-white/50"
-                                                        )}
-                                                    >
-                                                        <span className="flex items-center gap-2">
-                                                            <CalendarIcon className="h-4 w-4 text-gold" />
-                                                            {selectedDateObj
-                                                                ? format(selectedDateObj, "d MMM yyyy")
-                                                                : "Pick a date"}
-                                                        </span>
-                                                    </button>
-                                                </PopoverTrigger>
-                                                <PopoverContent
-                                                    className="w-auto border border-gold/20 bg-[#0B1220] p-3"
-                                                    align="start"
-                                                >
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={selectedDateObj}
-                                                        onSelect={(date) => {
-                                                            if (date) {
-                                                                setSelectedDateObj(date);
-                                                                field.onChange(format(date, "yyyy-MM-dd"));
-                                                                setCalendarOpen(false);
-                                                            }
-                                                        }}
-                                                        disabled={date =>
-                                                            date < tomorrow || date > maxDate
-                                                        }
-                                                        initialFocus
-                                                    />
-                                                </PopoverContent>
-                                            </Popover>
-                                            <ErrorMsg message={errors.booking_date?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
-
-                            {/* ══════════════════════════════════════════════════
-                                TIME PICKER
-                                ══════════════════════════════════════════════════ */}
-                            <div>
-                                <FormLabel required>Time</FormLabel>
-                                <Controller
-                                    name="booking_time"
-                                    control={control}
-                                    rules={{ required: "Please select a time" }}
-                                    render={({ field }) => (
-                                        <>
-                                            <Select
-                                                value={field.value}
-                                                onValueChange={field.onChange}
-                                                disabled={!selectedDateObj}
-                                            >
-                                                <SelectTrigger className={selectTriggerClass}>
-                                                    <SelectValue
-                                                        placeholder={
-                                                            selectedDateObj
-                                                                ? "Select a time"
-                                                                : "Pick a date first"
-                                                        }
-                                                    />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-[#0B1220] border border-gold/20">
-                                                    {availableTimes.length === 0 ? (
-                                                        <div className="p-2 text-sm text-white/50">
-                                                            {isToday(selectedDateObj)
-                                                                ? "No available slots today"
-                                                                : "No available times"}
-                                                        </div>
-                                                    ) : (
-                                                        availableTimes.map(time => (
-                                                            <SelectItem
-                                                                key={time.value}
-                                                                value={time.value}
-                                                                className="cursor-pointer"
-                                                            >
-                                                                {time.label}
-                                                            </SelectItem>
-                                                        ))
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <ErrorMsg message={errors.booking_time?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
-
-                            {/* ══════════════════════════════════════════════════
-                                LOCATION (full width)
-                                ══════════════════════════════════════════════════ */}
-                            <div className="sm:col-span-2">
-                                <FormLabel required>Location</FormLabel>
-                                <Controller
-                                    name="location"
-                                    control={control}
-                                    rules={{ required: "Please select a location" }}
-                                    render={({ field }) => (
-                                        <>
-                                            <Select
-                                                value={field.value}
-                                                onValueChange={field.onChange}
-                                            >
-                                                <SelectTrigger className={selectTriggerClass}>
-                                                    <SelectValue placeholder="Select your area in Dubai" />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-[#0B1220] border border-gold/20">
-                                                    {LOCATIONS.map(location => (
-                                                        <SelectItem
-                                                            key={location}
-                                                            value={location}
-                                                            className="cursor-pointer"
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <MapPin className="h-3.5 w-3.5 text-gold" />
-                                                                {location}
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <ErrorMsg message={errors.location?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
-
-                            {/* ══════════════════════════════════════════════════
-                                FULL NAME
-                                ══════════════════════════════════════════════════ */}
-                            <div>
-                                <FormLabel required>Full Name</FormLabel>
-                                <Controller
-                                    name="guest_name"
-                                    control={control}
-                                    rules={{
-                                        required: "Full name is required",
-                                        minLength: { value: 2, message: "Name must be at least 2 characters" },
-                                    }}
-                                    render={({ field }) => (
-                                        <>
-                                            <input
-                                                {...field}
-                                                type="text"
-                                                className={inputClass}
-                                                placeholder="Your full name"
-                                                autoComplete="name"
-                                            />
-                                            <ErrorMsg message={errors.guest_name?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
-
-                            {/* ══════════════════════════════════════════════════
-                                EMAIL ADDRESS
-                                ══════════════════════════════════════════════════ */}
-                            <div>
-                                <FormLabel required>Email Address</FormLabel>
-                                <Controller
-                                    name="guest_email"
-                                    control={control}
-                                    rules={{
-                                        required: "Email is required",
-                                        validate: validateEmail,
-                                    }}
-                                    render={({ field }) => (
-                                        <>
-                                            <input
-                                                {...field}
-                                                type="email"
-                                                className={inputClass}
-                                                placeholder="you@example.com"
-                                                autoComplete="email"
-                                            />
-                                            <ErrorMsg message={errors.guest_email?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
-
-                            {/* ══════════════════════════════════════════════════
-                                PHONE NUMBER (full width)
-                                ══════════════════════════════════════════════════ */}
-                            <div className="sm:col-span-2">
-                                <FormLabel required>Phone Number</FormLabel>
-                                <Controller
-                                    name="guest_phone"
-                                    control={control}
-                                    rules={{
-                                        required: "Phone number is required",
-                                        validate: validatePhone,
-                                    }}
-                                    render={({ field }) => (
-                                        <>
-                                            <input
-                                                {...field}
-                                                type="tel"
-                                                className={inputClass}
-                                                placeholder="+971 50 000 0000"
-                                                autoComplete="tel"
-                                            />
-                                            <ErrorMsg message={errors.guest_phone?.message} />
-                                        </>
-                                    )}
-                                />
-                            </div>
+                    {/* Location radios */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2"
+                            style={{ color: "hsl(var(--foreground))" }}>
+                            Location <span className="text-red-400">*</span>
+                        </label>
+                        <div className="space-y-2">
+                            {LOCATIONS.map(loc => (
+                                <label key={loc} htmlFor={`loc-${loc}`}
+                                    className="flex items-center gap-3 cursor-pointer group">
+                                    <input
+                                        {...register("location", { required: "Please select a location" })}
+                                        type="radio" id={`loc-${loc}`} value={loc}
+                                        className="w-4 h-4 accent-[hsl(var(--gold))]"
+                                    />
+                                    <span className="flex items-center gap-1.5 text-sm transition-colors
+                                        group-hover:text-[hsl(var(--gold))]"
+                                        style={{ color: "hsl(var(--foreground))" }}>
+                                        <MapPin className="h-4 w-4 flex-shrink-0"
+                                            style={{ color: "hsl(var(--gold))" }} />
+                                        {loc}
+                                    </span>
+                                </label>
+                            ))}
                         </div>
+                        <ErrorMsg message={errors.location?.message} />
+                    </div>
 
-                        {/* ══════════════════════════════════════════════════
-                            SUBMIT BUTTON
-                            ══════════════════════════════════════════════════ */}
-                        <div className="mt-8 space-y-4">
-                            <button
-                                type="submit"
-                                disabled={isButtonDisabled}
-                                className={cn(
-                                    "w-full h-12 rounded-full font-semibold uppercase tracking-wider",
-                                    "transition-all duration-300 flex items-center justify-center gap-2",
-                                    isButtonDisabled
-                                        ? "bg-gold/40 text-black/50 cursor-not-allowed"
-                                        : "bg-gold hover:bg-gold/90 text-black cursor-pointer shadow-lg hover:shadow-xl hover:scale-105"
-                                )}
-                            >
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Submitting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles className="h-4 w-4" />
-                                        Confirm Booking
-                                    </>
-                                )}
-                            </button>
-
-                            <p className="text-center text-xs text-white/50">
-                                No payment required now. Our concierge will confirm via WhatsApp within 30 minutes.
-                            </p>
+                    {/* Phone */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5"
+                            style={{ color: "hsl(var(--foreground))" }}>
+                            Phone Number <span className="text-red-400">*</span>
+                        </label>
+                        <div className="flex gap-2">
+                            <div className="flex items-center gap-1.5 px-3 h-11 rounded-lg border text-sm whitespace-nowrap"
+                                style={{
+                                    backgroundColor: "hsl(var(--secondary))",
+                                    borderColor: "hsl(var(--border))",
+                                    color: "hsl(var(--muted-foreground))",
+                                }}>
+                                🇦🇪 +971
+                            </div>
+                            <input {...register("guest_phone", {
+                                required: "Phone number is required",
+                                validate: v => v.replace(/\D/g, "").length >= 9 || "At least 9 digits"
+                            })}
+                                type="tel" placeholder="50 XXX XXXX"
+                                className={cn(inputCls, "flex-1 w-auto")} />
                         </div>
-                    </form>
+                        <ErrorMsg message={errors.guest_phone?.message} />
+                    </div>
+
+                    {/* Service */}
+                    {services.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5"
+                                style={{ color: "hsl(var(--foreground))" }}>
+                                Service <span className="text-red-400">*</span>
+                            </label>
+                            <select {...register("service_id", { required: "Please select a service" })}
+                                className={cn(inputCls, "appearance-none cursor-pointer")}>
+                                <option value="">Select a treatment...</option>
+                                {services.map(s => (
+                                    <option key={s.id} value={String(s.id)}>{s.name}</option>
+                                ))}
+                            </select>
+                            <ErrorMsg message={errors.service_id?.message} />
+                        </div>
+                    )}
+                </div>
+
+                <p className="text-xs mt-4 leading-relaxed"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    By proceeding, you confirm that you have read and agree to our terms and conditions.
+                    No payment required now — our concierge will confirm via WhatsApp.
+                </p>
+
+                <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={cn(
+                        "btn-gold mt-5 w-full py-3 rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2",
+                        isSubmitting && "opacity-50 cursor-not-allowed pointer-events-none"
+                    )}
+                >
+                    {isSubmitting
+                        ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirming...</>
+                        : <><Sparkles className="h-4 w-4" /> Confirm Booking</>
+                    }
+                </button>
+            </form>
+        );
+
+        /* ── STEP 3: Confirmed ── */
+        if (step === 3) return (
+            <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                    <CheckCircle2 className="h-6 w-6 text-green-400" />
+                    <h3 className="text-lg font-bold" style={{ color: "hsl(var(--foreground))" }}>
+                        Booking Confirmed!
+                    </h3>
+                </div>
+                <p className="text-sm mb-6" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    A confirmation email has been sent to your inbox.
+                </p>
+
+                <div className="rounded-xl border p-5 text-left space-y-3"
+                    style={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--gold) / 0.2)",
+                    }}>
+                    <h4 className="font-semibold text-sm flex items-center gap-2"
+                        style={{ color: "hsl(var(--foreground))" }}>
+                        <Sparkles className="h-4 w-4" style={{ color: "hsl(var(--gold))" }} />
+                        Infinity Home Spa
+                    </h4>
+                    {selectedDateObj && selectedTime && (
+                        <div className="flex items-center gap-2 text-sm font-medium"
+                            style={{ color: "hsl(var(--foreground))" }}>
+                            <CalendarDays className="h-4 w-4 flex-shrink-0"
+                                style={{ color: "hsl(var(--muted-foreground))" }} />
+                            {selectedTime.label} · {format(selectedDateObj, "EEEE, MMMM d, yyyy")}
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm"
+                        style={{ color: "hsl(var(--muted-foreground))" }}>
+                        <Globe className="h-4 w-4 flex-shrink-0" />
+                        Dubai Time (GST)
+                    </div>
+                    {confirmedData?.location && (
+                        <div className="flex items-center gap-2 text-sm"
+                            style={{ color: "hsl(var(--muted-foreground))" }}>
+                            <MapPin className="h-4 w-4 flex-shrink-0"
+                                style={{ color: "hsl(var(--gold))" }} />
+                            {confirmedData.location}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ── Layout ─────────────────────────────────────────────────────────────────
+
+    return (
+        <section
+            id="booking"
+            className="relative py-24 px-4"
+            style={{ backgroundColor: "hsl(var(--background))" }}
+        >
+            {/* Subtle gold radial glow */}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    background:
+                        "radial-gradient(ellipse 60% 40% at 50% 50%, hsl(var(--gold) / 0.06), transparent)",
+                }}
+            />
+
+            <div className="relative z-10 mx-auto max-w-4xl">
+                {/* Two-column card */}
+                <div className="glass-card-strong overflow-hidden grid md:grid-cols-2">
+                    {/* Left: Info */}
+                    <div className="p-8 md:p-10 border-b md:border-b-0 md:border-r"
+                        style={{ borderColor: "hsl(var(--border))" }}>
+                        <LeftPanel
+                            selectedDate={selectedDateObj}
+                            selectedTime={selectedTime}
+                            step={step}
+                        />
+                    </div>
+
+                    {/* Right: Steps */}
+                    <div className="p-8 md:p-10 overflow-y-auto max-h-[85vh] custom-scroll">
+                        <style>{scrollbarStyles}</style>
+                        {renderStep()}
+                    </div>
                 </div>
             </div>
         </section>
