@@ -89,7 +89,14 @@ class BookingController extends Controller
         $customerId  = auth()->id();
 
         // ── Day-off check ─────────────────────────────────────────────────────
-        $dayName = Carbon::parse($date)->format('l');
+        $dayName = Carbon::parse($date, 'Asia/Dubai')->format('l');
+
+// TEMP DEBUG
+\Log::info('DATE DEBUG', [
+    'date'    => $date,
+    'dayName' => $dayName,
+    'day_off' => $therapist->day_off ?? 'no therapist yet',
+]);
 
         if ($therapistId) {
             $therapist = Therapist::findOrFail($therapistId);

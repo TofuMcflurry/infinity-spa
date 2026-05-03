@@ -95,11 +95,15 @@ export default function Bookings() {
     }, [step]);
 
     // ── Step 4: Fetch available slots ─────────────────────────────────────────
-    useEffect(() => {
+        useEffect(() => {
         if (step !== 4 || !selectedService || !selectedAddress || !selectedDate || !selectedTherapist) return;
 
-        // ── FIX: Use local date string to avoid timezone offset ───────────────
-        const date = toLocalDateString(selectedDate);
+        // ✅ FIX: Use date parts directly — no timezone conversion
+        const date = [
+            selectedDate.getFullYear(),
+            String(selectedDate.getMonth() + 1).padStart(2, '0'),
+            String(selectedDate.getDate()).padStart(2, '0'),
+        ].join('-');
 
         setLoadingSlots(true);
         setAvailableSlots([]);
@@ -124,7 +128,7 @@ export default function Bookings() {
                     let filteredSlots = slots;
                     if (isToday) {
                         const now = new Date();
-                        const minTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
+                        const minTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
                         filteredSlots = slots.filter(slot => new Date(slot.datetime) >= minTime);
                     }
                     setAvailableSlots(filteredSlots);
@@ -133,7 +137,7 @@ export default function Bookings() {
             .catch(() => setError('Failed to load available slots.'))
             .finally(() => setLoadingSlots(false));
     }, [step, selectedTherapist?.id, selectedDate?.toDateString(), selectedAddress?.id, selectedAddress?.zone_name]);
-
+        
     const canProceed = () => {
         if (step === 1) return !!selectedService;
         if (step === 2) return !!selectedTherapist;
@@ -414,8 +418,17 @@ export default function Bookings() {
                                                 disabled={(date) => {
                                                     const todayDubai = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
                                                     const dateDubai = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
-                                                    const dayName = date.toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', weekday: 'long' });
-                                                    return dateDubai < todayDubai || dayName === selectedTherapist?.day_off;
+
+                                                    // Past dates always disabled
+                                                    if (dateDubai < todayDubai) return true;
+
+                                                    // ✅ Get day directly from the date object — no timezone conversion
+                                                    const day = date.getDay(); // uses LOCAL machine time, no Dubai offset
+                                                    
+                                                    // Block Tuesday = 2
+                                                    if (day === 2) return true;
+
+                                                    return false;
                                                 }}
                                                 className={cn('pointer-events-auto w-full')} />
                                         </div>
