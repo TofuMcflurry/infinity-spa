@@ -284,9 +284,9 @@ class BookingController extends Controller
                 'therapist_id'     => $b->therapist_id,
                 'therapist_avatar' => strtoupper(substr($b->therapist->user->name, 0, 1))
                                       . strtoupper(substr(explode(' ', $b->therapist->user->name)[1] ?? '', 0, 1)),
-                'date'             => Carbon::parse($b->scheduled_start)->format('l, d F Y'),
-                'date_short'       => Carbon::parse($b->scheduled_start)->format('M d, Y'),
-                'time'             => Carbon::parse($b->scheduled_start)->format('g:i A'),
+                'date'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('l, d F Y'),
+                'date_short'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y'),
+                'time'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('g:i A'),
                 'duration'         => $b->service->duration_minutes,
                 'price'            => $b->service->price,
                 'location'         => $b->location,
@@ -305,7 +305,7 @@ class BookingController extends Controller
                 'downpayment_proof'   => $b->downpayment_proof,
                 'cancellation_type'   => $b->cancellation_type,
                 'cancelled_at'        => $b->cancelled_at
-                    ? Carbon::parse($b->cancelled_at)->format('M d, Y g:i A')
+                    ? Carbon::parse($b->cancelled_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
                     : null,
             ]);
 

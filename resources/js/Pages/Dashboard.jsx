@@ -77,7 +77,7 @@ function StatusTracker({ booking }) {
                     </div>
                     <div className="md:text-right">
                         <p className="text-sm mb-1" style={{ color: '#94a3b8' }}>Scheduled</p>
-                        <p className="text-3xl font-display font-light text-white">{booking.time}</p>
+                        <p className="text-3xl font-display font-light text-white">{booking.datetime}</p>
                     </div>
                 </div>
                 <div className="relative">
@@ -207,7 +207,7 @@ function RecentActivityItem({ item }) {
                 </div>
                 <div>
                     <h4 className="font-medium text-white mb-1">{item.service}</h4>
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>{item.date} • {item.therapist} • {item.duration} mins</p>
+                    <p className="text-sm" style={{ color: '#94a3b8' }}>{item.datetime} • {item.therapist} • {item.duration} mins</p>
                 </div>
             </div>
             <button onClick={() => router.visit(route('my.bookings'))}

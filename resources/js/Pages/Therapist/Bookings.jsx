@@ -232,13 +232,13 @@ function BookingCard({ booking, onAction, actionLoading }) {
     const fmt = (dateStr) => {
         if (!dateStr) return '—';
         const d = new Date(dateStr);
-        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return d.toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', weekday: 'short', month: 'short', day: 'numeric' });
     };
 
     const fmtTime = (dateStr) => {
         if (!dateStr) return '—';
         const d = new Date(dateStr);
-        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' });
     };
 
     const isLoading = (action) => actionLoading === `${booking.id}-${action}`;

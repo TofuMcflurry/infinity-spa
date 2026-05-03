@@ -26,12 +26,9 @@ async function apiFetch(url) {
     return res.json();
 }
 
-// ── Fix timezone issue — get local date string YYYY-MM-DD ─────────────────────
+// ── Fix timezone issue — get Dubai date string YYYY-MM-DD ─────────────────────
 function toLocalDateString(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(date);
 }
 
 export default function Bookings() {
@@ -120,7 +117,17 @@ export default function Bookings() {
                     setError(t.slotUnavailable);
                     setAvailableSlots([]);
                 } else {
-                    setAvailableSlots(data.slots ?? []);
+                    const slots = data.slots ?? [];
+                    const todayDubai = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                    const selectedDateDubai = selectedDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                    const isToday = selectedDateDubai === todayDubai;
+                    let filteredSlots = slots;
+                    if (isToday) {
+                        const now = new Date();
+                        const minTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
+                        filteredSlots = slots.filter(slot => new Date(slot.datetime) >= minTime);
+                    }
+                    setAvailableSlots(filteredSlots);
                 }
             })
             .catch(() => setError('Failed to load available slots.'))
@@ -256,7 +263,7 @@ export default function Bookings() {
                                 <p className="text-muted-foreground text-sm mb-1">{selectedService?.name} • {selectedTherapist?.name}</p>
                                 <p className="text-muted-foreground text-xs">
                                     {formattedDate} •{' '}
-                                    {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    {selectedTime && new Date(selectedTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: 'numeric', minute: '2-digit', hour12: true })}
                                 </p>
                                 <p className="text-xs text-gold mt-2">{selectedAddress?.label} — {selectedAddress?.address}</p>
                                 <p className="text-xs text-muted-foreground mt-4">{t.waitingConfirm}</p>
@@ -405,9 +412,10 @@ export default function Bookings() {
                                             <h4 className="font-display font-semibold text-base mb-2">{t.chooseDate}</h4>
                                             <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate}
                                                 disabled={(date) => {
-                                                    const today = new Date(); today.setHours(0, 0, 0, 0);
-                                                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-                                                    return date < today || dayName === selectedTherapist?.day_off;
+                                                    const todayDubai = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                                                    const dateDubai = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                                                    const dayName = date.toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', weekday: 'long' });
+                                                    return dateDubai < todayDubai || dayName === selectedTherapist?.day_off;
                                                 }}
                                                 className={cn('pointer-events-auto w-full')} />
                                         </div>
@@ -539,7 +547,7 @@ export default function Bookings() {
                                                 {[
                                                     { label: t.summaryService,   value: selectedService?.name,      sub: selectedService?.duration_minutes ? `${selectedService.duration_minutes} ${t.minutes_suffix}` : null },
                                                     { label: t.summaryTherapist, value: selectedTherapist?.name,    sub: selectedTherapist?.specialty },
-                                                    { label: t.summaryDateTime,  value: formattedDate,              sub: selectedTime ? new Date(selectedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : null },
+                                                    { label: t.summaryDateTime,  value: formattedDate,              sub: selectedTime ? new Date(selectedTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: 'numeric', minute: '2-digit', hour12: true }) : null },
                                                     { label: t.summaryLocation,  value: selectedAddress?.label,     sub: selectedAddress?.address },
                                                 ].map(({ label, value, sub }) => (
                                                     <div key={label} className="flex justify-between items-start gap-4 text-sm">

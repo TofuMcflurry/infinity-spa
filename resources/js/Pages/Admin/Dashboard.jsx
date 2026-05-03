@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { router } from '@inertiajs/react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import { CalendarDays, Coins, Users, UserCheck, Check, X, CircleCheck, Mail } from 'lucide-react';
+import { fmtDateTimeAdmin } from '@/lib/utils';
 
 function StatCard({ icon: Icon, label, value, sub }) {
   return (
@@ -99,12 +100,7 @@ export default function Dashboard({ stats, recent_bookings, pending_guest_bookin
     new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED', maximumFractionDigits: 2 }).format(Number(n || 0)),
   []);
 
-  const fmtDate = (dt) => {
-    if (!dt) return '—';
-    const d = new Date(dt);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  };
+  const fmtDate = fmtDateTimeAdmin;
 
   const post = (url, id, confirm_msg) => {
     if (!window.confirm(confirm_msg)) return;

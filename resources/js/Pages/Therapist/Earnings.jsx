@@ -31,7 +31,7 @@ async function apiFetch(url, opts = {}) {
 const fmt = (n) => 'AED ' + Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d) => {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 // ── Summary card ──────────────────────────────────────────────────────────────
