@@ -6,7 +6,7 @@ import {
     Calendar, Clock, MapPin, User, CheckCircle2,
     XCircle, Banknote, ClipboardList, Star,
     AlertCircle, Car, ChevronRight, RefreshCw,
-    CalendarClock, Hourglass, Loader2, X
+    CalendarClock, Hourglass, Loader2, X, Sparkles, CalendarX
 } from 'lucide-react';
 import { DUBAI_TZ, getTodayDubai, isToday, fmtDate, fmtTime, fmtDateTime } from '@/lib/utils';
 
@@ -31,7 +31,6 @@ async function apiFetch(url, options = {}) {
     return res.json();
 }
 
-/** Resolve zone/location name from booking object */
 function getZone(booking) {
     return booking.zone_name
         ?? booking.zone?.name
@@ -43,14 +42,14 @@ function getZone(booking) {
 
 // ── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-    pending:         { label: 'Pending',          color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   border: 'rgba(245,158,11,0.3)',   icon: Clock       },
+    pending:         { label: 'Pending',          color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   border: 'rgba(245,158,11,0.3)',   icon: Clock        },
     accepted:        { label: 'Accepted',         color: '#10b981', bg: 'rgba(16,185,129,0.1)',   border: 'rgba(16,185,129,0.3)',   icon: CheckCircle2 },
-    en_route:        { label: 'En Route',         color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',   border: 'rgba(59,130,246,0.3)',   icon: Car         },
-    arrived:         { label: 'Arrived',          color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',   border: 'rgba(139,92,246,0.3)',   icon: MapPin      },
-    completed:       { label: 'Completed',        color: '#e2b764', bg: 'rgba(226,183,100,0.1)',  border: 'rgba(226,183,100,0.3)',  icon: Star        },
-    rejected:        { label: 'Rejected',         color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.3)',    icon: XCircle     },
-    cancelled:       { label: 'Cancelled',        color: '#6b7280', bg: 'rgba(107,114,128,0.1)',  border: 'rgba(107,114,128,0.3)',  icon: XCircle     },
-    pending_payment: { label: 'Awaiting Payment', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  border: 'rgba(148,163,184,0.3)',  icon: Banknote    },
+    en_route:        { label: 'En Route',         color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',   border: 'rgba(59,130,246,0.3)',   icon: Car          },
+    arrived:         { label: 'Arrived',          color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',   border: 'rgba(139,92,246,0.3)',   icon: MapPin       },
+    completed:       { label: 'Completed',        color: '#e2b764', bg: 'rgba(226,183,100,0.1)',  border: 'rgba(226,183,100,0.3)',  icon: Star         },
+    rejected:        { label: 'Rejected',         color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.3)',    icon: XCircle      },
+    cancelled:       { label: 'Cancelled',        color: '#6b7280', bg: 'rgba(107,114,128,0.1)',  border: 'rgba(107,114,128,0.3)',  icon: XCircle      },
+    pending_payment: { label: 'Awaiting Payment', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  border: 'rgba(148,163,184,0.3)',  icon: Banknote     },
 };
 
 // ── Cancellation reasons ──────────────────────────────────────────────────────
@@ -69,14 +68,8 @@ function CancelModal({ booking, onConfirm, onClose, loading }) {
     const [error, setError] = useState('');
 
     const handleSubmit = () => {
-        if (!selected) {
-            setError('Please select a cancellation reason.');
-            return;
-        }
-        if (selected === 'other' && !otherText.trim()) {
-            setError('Please describe the reason.');
-            return;
-        }
+        if (!selected) { setError('Please select a cancellation reason.'); return; }
+        if (selected === 'other' && !otherText.trim()) { setError('Please describe the reason.'); return; }
         const reason = selected === 'other'
             ? otherText.trim()
             : CANCEL_REASONS.find(r => r.key === selected)?.label ?? selected;
@@ -86,9 +79,7 @@ function CancelModal({ booking, onConfirm, onClose, loading }) {
     return (
         <motion.div
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
             <motion.div
                 className="absolute inset-0"
@@ -98,11 +89,8 @@ function CancelModal({ booking, onConfirm, onClose, loading }) {
             <motion.div
                 className="relative w-full max-w-md rounded-2xl border overflow-hidden"
                 style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
-                initial={{ scale: 0.95, y: 24 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.95, y: 24 }}
+                initial={{ scale: 0.95, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 24 }}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
                     <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(107,114,128,0.12)' }}>
@@ -120,12 +108,10 @@ function CancelModal({ booking, onConfirm, onClose, loading }) {
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="px-5 py-4 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
                         Reason for cancellation <span style={{ color: '#ef4444' }}>*</span>
                     </p>
-
                     <div className="space-y-2">
                         {CANCEL_REASONS.map(reason => (
                             <button
@@ -247,7 +233,7 @@ function StatCard({ icon: Icon, label, value, accent, delay = 0 }) {
 }
 
 // ── Section header ────────────────────────────────────────────────────────────
-function SectionHeader({ icon: Icon, title, accentColor = '#e2b764', children }) {
+function SectionHeader({ icon: Icon, title, accentColor = '#e2b764', badge, children }) {
     return (
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
             <div className="flex items-center gap-2">
@@ -255,8 +241,54 @@ function SectionHeader({ icon: Icon, title, accentColor = '#e2b764', children })
                     <Icon size={14} style={{ color: accentColor }} />
                 </div>
                 <h3 className="font-display font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>{title}</h3>
+                {badge != null && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${accentColor}18`, color: accentColor }}>
+                        {badge}
+                    </span>
+                )}
             </div>
             {children}
+        </div>
+    );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyState({ icon: Icon, title, subtitle, accentColor = 'var(--theme-text-muted)' }) {
+    return (
+        <div className="px-5 py-10 flex flex-col items-center gap-3 text-center">
+            <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+            >
+                <Icon size={20} style={{ color: accentColor }} />
+            </div>
+            <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-2)' }}>{title}</p>
+                {subtitle && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{subtitle}</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Skeleton row ──────────────────────────────────────────────────────────────
+function SkeletonRow({ hasActions = false }) {
+    return (
+        <div className="px-5 py-4 flex items-center justify-between gap-3">
+            <div className="space-y-2 flex-1">
+                <div className="h-3.5 w-36 rounded-lg animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+                <div className="h-3 w-52 rounded-lg animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+            </div>
+            {hasActions && (
+                <div className="flex gap-2">
+                    <div className="h-7 w-16 rounded-lg animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+                    <div className="h-7 w-16 rounded-lg animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+                </div>
+            )}
+            {!hasActions && (
+                <div className="h-7 w-16 rounded-lg animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
+            )}
         </div>
     );
 }
@@ -285,12 +317,12 @@ function ActiveSession({ booking, onAction, actionLoading }) {
             </SectionHeader>
 
             {!booking ? (
-                <div className="px-5 py-10 text-center flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(226,183,100,0.08)' }}>
-                        <Calendar size={20} style={{ color: 'var(--theme-text-muted)' }} />
-                    </div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--theme-text-muted)' }}>No active session today</p>
-                </div>
+                <EmptyState
+                    icon={Sparkles}
+                    title="No active session right now"
+                    subtitle="Accept an upcoming booking to get started"
+                    accentColor="#e2b764"
+                />
             ) : (
                 <div className="p-5 space-y-5">
                     {/* Session info */}
@@ -324,7 +356,10 @@ function ActiveSession({ booking, onAction, actionLoading }) {
                                     <div className="flex flex-col items-center gap-1">
                                         <div
                                             className="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all"
-                                            style={{ borderColor: isDone ? '#e2b764' : 'var(--theme-border)', background: isDone ? 'rgba(226,183,100,0.12)' : 'transparent' }}
+                                            style={{
+                                                borderColor: isDone ? '#e2b764' : 'var(--theme-border)',
+                                                background: isDone ? 'rgba(226,183,100,0.12)' : 'transparent',
+                                            }}
                                         >
                                             <StepIcon size={14} style={{ color: isDone ? '#e2b764' : '#374151' }} />
                                         </div>
@@ -362,10 +397,15 @@ function ActiveSession({ booking, onAction, actionLoading }) {
                         <button
                             onClick={() => onAction(booking.id, 'en-route')}
                             disabled={!!actionLoading}
-                            className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                            style={{ background: isLoading('en-route') ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6', opacity: actionLoading && !isLoading('en-route') ? 0.5 : 1 }}
+                            className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
+                            style={{
+                                background: isLoading('en-route') ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.15)',
+                                border: '1px solid rgba(59,130,246,0.35)',
+                                color: '#3b82f6',
+                                opacity: actionLoading && !isLoading('en-route') ? 0.5 : 1,
+                            }}
                         >
-                            <Car size={15} />
+                            {isLoading('en-route') ? <Loader2 size={15} className="animate-spin" /> : <Car size={15} />}
                             {isLoading('en-route') ? 'Updating…' : 'En Route'}
                         </button>
                     )}
@@ -373,10 +413,15 @@ function ActiveSession({ booking, onAction, actionLoading }) {
                         <button
                             onClick={() => onAction(booking.id, 'arrived')}
                             disabled={!!actionLoading}
-                            className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                            style={{ background: isLoading('arrived') ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#8b5cf6', opacity: actionLoading && !isLoading('arrived') ? 0.5 : 1 }}
+                            className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
+                            style={{
+                                background: isLoading('arrived') ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.15)',
+                                border: '1px solid rgba(139,92,246,0.35)',
+                                color: '#8b5cf6',
+                                opacity: actionLoading && !isLoading('arrived') ? 0.5 : 1,
+                            }}
                         >
-                            <MapPin size={15} />
+                            {isLoading('arrived') ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}
                             {isLoading('arrived') ? 'Updating…' : 'Arrived'}
                         </button>
                     )}
@@ -384,10 +429,15 @@ function ActiveSession({ booking, onAction, actionLoading }) {
                         <button
                             onClick={() => onAction(booking.id, 'complete')}
                             disabled={!!actionLoading}
-                            className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-                            style={{ background: isLoading('complete') ? 'rgba(226,183,100,0.2)' : 'rgba(226,183,100,0.15)', border: '1px solid rgba(226,183,100,0.3)', color: '#e2b764', opacity: actionLoading && !isLoading('complete') ? 0.5 : 1 }}
+                            className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-opacity"
+                            style={{
+                                background: isLoading('complete') ? 'rgba(226,183,100,0.2)' : 'rgba(226,183,100,0.15)',
+                                border: '1px solid rgba(226,183,100,0.35)',
+                                color: '#e2b764',
+                                opacity: actionLoading && !isLoading('complete') ? 0.5 : 1,
+                            }}
                         >
-                            <CheckCircle2 size={15} />
+                            {isLoading('complete') ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                             {isLoading('complete') ? 'Completing…' : 'Mark Complete'}
                         </button>
                     )}
@@ -427,10 +477,15 @@ function UpcomingBookingRow({ booking, onAction, actionLoading }) {
                 <button
                     onClick={() => setShowCancel(true)}
                     disabled={!!actionLoading}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    style={{ background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.25)', color: '#9ca3af', opacity: actionLoading ? 0.5 : 1 }}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity"
+                    style={{
+                        background: 'rgba(107,114,128,0.1)',
+                        border: '1px solid rgba(107,114,128,0.25)',
+                        color: '#9ca3af',
+                        opacity: actionLoading ? 0.5 : 1,
+                    }}
                 >
-                    Cancel
+                    {isLoadingCancel ? <Loader2 size={12} className="animate-spin" /> : 'Cancel'}
                 </button>
             </div>
 
@@ -451,7 +506,7 @@ function UpcomingBookingRow({ booking, onAction, actionLoading }) {
     );
 }
 
-// ── 2. UPCOMING BOOKINGS (Today's accepted sessions only) ─────────────────────
+// ── 2. UPCOMING BOOKINGS ──────────────────────────────────────────────────────
 function UpcomingBookings({ bookings, onAction, actionLoading, loading }) {
     return (
         <motion.div
@@ -461,7 +516,7 @@ function UpcomingBookings({ bookings, onAction, actionLoading, loading }) {
             className="rounded-2xl border overflow-hidden"
             style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
         >
-            <SectionHeader icon={CalendarClock} title="Upcoming Bookings" accentColor="#3b82f6">
+            <SectionHeader icon={CalendarClock} title="Upcoming Bookings" accentColor="#3b82f6" badge={bookings.length > 0 ? bookings.length : null}>
                 <Link href="/therapist/bookings" className="text-xs font-semibold flex items-center gap-1" style={{ color: '#e2b764' }}>
                     View All <ChevronRight size={13} />
                 </Link>
@@ -469,19 +524,14 @@ function UpcomingBookings({ bookings, onAction, actionLoading, loading }) {
 
             <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
                 {loading ? (
-                    [0, 1, 2].map(i => (
-                        <div key={i} className="px-5 py-4 flex items-center justify-between gap-3">
-                            <div className="space-y-2 flex-1">
-                                <div className="h-3.5 w-36 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                                <div className="h-3 w-52 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                            </div>
-                            <div className="h-7 w-16 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                        </div>
-                    ))
+                    [0, 1, 2].map(i => <SkeletonRow key={i} />)
                 ) : bookings.length === 0 ? (
-                    <div className="px-5 py-10 text-center">
-                        <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No upcoming sessions today</p>
-                    </div>
+                    <EmptyState
+                        icon={CalendarX}
+                        title="No upcoming sessions today"
+                        subtitle="New accepted bookings will appear here"
+                        accentColor="#3b82f6"
+                    />
                 ) : (
                     bookings.map(booking => (
                         <UpcomingBookingRow
@@ -507,32 +557,18 @@ function PendingBookings({ bookings, onAction, actionLoading, loading }) {
             className="rounded-2xl border overflow-hidden"
             style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
         >
-            <SectionHeader icon={Hourglass} title="Pending Bookings" accentColor="#f59e0b">
-                {bookings.length > 0 && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
-                        {bookings.length}
-                    </span>
-                )}
-            </SectionHeader>
+            <SectionHeader icon={Hourglass} title="Pending Bookings" accentColor="#f59e0b" badge={bookings.length > 0 ? bookings.length : null} />
 
             <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
                 {loading ? (
-                    [0, 1].map(i => (
-                        <div key={i} className="px-5 py-4 flex items-center justify-between gap-3">
-                            <div className="space-y-2 flex-1">
-                                <div className="h-3.5 w-32 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                                <div className="h-3 w-48 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="h-7 w-16 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                                <div className="h-7 w-16 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />
-                            </div>
-                        </div>
-                    ))
+                    [0, 1].map(i => <SkeletonRow key={i} hasActions />)
                 ) : bookings.length === 0 ? (
-                    <div className="px-5 py-10 text-center">
-                        <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No pending bookings</p>
-                    </div>
+                    <EmptyState
+                        icon={Hourglass}
+                        title="No pending bookings"
+                        subtitle="You're all caught up!"
+                        accentColor="#f59e0b"
+                    />
                 ) : (
                     bookings.map(booking => {
                         const zone = getZone(booking);
@@ -562,17 +598,29 @@ function PendingBookings({ bookings, onAction, actionLoading, loading }) {
                                     <button
                                         onClick={() => onAction(booking.id, 'accept')}
                                         disabled={!!actionLoading}
-                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                                        style={{ background: isLoadingAccept ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', opacity: actionLoading && !isLoadingAccept ? 0.5 : 1 }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-opacity"
+                                        style={{
+                                            background: isLoadingAccept ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)',
+                                            border: '1px solid rgba(16,185,129,0.3)',
+                                            color: '#10b981',
+                                            opacity: actionLoading && !isLoadingAccept ? 0.5 : 1,
+                                        }}
                                     >
+                                        {isLoadingAccept ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
                                         {isLoadingAccept ? '…' : 'Accept'}
                                     </button>
                                     <button
                                         onClick={() => onAction(booking.id, 'reject')}
                                         disabled={!!actionLoading}
-                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                                        style={{ background: isLoadingReject ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444', opacity: actionLoading && !isLoadingReject ? 0.5 : 1 }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-opacity"
+                                        style={{
+                                            background: isLoadingReject ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)',
+                                            border: '1px solid rgba(239,68,68,0.25)',
+                                            color: '#ef4444',
+                                            opacity: actionLoading && !isLoadingReject ? 0.5 : 1,
+                                        }}
                                     >
+                                        {isLoadingReject ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
                                         {isLoadingReject ? '…' : 'Reject'}
                                     </button>
                                 </div>
@@ -652,34 +700,32 @@ export default function Dashboard() {
     }, [fetchBookings, fetchStats]);
 
     // ── Derived lists ─────────────────────────────────────────────────────────
-
-    // Active Session: the first en_route/arrived booking today, or first accepted today
     const activeBooking = bookings.find(b =>
         ['en_route', 'arrived'].includes(b.status) && isToday(b.scheduled_start)
     ) ?? bookings.find(b =>
         b.status === 'accepted' && isToday(b.scheduled_start)
     ) ?? null;
 
-    // Upcoming: all OTHER accepted bookings today (not the active one)
     const upcomingBookings = bookings
         .filter(b => b.status === 'accepted' && isToday(b.scheduled_start) && b.id !== activeBooking?.id)
         .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
 
-    // Pending: all pending bookings
     const pendingBookings = bookings
         .filter(b => b.status === 'pending')
         .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
 
     return (
         <TherapistLayout>
+            {/* ── reduced top padding: pt-4 instead of pt-6 ── */}
             <div className="min-h-screen pb-24 md:pb-8" style={{ background: 'var(--theme-bg)' }}>
 
-                {/* Page header */}
-                <div className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-2">
+                <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4 pb-2">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{greeting},</p>
-                            <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</h1>
+                            <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--theme-text-head)' }}>
+                                {user?.name ?? 'Therapist'}
+                            </h1>
                         </div>
                         <button
                             onClick={() => fetchBookings()}
@@ -692,29 +738,25 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="max-w-4xl mx-auto px-4 md:px-8 space-y-6 pt-4">
+                {/* ── reduced gap: space-y-4 instead of space-y-6, tighter pt ── */}
+                <div className="max-w-4xl mx-auto px-4 md:px-8 space-y-4 pt-3">
 
                     {/* Stats */}
                     {loading ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             {[0,1,2,3].map(i => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />)}
                         </div>
                     ) : stats ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <StatCard icon={Calendar}      label="Today's Sessions"     value={stats.today_sessions}                           delay={0}    />
-                            <StatCard icon={ClipboardList} label="Pending"              value={stats.pending_count}                            delay={0.05} accent="#f59e0b" />
-                            <StatCard icon={Star}          label="Completed"            value={stats.completed_count}                          delay={0.1}  accent="#10b981" />
-                            <StatCard icon={Banknote}      label="This Week's Earnings" value={`AED ${stats.week_earnings?.toLocaleString()}`} delay={0.15} accent="#3b82f6" />
+                            <StatCard icon={ClipboardList} label="Pending"              value={stats.pending_count}    accent="#f59e0b"          delay={0.05} />
+                            <StatCard icon={Star}          label="Completed"            value={stats.completed_count}  accent="#10b981"          delay={0.1}  />
+                            <StatCard icon={Banknote}      label="This Week's Earnings" value={`AED ${stats.week_earnings?.toLocaleString()}`} accent="#3b82f6" delay={0.15} />
                         </div>
                     ) : null}
 
-                    {/* 1. Active Session */}
                     <ActiveSession booking={activeBooking} onAction={handleAction} actionLoading={actionLoading} />
-
-                    {/* 2. Upcoming Bookings — today only */}
                     <UpcomingBookings bookings={upcomingBookings} onAction={handleAction} actionLoading={actionLoading} loading={loading} />
-
-                    {/* 3. Pending Bookings */}
                     <PendingBookings bookings={pendingBookings} onAction={handleAction} actionLoading={actionLoading} loading={loading} />
 
                 </div>

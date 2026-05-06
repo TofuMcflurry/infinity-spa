@@ -14,8 +14,8 @@ class TherapistBookingController extends Controller
     public function index(Request $request)
     {
         $therapist = auth()->user()->therapist;
-        $perPage = $request->query('per_page', 15);
-        $status = $request->query('status');
+        $perPage   = $request->query('per_page', 15);
+        $status    = $request->query('status');
 
         // Auto-cancel past due bookings (only pending & accepted, not completed/cancelled)
         Booking::where('therapist_id', $therapist->id)
@@ -27,7 +27,6 @@ class TherapistBookingController extends Controller
             ->where('therapist_id', $therapist->id)
             ->orderBy('scheduled_start', 'asc');
 
-        // Filter by status if provided (comma-separated: e.g., "pending,accepted,en_route")
         if ($status) {
             $statusList = array_filter(array_map('trim', explode(',', $status)));
             if (!empty($statusList)) {
@@ -40,146 +39,142 @@ class TherapistBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // ── Get dashboard stats for this therapist ─────────────────────────────────
+    // ── Get dashboard stats ────────────────────────────────────────────────────
     public function stats()
     {
         $therapist = auth()->user()->therapist;
-        $today = now()->toDateString();
+        $today     = now()->toDateString();
 
         $allBookings = Booking::where('therapist_id', $therapist->id)->get();
 
-        $todayCount = $allBookings->filter(function ($b) use ($today) {
-            return $b->scheduled_start->toDateString() === $today;
-        })->count();
+        $todayCount = $allBookings->filter(
+            fn($b) => $b->scheduled_start->toDateString() === $today
+        )->count();
 
-        $pendingCount = $allBookings->where('status', 'pending')->count();
+        $pendingCount   = $allBookings->where('status', 'pending')->count();
         $completedCount = $allBookings->where('status', 'completed')->count();
-        $earnings = $allBookings
-            ->where('status', 'completed')
-            ->sum(function ($b) {
-                return $b->service?->price ?? 0;
-            });
 
-        // Calculate week earnings: sum(service.price * 0.60) for completed bookings this week (Mon-Sun)
         $startOfWeek = now()->startOfWeek();
-        $endOfWeek = now()->endOfWeek();
+        $endOfWeek   = now()->endOfWeek();
+
         $weekEarnings = Booking::where('therapist_id', $therapist->id)
             ->where('status', 'completed')
             ->whereBetween('updated_at', [$startOfWeek, $endOfWeek])
             ->with('service')
             ->get()
-            ->sum(function ($b) {
-                return ($b->service?->price ?? 0) * 0.60;
-            });
+            ->sum(fn($b) => ($b->service?->price ?? 0) * 0.60);
 
         return response()->json([
-            'today_sessions' => $todayCount,
-            'pending_count'  => $pendingCount,
+            'today_sessions'  => $todayCount,
+            'pending_count'   => $pendingCount,
             'completed_count' => $completedCount,
-            'earnings'       => $earnings,
-            'week_earnings'  => round($weekEarnings, 2),
+            'week_earnings'   => round($weekEarnings, 2),
         ]);
     }
 
-    // ── Accept a booking ──────────────────────────────────────────────────────
+    // ── Accept ────────────────────────────────────────────────────────────────
     public function accept(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
         $booking->update(['status' => 'accepted']);
-
-        // Notify customer
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'accepted'));
 
-        return response()->json([
-            'message' => 'Booking accepted!',
-            'booking' => $booking,
-        ]);
+        return response()->json(['message' => 'Booking accepted!', 'booking' => $booking]);
     }
 
-    // ── Reject a booking ──────────────────────────────────────────────────────
+    // ── Reject ────────────────────────────────────────────────────────────────
     public function reject(Request $request, Booking $booking)
     {
         $this->authorizeTherapist($booking);
+        $request->validate(['reason' => 'nullable|string|max:255']);
 
-        $request->validate([
-            'reason' => 'nullable|string|max:255',
-        ]);
-
-        $booking->update([
-            'status'           => 'rejected',
-            'rejection_reason' => $request->reason,
-        ]);
-
-        // Notify customer
+        $booking->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'rejected'));
 
-        return response()->json([
-            'message' => 'Booking rejected.',
-            'booking' => $booking,
-        ]);
+        return response()->json(['message' => 'Booking rejected.', 'booking' => $booking]);
     }
 
-    // ── Mark as en route ──────────────────────────────────────────────────────
+    // ── Cancel (by therapist) ─────────────────────────────────────────────────
+    public function cancel(Request $request, Booking $booking)
+    {
+        $this->authorizeTherapist($booking);
+
+        $request->validate(['reason' => 'nullable|string|max:255']);
+
+        // Only allow cancelling bookings that haven't started yet
+        abort_if(
+            in_array($booking->status, ['completed', 'rejected', 'cancelled']),
+            422,
+            'This booking cannot be cancelled.'
+        );
+
+        $booking->update([
+            'status'            => 'cancelled',
+            'cancelled_at'      => now(),
+            'cancellation_type' => 'therapist',
+            'rejection_reason'  => $request->reason,
+        ]);
+
+        if ($booking->customer_id) {
+            $booking->load('customer', 'service', 'therapist.user');
+            $booking->customer->notify(new BookingNotification($booking, 'cancelled'));
+        }
+
+        return response()->json(['message' => 'Booking cancelled.', 'booking' => $booking]);
+    }
+
+    // ── En Route ──────────────────────────────────────────────────────────────
     public function enRoute(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
-        $booking->update(['status' => 'en_route']);
+        abort_if($booking->status !== 'accepted', 422, 'Booking must be accepted first.');
 
-        // Notify customer
+        $booking->update(['status' => 'en_route']);
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'en_route'));
 
-        return response()->json([
-            'message' => 'Status updated to en route!',
-            'booking' => $booking,
-        ]);
+        return response()->json(['message' => 'Status updated to en route!', 'booking' => $booking]);
     }
 
-    // ── Mark as arrived ───────────────────────────────────────────────────────
+    // ── Arrived ───────────────────────────────────────────────────────────────
     public function arrived(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
-        $booking->update(['status' => 'arrived']);
+        abort_if($booking->status !== 'en_route', 422, 'Therapist must be en route first.');
 
-        // Notify customer
+        $booking->update(['status' => 'arrived']);
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'arrived'));
 
-        return response()->json([
-            'message' => 'Status updated to arrived!',
-            'booking' => $booking,
-        ]);
+        return response()->json(['message' => 'Status updated to arrived!', 'booking' => $booking]);
     }
 
-    // ── Complete a booking ────────────────────────────────────────────────────
+    // ── Complete ──────────────────────────────────────────────────────────────
     public function complete(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
-        $booking->update(['status' => 'completed']);
+        abort_if($booking->status !== 'arrived', 422, 'Therapist must have arrived first.');
 
+        $booking->update(['status' => 'completed']);
         $booking->load('service', 'therapist.user');
 
         if ($booking->customer_id) {
             $booking->load('customer');
             $booking->customer->notify(new BookingNotification($booking, 'completed'));
         } else {
-            // Guest booking — queue promo email after 1 day
             SendGuestConversionEmail::dispatch($booking)->delay(now()->addDay());
         }
 
-        return response()->json([
-            'message' => 'Booking marked as completed!',
-            'booking' => $booking,
-        ]);
+        return response()->json(['message' => 'Booking marked as completed!', 'booking' => $booking]);
     }
 
-    // ── Get therapist profile ─────────────────────────────────────────────────
+    // ── Profile ───────────────────────────────────────────────────────────────
     public function profile()
     {
         $therapist = auth()->user()->therapist;
@@ -205,7 +200,7 @@ class TherapistBookingController extends Controller
         ]);
     }
 
-    // ── Update therapist profile ──────────────────────────────────────────────
+    // ── Update Profile ────────────────────────────────────────────────────────
     public function updateProfile(Request $request)
     {
         $request->validate([
@@ -216,46 +211,30 @@ class TherapistBookingController extends Controller
         $user      = auth()->user();
         $therapist = $user->therapist;
 
-        if ($request->has('bio')) {
-            $therapist->update(['bio' => $request->bio]);
-        }
-
-        if ($request->has('phone')) {
-            $user->update(['phone' => $request->phone]);
-        }
+        if ($request->has('bio'))   $therapist->update(['bio'   => $request->bio]);
+        if ($request->has('phone')) $user->update(['phone' => $request->phone]);
 
         return response()->json(['message' => 'Profile updated successfully.']);
     }
 
-    // ── Upload avatar ─────────────────────────────────────────────────────────
+    // ── Upload Avatar ─────────────────────────────────────────────────────────
     public function updateAvatar(Request $request)
     {
-        $request->validate([
-            'avatar' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
-        ]);
+        $request->validate(['avatar' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048']);
 
         $user = auth()->user();
-
         $path = $request->file('avatar')->store('avatars', 'public');
         $url  = asset('storage/' . $path);
 
         $user->update(['avatar' => $url]);
 
-        return response()->json([
-            'message' => 'Avatar updated successfully.',
-            'avatar'  => $url,
-        ]);
+        return response()->json(['message' => 'Avatar updated successfully.', 'avatar' => $url]);
     }
 
-    // ── Authorize therapist ───────────────────────────────────────────────────
+    // ── Authorization helper ──────────────────────────────────────────────────
     private function authorizeTherapist(Booking $booking): void
     {
         $therapist = auth()->user()->therapist;
-
-        abort_if(
-            $booking->therapist_id !== $therapist->id,
-            403,
-            'Unauthorized.'
-        );
+        abort_if($booking->therapist_id !== $therapist->id, 403, 'Unauthorized.');
     }
 }
