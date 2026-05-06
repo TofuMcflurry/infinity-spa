@@ -242,7 +242,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
 
-    const paymentStatus = booking.payment_proof
+    const paymentStatus = booking.downpayment_proof
         ? (booking.payment_verified ? 'verified' : 'submitted')
         : 'no_proof';
 
@@ -303,6 +303,14 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
         }
     };
 
+    // Helper to get full image URL
+    const getFullImageUrl = (path) => {
+        if (!path) return '';
+        if (path.startsWith('http')) return path;
+        if (path.startsWith('/')) return `${window.location.origin}${path}`;
+        return `${window.location.origin}/${path}`;
+    };
+
     return (
         <motion.div
             className="fixed inset-0 z-50 flex items-start justify-end"
@@ -345,9 +353,14 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                     </div>
                 </div>
 
-                {/* Scrollable body */}
-                <div className="flex-1 overflow-y-auto px-6 py-5">
-
+                {/* Scrollable body with custom scrollbar */}
+                <div 
+                    className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar"
+                    style={{
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: '#e2b76430 var(--theme-border)'
+                    }}
+                >
                     {/* Actions */}
                     <div className="mb-6 p-4 rounded-xl" style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}>
                         <p className="text-[10px] uppercase tracking-widest font-bold mb-3" style={{ color: '#e2b764' }}>
@@ -381,28 +394,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                             {/* Progress actions */}
                             {renderStatusActions()}
-
-                            {/* Verify Payment */}
-                            {paymentStatus === 'submitted' && (
-                                <button
-                                    onClick={() => onAction(booking.id, 'verify-payment')}
-                                    disabled={anyLoading}
-                                    className="flex-1 min-w-[120px] py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-                                    style={{ background: isLoading('verify-payment') ? 'rgba(226,183,100,0.2)' : 'rgba(226,183,100,0.1)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.3)', opacity: anyLoading && !isLoading('verify-payment') ? 0.5 : 1 }}
-                                >
-                                    {isLoading('verify-payment') ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                                    {isLoading('verify-payment') ? 'Verifying…' : 'Verify Payment'}
-                                </button>
-                            )}
-
-                            {paymentStatus === 'verified' && (
-                                <div
-                                    className="flex-1 min-w-[120px] py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
-                                    style={{ background: 'rgba(16,185,129,0.08)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}
-                                >
-                                    <ShieldCheck size={12} /> Payment Verified
-                                </div>
-                            )}
                         </div>
                     </div>
 
@@ -456,29 +447,34 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                     onClick={() => setImgZoom(true)}
                                 >
                                     <img
-                                        src={booking.downpayment_proof}
+                                        src={getFullImageUrl(booking.downpayment_proof)}
                                         alt="Payment proof"
                                         className="w-full object-cover max-h-52 transition-transform group-hover:scale-105"
+                                        onError={(e) => {
+                                            console.error('Image failed to load:', booking.downpayment_proof);
+                                            e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+                                        }}
                                     />
                                     <div
                                         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                         style={{ background: 'rgba(0,0,0,0.4)' }}
                                     >
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(226,183,100,0.9)' }}>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg" style={{ background: 'rgba(226,183,100,0.9)' }}>
                                             <Eye size={16} style={{ color: '#0b1120' }} />
+                                            <span className="text-xs font-semibold" style={{ color: '#0b1120' }}>View Full Screenshot</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 px-1">
-                                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Click to enlarge</p>
+                                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Click image to view full size</p>
                                     <a
-                                        href={booking.downpayment_proof}
+                                        href={getFullImageUrl(booking.downpayment_proof)}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="text-xs flex items-center gap-1 font-medium"
                                         style={{ color: '#e2b764' }}
                                     >
-                                        <Download size={11} /> Open
+                                        <Download size={11} /> Open in new tab
                                     </a>
                                 </div>
                             </div>
@@ -527,24 +523,45 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
             <AnimatePresence>
                 {imgZoom && (
                     <motion.div
-                        className="fixed inset-0 z-[70] flex items-center justify-center p-8"
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }}
                         onClick={() => setImgZoom(false)}
                     >
-                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.85)' }} />
-                        <motion.img
-                            src={booking.payment_proof}
-                            alt="Payment proof fullsize"
-                            className="relative max-w-full max-h-full rounded-2xl shadow-2xl object-contain"
-                            initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                        <motion.div
+                            className="absolute inset-0"
+                            style={{ background: 'rgba(0,0,0,0.95)' }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
                         />
-                        <button
-                            className="absolute top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center"
-                            style={{ background: 'rgba(255,255,255,0.1)' }}
-                            onClick={() => setImgZoom(false)}
+                        <motion.div
+                            className="relative z-10 max-w-full max-h-full"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25 }}
                         >
-                            <X size={16} style={{ color: '#fff' }} />
+                            <img
+                                src={getFullImageUrl(booking.downpayment_proof)}
+                                alt="Payment proof fullscreen"
+                                className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </motion.div>
+                        <button
+                            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}
+                            onClick={() => setImgZoom(false)}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        >
+                            <X size={18} style={{ color: '#fff' }} />
                         </button>
+                        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            Click anywhere to close
+                        </p>
                     </motion.div>
                 )}
             </AnimatePresence>
