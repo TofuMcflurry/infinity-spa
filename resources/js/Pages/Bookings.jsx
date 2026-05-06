@@ -95,10 +95,9 @@ export default function Bookings() {
     }, [step]);
 
     // ── Step 4: Fetch available slots ─────────────────────────────────────────
-        useEffect(() => {
+    useEffect(() => {
         if (step !== 4 || !selectedService || !selectedAddress || !selectedDate || !selectedTherapist) return;
 
-        // ✅ FIX: Use date parts directly — no timezone conversion
         const date = [
             selectedDate.getFullYear(),
             String(selectedDate.getMonth() + 1).padStart(2, '0'),
@@ -416,16 +415,13 @@ export default function Bookings() {
                                             <h4 className="font-display font-semibold text-base mb-2">{t.chooseDate}</h4>
                                             <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate}
                                                 disabled={(date) => {
-                                                    const todayDubai = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
-                                                    const dateDubai = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    date.setHours(0, 0, 0, 0);
 
-                                                    // Past dates always disabled
-                                                    if (dateDubai < todayDubai) return true;
+                                                    if (date < today) return true;
 
-                                                    // ✅ Get day directly from the date object — no timezone conversion
-                                                    const day = date.getDay(); // uses LOCAL machine time, no Dubai offset
-                                                    
-                                                    // Block Tuesday = 2
+                                                    const day = date.getDay();
                                                     if (day === 2) return true;
 
                                                     return false;

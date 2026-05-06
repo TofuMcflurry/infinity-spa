@@ -82,8 +82,9 @@ const scrollbarStyles = `
 // ── Mini Calendar ─────────────────────────────────────────────────────────────
 
 function MiniCalendar({ selectedDate, onSelect }) {
-    const today = startOfDay(new Date());
-    const tomorrow = addDays(today, 1);
+    // AFTER
+    const todayDubaiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+    const today = startOfDay(new Date(todayDubaiStr));
     
     // Allow future dates up to 3 months ahead
     const maxDate = addMonths(today, 3);
@@ -117,12 +118,13 @@ function MiniCalendar({ selectedDate, onSelect }) {
     };
 
     // Check if date is disabled (past, beyond max, or Tuesday)
+    // AFTER
     const isDisabled = (date) => {
         if (!date) return true;
-        if (date < tomorrow) return true;
-        if (date > maxDate) return true;
-        // Tuesday is day 2 (0 = Sunday, 1 = Monday, 2 = Tuesday)
-        if (getDay(date) === 2) return true;
+        const dateDubai = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+        if (dateDubai < todayDubaiStr) return true;   // past dates
+        if (dateDubai > format(maxDate, 'yyyy-MM-dd')) return true;  // beyond 3 months
+        if (getDay(date) === 2) return true;           // Tuesday
         return false;
     };
     
