@@ -126,9 +126,12 @@ export default function Bookings() {
                     const isToday = selectedDateDubai === todayDubai;
                     let filteredSlots = slots;
                     if (isToday) {
-                        const now = new Date();
-                        const minTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-                        filteredSlots = slots.filter(slot => new Date(slot.datetime) >= minTime);
+                        const nowDubai = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+                        const minTime = new Date(nowDubai.getTime() + 2 * 60 * 60 * 1000);
+                        filteredSlots = slots.filter(slot => {
+                            const slotDubai = new Date(new Date(slot.datetime).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+                            return slotDubai >= minTime;
+                        });
                     }
                     setAvailableSlots(filteredSlots);
                 }

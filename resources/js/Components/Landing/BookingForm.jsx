@@ -32,7 +32,7 @@ const MONTHS = [
 const generateTimeSlots = () => {
     const slots = [];
     // Start at 16:00 (4PM)
-    for (let i = 0; i < 25; i++) { // 24 slots = 12 hours of 30-min intervals
+    for (let i = 0; i < 49; i++) { // 24 slots = 12 hours of 30-min intervals
         const totalMins = 16 * 60 + i * 30; // Start at 4PM
         const hour = Math.floor(totalMins / 60) % 24;
         const min = totalMins % 60;

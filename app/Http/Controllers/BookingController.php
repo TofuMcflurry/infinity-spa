@@ -134,9 +134,13 @@ class BookingController extends Controller
             : 0;
 
         // Pre-fetch ALL customer active bookings ONCE (not inside loop)
-        $customerBookings = Booking::where('customer_id', $customerId)
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->get(['travel_start', 'buffer_end']);
+        $customerBookings = $customerId
+            ? Booking::where('customer_id', $customerId)
+                ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
+                ->whereNotNull('travel_start')
+                ->whereNotNull('buffer_end')
+                ->get(['travel_start', 'buffer_end'])
+            : collect();
 
         $slots   = [];
         $current = $shiftStart->copy();
@@ -192,7 +196,7 @@ class BookingController extends Controller
                 'reason'    => $slotResult['reason'],
             ];
 
-            $current->addHour();
+            $current->addMinutes(30);
         }
 
         return response()->json([
@@ -228,11 +232,15 @@ class BookingController extends Controller
         );
 
         // ── FIX 3: Customer double booking prevention ─────────────────────────
-        $customerConflict = Booking::where('customer_id', auth()->id())
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->where('travel_start', '<', $timeBlocks['buffer_end'])
-            ->where('buffer_end',   '>', $timeBlocks['travel_start'])
-            ->exists();
+        $customerConflict = auth()->id()
+            ? Booking::where('customer_id', auth()->id())
+                ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
+                ->whereNotNull('travel_start')
+                ->whereNotNull('buffer_end')
+                ->where('travel_start', '<', $timeBlocks['buffer_end'])
+                ->where('buffer_end',   '>', $timeBlocks['travel_start'])
+                ->exists()
+            : false;
 
         if ($customerConflict) {
             return response()->json([
