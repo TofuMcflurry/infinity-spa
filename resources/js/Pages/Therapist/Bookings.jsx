@@ -424,7 +424,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {/* Location */}
                     {section('Location', <>
-                        <DetailRow icon={MapPin}     label="Address" value={booking.location_address} accent="#10b981" />
+                        <DetailRow icon={MapPin}     label="Address" value={booking.location ?? '—'} accent="#10b981" />
                         {booking.location_notes && (
                             <DetailRow icon={Navigation} label="Notes" value={booking.location_notes} />
                         )}
@@ -448,7 +448,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {/* Proof of payment */}
                     {section('Proof of Payment',
-                        booking.payment_proof ? (
+                        booking.downpayment_proof ? (
                             <div className="py-3">
                                 <div
                                     className="relative rounded-xl overflow-hidden cursor-pointer group"
@@ -456,7 +456,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                     onClick={() => setImgZoom(true)}
                                 >
                                     <img
-                                        src={booking.payment_proof}
+                                        src={booking.downpayment_proof}
                                         alt="Payment proof"
                                         className="w-full object-cover max-h-52 transition-transform group-hover:scale-105"
                                     />
@@ -472,7 +472,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                 <div className="flex items-center justify-between mt-2 px-1">
                                     <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Click to enlarge</p>
                                     <a
-                                        href={booking.payment_proof}
+                                        href={booking.downpayment_proof}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="text-xs flex items-center gap-1 font-medium"

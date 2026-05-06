@@ -225,7 +225,7 @@ function BookingDetailsModal({ booking, onClose }) {
                                         style={{ border: '1px solid #1e2740' }}
                                     >
                                         <img
-                                            src={booking.downpayment_proof}
+                                            src={`${window.location.origin}${booking.downpayment_proof}`}
                                             alt="Payment proof"
                                             className="w-full h-32 object-cover"
                                         />
@@ -254,7 +254,7 @@ function BookingDetailsModal({ booking, onClose }) {
                                                     initial={{ opacity: 0, scale: 0.9 }}
                                                     animate={{ opacity: 1, scale: 1 }}
                                                     exit={{ opacity: 0, scale: 0.9 }}
-                                                    src={booking.downpayment_proof}
+                                                    src={`${window.location.origin}${booking.downpayment_proof}`}
                                                     alt="Payment proof"
                                                     className="relative z-10 max-w-full max-h-full rounded-2xl object-contain"
                                                     style={{ maxHeight: '90vh', maxWidth: '90vw' }}
