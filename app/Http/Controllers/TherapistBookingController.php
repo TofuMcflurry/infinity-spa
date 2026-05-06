@@ -6,6 +6,7 @@ use App\Jobs\SendGuestConversionEmail;
 use App\Models\Booking;
 use Illuminate\Http\Request;
 use App\Notifications\BookingNotification;
+use App\Events\BookingStatusUpdated;
 
 class TherapistBookingController extends Controller
 {
@@ -65,6 +66,9 @@ class TherapistBookingController extends Controller
         $this->authorizeTherapist($booking);
 
         $booking->update(['status' => 'accepted']);
+
+        broadcast(new BookingStatusUpdated($booking));
+
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'accepted'));
 
@@ -129,6 +133,7 @@ class TherapistBookingController extends Controller
         abort_if($hasActive, 422, 'You already have an active session in progress.');
 
         $booking->update(['status' => 'en_route']);
+        broadcast(new BookingStatusUpdated($booking));
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'en_route'));
 
@@ -141,6 +146,7 @@ class TherapistBookingController extends Controller
         abort_if($booking->status !== 'en_route', 422, 'Therapist must be en route first.');
 
         $booking->update(['status' => 'arrived']);
+        broadcast(new BookingStatusUpdated($booking));
         $booking->load('customer', 'service', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'arrived'));
 
@@ -153,6 +159,7 @@ class TherapistBookingController extends Controller
         abort_if($booking->status !== 'arrived', 422, 'Therapist must have arrived first.');
 
         $booking->update(['status' => 'completed']);
+        broadcast(new BookingStatusUpdated($booking));
         $booking->load('service', 'therapist.user');
 
         if ($booking->customer_id) {

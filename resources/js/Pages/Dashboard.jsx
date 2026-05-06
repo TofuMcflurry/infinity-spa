@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
 import {
@@ -12,6 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
 import ThemeToggle from '@/Components/ThemeToggle';
+import { useBookingStatus } from '@/hooks/useBookingStatus';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -35,41 +36,77 @@ async function apiFetch(url, options = {}) {
 }
 
 const STATUS_STEPS = [
-    { key: 'pending',         label: 'Pending',  icon: Clock        },
-    { key: 'accepted',        label: 'Accepted', icon: CheckCircle2 },
-    { key: 'en_route',        label: 'En Route', icon: Navigation   },
-    { key: 'arrived',         label: 'Arrived',  icon: MapPin       },
+    { key: 'pending',      label: 'Pending',     icon: Clock        },
+    { key: 'accepted',     label: 'Confirmed',   icon: CheckCircle2 },
+    { key: 'en_route',     label: 'On The Way',  icon: Navigation   },
+    { key: 'arrived',      label: 'Arrived',     icon: MapPin       },
+    { key: 'in_progress',  label: 'In Session',  icon: Sparkles     },
 ];
 
-function StatusTracker({ booking }) {
+function StatusTracker({ booking: initialBooking, onCompleted }) {
+    const { booking, wsReady } = useBookingStatus(initialBooking);
+
+    // Fire onCompleted when status hits completed
+    const prevStatus = useRef(booking?.status);
+    useEffect(() => {
+        if (prevStatus.current !== 'completed' && booking?.status === 'completed') {
+            onCompleted?.();
+        }
+        prevStatus.current = booking?.status;
+    }, [booking?.status]);
+
     const currentIdx = STATUS_STEPS.findIndex(s => s.key === booking.status);
     const progress   = currentIdx < 0 ? 0 : (currentIdx / (STATUS_STEPS.length - 1)) * 100;
 
-    const statusLabel = {
-        pending_payment: 'Awaiting Payment',
-        pending:         'Pending Booking',
-        accepted:        'Active Booking',
-        en_route:        'On The Way',
-        arrived:         'Therapist Arrived',
-    }[booking.status] ?? 'Pending Booking';
+    const STATUS_META = {
+        pending:      { label: 'Pending Booking',     color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
+        accepted:     { label: 'Booking Confirmed',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)'  },
+        en_route:     { label: 'Therapist On The Way',color: '#e2b764', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.2)' },
+        arrived:      { label: 'Therapist Arrived',   color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.2)'  },
+        in_progress:  { label: 'Session In Progress', color: '#a855f7', bg: 'rgba(168,85,247,0.1)',  border: 'rgba(168,85,247,0.2)'  },
+    };
+
+    const meta = STATUS_META[booking.status] ?? STATUS_META.pending;
+    const isEnRoute = booking.status === 'en_route';
 
     return (
         <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-2xl border border-[#1e2740] p-6 md:p-8"
-            style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}
+            className="relative overflow-hidden rounded-2xl border p-6 md:p-8"
+            style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)', borderColor: isEnRoute ? 'rgba(226,183,100,0.4)' : '#1e2740',
+                boxShadow: isEnRoute ? '0 0 40px rgba(226,183,100,0.08)' : 'none',
+                transition: 'border-color 0.5s, box-shadow 0.5s' }}
         >
+            {/* Glow blob */}
             <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"
-                style={{ background: 'rgba(226,183,100,0.05)' }} />
+                style={{ background: `${meta.color}08` }} />
+
             <div className="relative z-10">
+
+                {/* ── Status badge + WS indicator ── */}
+                <div className="flex items-center justify-between mb-6">
+                    <motion.div
+                        key={booking.status}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase"
+                        style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.color }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: meta.color }} />
+                        {meta.label}
+                    </motion.div>
+
+                    {/* Live / Polling indicator */}
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${wsReady ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+                        {wsReady ? 'Live' : 'Syncing'}
+                    </div>
+                </div>
+
+                {/* ── Booking info ── */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-3"
-                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981' }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {statusLabel}
-                        </div>
                         <h2 className="text-2xl font-display font-semibold text-white mb-1">{booking.service}</h2>
                         <p className="flex items-center gap-2 text-sm" style={{ color: '#94a3b8' }}>
                             <User size={14} /> {booking.therapist} • {booking.duration} mins
@@ -77,36 +114,82 @@ function StatusTracker({ booking }) {
                     </div>
                     <div className="md:text-right">
                         <p className="text-sm mb-1" style={{ color: '#94a3b8' }}>Scheduled</p>
-                        <p className="text-3xl font-display font-light text-white">{booking.datetime}</p>
+                        <p className="text-2xl font-display font-light text-white">{booking.datetime}</p>
                     </div>
                 </div>
+
+                {/* ── En Route Hero Banner ── */}
+                <AnimatePresence>
+                    {isEnRoute && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mb-8 overflow-hidden"
+                        >
+                            <div className="rounded-xl p-4 flex items-center gap-4"
+                                style={{ background: 'rgba(226,183,100,0.08)', border: '1px solid rgba(226,183,100,0.2)' }}>
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
+                                    <Navigation size={20} className="animate-bounce" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold" style={{ color: '#e2b764' }}>Your therapist is on the way!</p>
+                                    <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Get ready — they'll arrive soon.</p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* ── Progress bar + Steps ── */}
                 <div className="relative">
                     <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: '#1e2740' }} />
-                    <div className="absolute top-5 left-5 h-px hidden sm:block transition-all duration-1000"
-                        style={{ background: '#e2b764', width: `calc(${progress}% - 40px)` }} />
+                    <motion.div
+                        className="absolute top-5 left-5 h-px hidden sm:block"
+                        initial={{ width: 0 }}
+                        animate={{ width: `calc(${progress}% - 40px)` }}
+                        transition={{ duration: 0.8, ease: 'easeInOut' }}
+                        style={{ background: meta.color }}
+                    />
                     <div className="relative z-10 flex flex-col sm:flex-row justify-between gap-6 sm:gap-0">
                         {STATUS_STEPS.map((step, i) => {
                             const done   = i <= currentIdx;
                             const active = i === currentIdx;
                             const Icon   = step.icon;
                             return (
-                                <div key={step.key} className="flex sm:flex-col items-center gap-4 sm:gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${active ? 'shadow-[0_0_15px_rgba(226,183,100,0.4)]' : ''}`}
+                                <motion.div
+                                    key={step.key}
+                                    className="flex sm:flex-col items-center gap-4 sm:gap-3"
+                                    initial={false}
+                                    animate={{ scale: active ? 1.05 : 1 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${active ? 'shadow-lg' : ''}`}
                                         style={{
-                                            background: active ? '#e2b764' : done ? 'rgba(226,183,100,0.2)' : '#1e2740',
-                                            color: active ? '#0b1120' : done ? '#e2b764' : '#64748b',
+                                            background: active ? meta.color : done ? `${meta.color}30` : '#1e2740',
+                                            color:      active ? '#0b1120'  : done ? meta.color          : '#64748b',
+                                            boxShadow:  active ? `0 0 20px ${meta.color}50` : 'none',
                                         }}>
                                         <Icon size={18} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
                                     </div>
                                     <div className="sm:text-center">
                                         <p className={`text-sm font-medium ${done ? 'text-white' : 'text-slate-500'}`}>{step.label}</p>
                                         {active && (
-                                            <p className="text-xs mt-0.5 sm:mt-1" style={{ color: '#e2b764' }}>
-                                                {step.key === 'en_route' ? '5 mins away' : 'In progress'}
-                                            </p>
+                                            <motion.p
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="text-xs mt-0.5 sm:mt-1"
+                                                style={{ color: meta.color }}
+                                            >
+                                                {step.key === 'en_route'    ? '🚗 Heading your way'  :
+                                                 step.key === 'arrived'     ? '📍 They are here!'    :
+                                                 step.key === 'in_progress' ? '💆 Enjoy your session' :
+                                                 'In progress'}
+                                            </motion.p>
                                         )}
                                     </div>
-                                </div>
+                                </motion.div>
                             );
                         })}
                     </div>
@@ -514,7 +597,22 @@ export default function Dashboard() {
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
 
-                    {upcoming && <StatusTracker booking={upcoming} />}
+                    {upcoming && (
+                        <StatusTracker
+                            booking={upcoming}
+                            onCompleted={() => {
+                                // Refresh dashboard data + trigger review modal
+                                apiFetch('/api/dashboard-data').then(setData);
+                                apiFetch('/api/reviews/pending')
+                                    .then(reviews => {
+                                        if (reviews.length > 0) {
+                                            setPendingReview(reviews[0]);
+                                            setShowReviewModal(true);
+                                        }
+                                    });
+                            }}
+                        />
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
                         <div className="lg:col-span-2 space-y-12">
