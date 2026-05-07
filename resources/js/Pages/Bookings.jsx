@@ -984,7 +984,7 @@ export default function Bookings() {
                                                                 <div key={i} className="absolute w-5 h-5" style={{ ...s, borderColor: '#e2b764', borderStyle: 'solid' }} />
                                                             ))}
                                                             {/* QR Code image — replace src with your real QR URL */}
-                                                            <img src="/qr-code-placeholder.png" alt="QR Code" className="w-full h-full object-contain" />
+                                                            <QrCode size={120} style={{ color: '#0b1120' }} />
                                                         </div>
 
                                                         {/* Amount pill */}
