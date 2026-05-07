@@ -14,3 +14,7 @@ Broadcast::channel('booking.{bookingId}', function ($user, $bookingId) {
 Broadcast::channel('therapist.{therapistId}', function ($user, $therapistId) {
     return (int) $user->id === (int) $therapistId && $user->therapist !== null;
 });
+
+Broadcast::channel('bookings', function ($user) {
+    return $user !== null && $user->therapist !== null;
+});

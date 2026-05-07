@@ -109,7 +109,7 @@ const TAB_STATUSES = {
 const OPTIMISTIC_STATUS = {
     accept:     'accepted',
     reject:     'rejected',
-    'en-route': 'en_route',
+    start: 'en_route',
     arrived:    'arrived',
     complete:   'completed',
 };
@@ -274,13 +274,13 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
             case 'accepted':
                 return (
                     <button
-                        onClick={() => onAction(booking.id, 'en-route')}
+                        onClick={() => onAction(booking.id, 'start')}
                         disabled={anyLoading}
                         className="flex-1 min-w-[120px] py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-                        style={{ background: isLoading('en-route') ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.12)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', opacity: anyLoading && !isLoading('en-route') ? 0.5 : 1 }}
+                        style={{ background: isLoading('start') ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.12)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', opacity: anyLoading && !isLoading('start') ? 0.5 : 1 }}
                     >
-                        {isLoading('en-route') ? <Loader2 size={12} className="animate-spin" /> : <Car size={12} />}
-                        {isLoading('en-route') ? 'Updating…' : 'En Route'}
+                        {isLoading('start') ? <Loader2 size={12} className="animate-spin" /> : <Car size={12} />}
+                        {isLoading('start') ? 'Updating…' : 'En Route'}
                     </button>
                 );
             case 'en_route':
@@ -745,7 +745,7 @@ export default function Bookings() {
             accept:           `/therapist/api/bookings/${bookingId}/accept`,
             reject:           `/therapist/api/bookings/${bookingId}/reject`,
             complete:         `/therapist/api/bookings/${bookingId}/complete`,
-            'en-route':       `/therapist/api/bookings/${bookingId}/en-route`,
+            start:            `/therapist/api/bookings/${bookingId}/start`,
             arrived:          `/therapist/api/bookings/${bookingId}/arrived`,
             'verify-payment': `/therapist/api/bookings/${bookingId}/verify-payment`,
         };
