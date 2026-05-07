@@ -6,7 +6,7 @@ import {
     ChevronLeft, Star, Loader2, Check, Clock,
     Banknote, CreditCard, MapPin, Home, Building2, Hotel,
     AlertCircle, Upload, Copy, CheckCircle2, QrCode,
-    Sparkles, X, ShieldCheck
+    Sparkles, X, ShieldCheck, Plus
 } from 'lucide-react';
 import { Calendar } from '@/Components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -239,9 +239,62 @@ export default function Bookings() {
     const [proofFile,         setProofFile]         = useState(null);
     const [genderFilter,      setGenderFilter]      = useState('all');
     const [paymentTab,        setPaymentTab]        = useState('bank');
+    const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+    const [newAddress, setNewAddress] = useState({ label: '', address: '', zone_name: '' });
+    const [submittingAddress, setSubmittingAddress] = useState(false);
 
     const TOTAL_STEPS = 5;
     const stepLabels  = [t.stepService, t.stepTherapist, t.stepDateLocation, t.stepTime, t.stepPayment];
+
+     const handleAddAddress = async () => {
+        if (!newAddress.label || !newAddress.address || !newAddress.zone_name) {
+            setError('Please fill all address fields');
+            return;
+        }
+
+        setSubmittingAddress(true);
+        setError(null);
+
+        try {
+            const csrfToken = getCsrf();
+            
+            const response = await fetch('/api/addresses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(newAddress),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Failed to add address');
+            }
+
+            const addedAddress = await response.json();
+            
+            // Refresh addresses list
+            const addressesResponse = await apiFetch('/api/addresses');
+            setAddresses(addressesResponse);
+            
+            // Auto-select the new address
+            setSelectedAddress(addedAddress.address || addedAddress);
+            
+            // Close modal
+            setShowAddAddressModal(false);
+            
+            // Reset form
+            setNewAddress({ label: '', address: '', zone_name: '' });
+            
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSubmittingAddress(false);
+        }
+    };
 
     // ── Fetch services ────────────────────────────────────────────────────────
     useEffect(() => {
@@ -631,9 +684,46 @@ export default function Bookings() {
                                             {loadingAddresses ? (
                                                 <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gold" /></div>
                                             ) : addresses.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center py-10 gap-3">
-                                                    <MapPin className="w-8 h-8 text-muted-foreground" />
-                                                    <p className="text-sm text-muted-foreground text-center">{t.noAddresses}</p>
+                                                 <div className="flex flex-col items-center justify-center py-6 gap-4">
+                                                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                                        style={{ background: 'rgba(226,183,100,0.08)' }}>
+                                                        <MapPin size={28} style={{ color: '#64748b' }} />
+                                                    </div>
+                                                    
+                                                    <div className="text-center">
+                                                        <p className="text-sm font-medium text-white mb-1">No addresses yet</p>
+                                                        <p className="text-xs" style={{ color: '#64748b' }}>
+                                                            Add your location to continue booking
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Option 1: Add address inline (opens modal) */}
+                                                    <button
+                                                        onClick={() => setShowAddAddressModal(true)}
+                                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all"
+                                                        style={{
+                                                            background: 'rgba(226,183,100,0.1)',
+                                                            border: '1px solid rgba(226,183,100,0.25)',
+                                                            color: '#e2b764'
+                                                        }}
+                                                    >
+                                                        <Plus size={16} />
+                                                        Add new address
+                                                    </button>
+
+                                                    {/* Option 2: Go to profile page to manage addresses */}
+                                                    <button
+                                                        onClick={() => router.visit(route('my.profile'))}
+                                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all"
+                                                        style={{
+                                                            background: '#141d33',
+                                                            border: '1px solid #1e2740',
+                                                            color: '#94a3b8'
+                                                        }}
+                                                    >
+                                                        <Building2 size={14} />
+                                                        Manage addresses in profile
+                                                    </button>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col gap-3 flex-1 justify-around">
@@ -1052,6 +1142,199 @@ export default function Bookings() {
                     )}
                 </main>
             </div>
+
+            {/* Add Address Modal */}
+            <AnimatePresence>
+                {showAddAddressModal && (
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 backdrop-blur-sm"
+                            style={{ background: 'rgba(0,0,0,0.7)' }}
+                            onClick={() => setShowAddAddressModal(false)}
+                        />
+
+                        {/* Modal */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
+                            style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                        >
+                            {/* Header */}
+                            <div className="sticky top-0 p-5 border-b flex items-center justify-between"
+                                style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                <div>
+                                    <h3 className="font-display font-semibold text-lg text-white">
+                                        Add New Address
+                                    </h3>
+                                    <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                                        Fill in your location details
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setShowAddAddressModal(false)}
+                                    className="p-1.5 rounded-lg transition-colors"
+                                    style={{ color: '#64748b' }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* Form Body */}
+                            <div className="p-5 space-y-5">
+                                
+                                {/* 1. Address Type / Label */}
+                                <div>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                        Address Type *
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { value: 'Home', icon: '🏠', label: 'Home' },
+                                            { value: 'Office', icon: '🏢', label: 'Office' },
+                                            { value: 'Hotel', icon: '🏨', label: 'Hotel' },
+                                        ].map((type) => (
+                                            <button
+                                                key={type.value}
+                                                type="button"
+                                                onClick={() => setNewAddress({ ...newAddress, label: type.value })}
+                                                className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-sm font-medium transition-all ${
+                                                    newAddress.label === type.value
+                                                        ? 'gold-gradient text-primary-foreground'
+                                                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                                                }`}
+                                            >
+                                                <span className="text-lg">{type.icon}</span>
+                                                <span>{type.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 2. Service Area (Zone) */}
+                                <div>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                        Service Area / Zone *
+                                    </label>
+                                    <p className="text-[10px] mb-3" style={{ color: '#64748b' }}>
+                                        We currently serve these areas in Dubai
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                                        {[
+                                            { code: 'JAFZA', name: 'JAFZA', location: 'Dubai, UAE' },
+                                            { code: 'DAFZ', name: 'DAFZ', location: 'Dubai, UAE' },
+                                            { code: 'DMCC', name: 'DMCC / JLT', location: 'Dubai, UAE' },
+                                            { code: 'Dubai South', name: 'Dubai South', location: 'Dubai, UAE' },
+                                            { code: 'DSO', name: 'DSO', location: 'Dubai, UAE' },
+                                            { code: 'DIC', name: 'DIC / DMC', location: 'Dubai, UAE' },
+                                            { code: 'D3', name: 'D3', location: 'Dubai, UAE' },
+                                            { code: 'DIFC', name: 'DIFC', location: 'Dubai, UAE' },
+                                        ].map((zone) => (
+                                            <button
+                                                key={zone.code}
+                                                type="button"
+                                                onClick={() => setNewAddress({ ...newAddress, zone_name: zone.name })}
+                                                className={`text-left p-3 rounded-xl border transition-all ${
+                                                    newAddress.zone_name === zone.name
+                                                        ? 'border-gold bg-gold/10'
+                                                        : 'border-secondary bg-secondary hover:border-gold/30'
+                                                }`}
+                                            >
+                                                <p className="text-sm font-semibold" style={{ color: newAddress.zone_name === zone.name ? '#e2b764' : '#e2e8f0' }}>
+                                                    {zone.name}
+                                                </p>
+                                                <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>
+                                                    {zone.location}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 3. Full Address Details */}
+                                <div>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                        Complete Address *
+                                    </label>
+                                    <textarea
+                                        value={newAddress.address}
+                                        onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })}
+                                        placeholder="Building name, street, apartment/villa number, landmark..."
+                                        rows={3}
+                                        className="w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none resize-none"
+                                        style={{
+                                            background: '#141d33',
+                                            borderColor: '#1e2740',
+                                            color: '#e2e8f0',
+                                        }}
+                                    />
+                                    <p className="text-[10px] mt-1.5" style={{ color: '#64748b' }}>
+                                        Example: "Boulevard Plaza Tower 1, Sheikh Mohammed Boulevard, Downtown Dubai"
+                                    </p>
+                                </div>
+
+                                {/* Preview Section */}
+                                {(newAddress.label || newAddress.zone_name || newAddress.address) && (
+                                    <div className="mt-2 p-3 rounded-xl" style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.1)' }}>
+                                        <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#e2b764' }}>
+                                            Address Preview
+                                        </p>
+                                        <div className="flex items-start gap-2">
+                                            <MapPin size={14} style={{ color: '#e2b764' }} />
+                                            <div>
+                                                <p className="text-sm font-medium text-white">
+                                                    {newAddress.label || '___'} {newAddress.zone_name ? `· ${newAddress.zone_name}` : ''}
+                                                </p>
+                                                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                    {newAddress.address || 'Your complete address will appear here'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="sticky bottom-0 p-5 border-t flex gap-3"
+                                style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                <button
+                                    onClick={() => {
+                                        setShowAddAddressModal(false);
+                                        setNewAddress({ label: '', address: '', zone_name: '' });
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+                                    style={{ background: '#141d33', color: '#94a3b8' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddAddress}
+                                    disabled={submittingAddress || !newAddress.label || !newAddress.zone_name || !newAddress.address}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #b7882a, #e2b764)',
+                                        color: '#0b1120',
+                                        opacity: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 0.5 : 1,
+                                        cursor: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 'not-allowed' : 'pointer',
+                                    }}
+                                >
+                                    {submittingAddress ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                        <Check size={16} />
+                                    )}
+                                    {submittingAddress ? 'Saving...' : 'Save Address'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </AuthenticatedLayout>
     );
 }
