@@ -11,8 +11,11 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\GuestBookingController;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Broadcast::routes(['middleware' => ['web', 'auth']]);
 
 Route::get('/api/guest/services', [GuestBookingController::class, 'services'])->name('guest.services');
 Route::post('/guest-booking', [GuestBookingController::class, 'store'])->name('guest.booking.store');

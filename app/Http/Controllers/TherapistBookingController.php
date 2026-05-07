@@ -82,6 +82,7 @@ class TherapistBookingController extends Controller
 
         $booking->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
         $booking->load('customer', 'service', 'therapist.user');
+        broadcast(new BookingStatusUpdated($booking));
         $booking->customer->notify(new BookingNotification($booking, 'rejected'));
 
         return response()->json(['message' => 'Booking rejected.', 'booking' => $booking]);
@@ -105,8 +106,12 @@ class TherapistBookingController extends Controller
             'rejection_reason'  => $request->reason,
         ]);
 
-        if ($booking->customer_id) {
-            $booking->load('customer', 'service', 'therapist.user');
+        // ✅ Load ONCE, outside the if — para may relations ang broadcast
+        $booking->load('customer', 'service', 'therapist.user');
+        broadcast(new BookingStatusUpdated($booking));
+
+        // ✅ Notify only if may customer
+        if ($booking->customer_id && $booking->customer) {
             $booking->customer->notify(new BookingNotification($booking, 'cancelled'));
         }
 

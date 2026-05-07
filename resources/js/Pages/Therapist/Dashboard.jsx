@@ -51,6 +51,16 @@ const STATUS_CONFIG = {
     pending_payment: { label: 'Awaiting Payment', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  border: 'rgba(148,163,184,0.3)',  icon: Banknote     },
 };
 
+// Optimistic status map — instant UI feedback before server responds
+const OPTIMISTIC_STATUS = {
+    accept:   'accepted',
+    reject:   'rejected',
+    cancel:   'cancelled',
+    start:    'en_route',
+    arrived:  'arrived',
+    complete: 'completed',
+};
+
 const CANCEL_REASONS = [
     { key: 'double_booking',        label: 'Double booking'        },
     { key: 'personal_emergency',    label: 'Personal emergency'    },
@@ -239,13 +249,11 @@ function SkeletonRow({ hasActions = false }) {
 }
 
 // ── 1. ACTIVE SESSION ─────────────────────────────────────────────────────────
-// Only shows when status is en_route or arrived — NOT for accepted.
-// Accepted bookings stay in Upcoming until therapist taps Start Session.
 function ActiveSession({ booking, onAction, actionLoading }) {
     const steps = [
-        { key: 'en_route', label: 'En Route', icon: Car    },
-        { key: 'arrived',  label: 'Arrived',  icon: MapPin },
-        { key: 'completed',label: 'Completed',icon: Star   },
+        { key: 'en_route',  label: 'En Route',  icon: Car    },
+        { key: 'arrived',   label: 'Arrived',   icon: MapPin },
+        { key: 'completed', label: 'Completed', icon: Star   },
     ];
     const stepOrder = ['en_route', 'arrived', 'completed'];
     const isLoading = (action) => actionLoading === `${booking?.id}-${action}`;
@@ -283,7 +291,7 @@ function ActiveSession({ booking, onAction, actionLoading }) {
                         </div>
                     </div>
 
-                    {/* Progress steps — en_route, arrived, completed */}
+                    {/* Progress steps */}
                     <div className="flex items-center">
                         {steps.map((step, idx) => {
                             const StepIcon = step.icon;
@@ -355,7 +363,6 @@ function UpcomingBookingRow({ booking, onAction, actionLoading, hasActiveSession
     return (
         <>
             <div className="px-5 py-4 space-y-3">
-                {/* Booking info */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
@@ -377,7 +384,6 @@ function UpcomingBookingRow({ booking, onAction, actionLoading, hasActiveSession
                     </button>
                 </div>
 
-                {/* ── Start Session button ── */}
                 <button
                     onClick={() => onAction(booking.id, 'start')}
                     disabled={!!actionLoading || hasActiveSession}
@@ -520,59 +526,127 @@ export default function Dashboard() {
         apiFetch('/therapist/api/bookings/stats').then(setStats).catch(console.error);
     }, []);
 
-    const fetchBookings = useCallback((includeCompleted = false) => {
+    // ── Full fetch (initial load + manual refresh + error recovery only) ──────
+    const fetchBookings = useCallback(() => {
         setLoading(true);
-        const statusFilter = includeCompleted ? '' : 'pending,accepted,en_route,arrived';
-        const params = statusFilter ? `?status=${statusFilter}&per_page=100` : '?per_page=100';
-        apiFetch(`/therapist/api/bookings${params}`)
+        apiFetch('/therapist/api/bookings?status=pending,accepted,en_route,arrived&per_page=100')
             .then(data => setBookings(data.data || []))
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { fetchBookings(); fetchStats(); }, [fetchBookings, fetchStats]);
+    useEffect(() => {
+        fetchBookings();
+        fetchStats();
+
+        // ── WebSocket: listen for real-time booking updates ──────────────────
+        // Server pushes changes — no polling needed.
+        // Requires: Laravel Echo, Reverb, and a BookingStatusUpdated broadcast event.
+        //
+        // Example Laravel event:
+        //   class BookingStatusUpdated implements ShouldBroadcast {
+        //       public function broadcastOn() {
+        //           return new PrivateChannel("therapist.{$this->booking->therapist_id}");
+        //       }
+        //   }
+        //
+        // Example controller:
+        //   $booking->update(['status' => 'accepted']);
+        //   broadcast(new BookingStatusUpdated($booking->fresh()->load('customer','service')));
+        //   return response()->json(['message' => '...', 'booking' => $booking]);
+        if (window.Echo && user?.id) {
+            const channel = window.Echo.private(`therapist.${user.id}`);
+
+            channel.listen('BookingStatusUpdated', (e) => {
+                if (!e?.booking) return;
+                const { status } = e.booking;
+
+                setBookings(prev => {
+                    // Remove completed/rejected/cancelled from dashboard list
+                    if (['completed', 'rejected', 'cancelled'].includes(status)) {
+                        return prev.filter(b => b.id !== e.booking.id);
+                    }
+                    // Update existing or add new
+                    const exists = prev.some(b => b.id === e.booking.id);
+                    return exists
+                        ? prev.map(b => b.id === e.booking.id ? { ...b, ...e.booking } : b)
+                        : [...prev, e.booking];
+                });
+
+                fetchStats();
+            });
+
+            return () => window.Echo.leave(`therapist.${user.id}`);
+        }
+    }, [fetchBookings, fetchStats, user?.id]);
 
     const showToast = (message, type = 'success') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
     };
 
+    // ── Patch a single booking in local state ────────────────────────────────
+    const patchBooking = useCallback((bookingId, patch) => {
+        setBookings(prev => {
+            const { status } = patch;
+            // Remove from dashboard list when terminal state reached
+            if (['completed', 'rejected', 'cancelled'].includes(status)) {
+                return prev.filter(b => b.id !== bookingId);
+            }
+            return prev.map(b => b.id === bookingId ? { ...b, ...patch } : b);
+        });
+    }, []);
+
     const handleAction = useCallback(async (bookingId, action, body = {}) => {
         setActionLoading(`${bookingId}-${action}`);
+
+        // ── 1. Optimistic update — instant UI response ───────────────────────
+        const optimisticStatus = OPTIMISTIC_STATUS[action];
+        if (optimisticStatus) {
+            patchBooking(bookingId, { status: optimisticStatus });
+        }
+
         const urlMap = {
             accept:   `/therapist/api/bookings/${bookingId}/accept`,
             reject:   `/therapist/api/bookings/${bookingId}/reject`,
             cancel:   `/therapist/api/bookings/${bookingId}/cancel`,
-            start:    `/therapist/api/bookings/${bookingId}/start`,      // ← NEW
+            start:    `/therapist/api/bookings/${bookingId}/start`,
             arrived:  `/therapist/api/bookings/${bookingId}/arrived`,
             complete: `/therapist/api/bookings/${bookingId}/complete`,
         };
+
         try {
             const data = await apiFetch(urlMap[action], {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
+
             showToast(data.message ?? 'Booking updated!');
-            fetchBookings(['complete', 'reject', 'cancel'].includes(action));
+
+            // ── 2. Reconcile with server response (single record, no refetch) ─
+            if (data.booking) {
+                patchBooking(bookingId, data.booking);
+            }
+
             fetchStats();
+
         } catch {
+            // ── 3. Revert optimistic update on failure ───────────────────────
             showToast('Something went wrong. Please try again.', 'error');
+            fetchBookings(); // full refetch only on error
         } finally {
             setActionLoading(null);
         }
-    }, [fetchBookings, fetchStats]);
+    }, [patchBooking, fetchBookings, fetchStats]);
 
     // ── Derived lists ─────────────────────────────────────────────────────────
-
-    // Active: ONLY en_route or arrived (not accepted anymore)
     const activeBooking = bookings.find(b =>
         ['en_route', 'arrived'].includes(b.status) && isToday(b.scheduled_start)
     ) ?? null;
 
     const hasActiveSession = !!activeBooking;
 
-    // Upcoming: all accepted bookings today — they all stay here until Start is tapped
     const upcomingBookings = bookings
         .filter(b => b.status === 'accepted' && isToday(b.scheduled_start))
         .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
@@ -607,14 +681,14 @@ export default function Dashboard() {
                         </div>
                     ) : stats ? (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            <StatCard icon={Calendar}      label="Today's Sessions"     value={stats.today_sessions}                            delay={0}    />
-                            <StatCard icon={ClipboardList} label="Pending"              value={stats.pending_count}    accent="#f59e0b"           delay={0.05} />
-                            <StatCard icon={Star}          label="Completed"            value={stats.completed_count}  accent="#10b981"           delay={0.1}  />
-                            <StatCard icon={Banknote}      label="This Week's Earnings" value={`AED ${stats.week_earnings?.toLocaleString()}`}  accent="#3b82f6" delay={0.15} />
+                            <StatCard icon={Calendar}      label="Today's Sessions"     value={stats.today_sessions}                           delay={0}    />
+                            <StatCard icon={ClipboardList} label="Pending"              value={stats.pending_count}   accent="#f59e0b"          delay={0.05} />
+                            <StatCard icon={Star}          label="Completed"            value={stats.completed_count} accent="#10b981"          delay={0.1}  />
+                            <StatCard icon={Banknote}      label="This Week's Earnings" value={`AED ${stats.week_earnings?.toLocaleString()}`} accent="#3b82f6" delay={0.15} />
                         </div>
                     ) : null}
 
-                    <ActiveSession booking={activeBooking} onAction={handleAction} actionLoading={actionLoading} />
+                    <ActiveSession   booking={activeBooking}    onAction={handleAction} actionLoading={actionLoading} />
                     <UpcomingBookings bookings={upcomingBookings} onAction={handleAction} actionLoading={actionLoading} loading={loading} hasActiveSession={hasActiveSession} />
                     <PendingBookings  bookings={pendingBookings}  onAction={handleAction} actionLoading={actionLoading} loading={loading} />
                 </div>

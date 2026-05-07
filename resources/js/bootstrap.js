@@ -15,16 +15,16 @@ window.Echo = new Echo({
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 8080,
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: '/broadcasting/auth',
-    auth: {
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': (() => {
-                const cookie = document.cookie
-                    .split('; ')
-                    .find(r => r.startsWith('XSRF-TOKEN='));
-                return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
-            })(),
+
+    // ✅ authorizer — axios handles CSRF automatically, token is fresh per-request
+    authorizer: (channel) => ({
+        authorize: (socketId, callback) => {
+            axios.post('/broadcasting/auth', {
+                socket_id: socketId,
+                channel_name: channel.name,
+            })
+            .then(res => callback(null, res.data))
+            .catch(err => callback(err));
         },
-    },
+    }),
 });

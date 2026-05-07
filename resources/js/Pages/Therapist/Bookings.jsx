@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Calendar, Clock, MapPin, User, CheckCircle2,
     XCircle, Loader2, Banknote, Star, AlertCircle, X, Car,
-    Eye, ShieldCheck, Image as ImageIcon,
+    Eye, Image as ImageIcon,
     Navigation, ClipboardList, Download, RefreshCw, Phone,
     FileText, CreditCard, Building2, Hourglass,
 } from 'lucide-react';
@@ -103,6 +103,15 @@ const TAB_STATUSES = {
     active:    ['accepted', 'en_route', 'arrived'],
     completed: ['completed'],
     cancelled: ['rejected', 'cancelled'],
+};
+
+// Optimistic status map for instant UI feedback
+const OPTIMISTIC_STATUS = {
+    accept:     'accepted',
+    reject:     'rejected',
+    'en-route': 'en_route',
+    arrived:    'arrived',
+    complete:   'completed',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -303,7 +312,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
         }
     };
 
-    // Helper to get full image URL
     const getFullImageUrl = (path) => {
         if (!path) return '';
         if (path.startsWith('http')) return path;
@@ -353,13 +361,10 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                     </div>
                 </div>
 
-                {/* Scrollable body with custom scrollbar */}
-                <div 
-                    className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar"
-                    style={{
-                        scrollbarWidth: 'thin',
-                        scrollbarColor: '#e2b76430 var(--theme-border)'
-                    }}
+                {/* Scrollable body */}
+                <div
+                    className="flex-1 overflow-y-auto px-6 py-5"
+                    style={{ scrollbarWidth: 'thin', scrollbarColor: '#e2b76430 var(--theme-border)' }}
                 >
                     {/* Actions */}
                     <div className="mb-6 p-4 rounded-xl" style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}>
@@ -367,7 +372,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                             Actions
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            {/* Accept */}
                             {['pending', 'pending_payment'].includes(booking.status) && (
                                 <button
                                     onClick={() => onAction(booking.id, 'accept')}
@@ -380,7 +384,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                 </button>
                             )}
 
-                            {/* Reject */}
                             {['pending', 'pending_payment', 'accepted'].includes(booking.status) && (
                                 <button
                                     onClick={() => setShowReject(true)}
@@ -392,19 +395,16 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                 </button>
                             )}
 
-                            {/* Progress actions */}
                             {renderStatusActions()}
                         </div>
                     </div>
 
-                    {/* Customer */}
                     {section('Customer', <>
                         <DetailRow icon={User}     label="Name"  value={booking.customer?.name}  accent="#e2b764" />
                         <DetailRow icon={Phone}    label="Phone" value={booking.customer?.phone} accent="#3b82f6" />
                         <DetailRow icon={FileText} label="Email" value={booking.customer?.email} accent="#8b5cf6" />
                     </>)}
 
-                    {/* Schedule */}
                     {section('Schedule', <>
                         <DetailRow icon={Calendar} label="Date" value={fmtDate(booking.scheduled_start)} accent="#3b82f6" />
                         <DetailRow icon={Clock}    label="Time" value={`${fmtTime(booking.scheduled_start)}${booking.scheduled_end ? ` – ${fmtTime(booking.scheduled_end)}` : ''}`} accent="#8b5cf6" />
@@ -413,7 +413,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         )}
                     </>)}
 
-                    {/* Location */}
                     {section('Location', <>
                         <DetailRow icon={MapPin}     label="Address" value={booking.location ?? '—'} accent="#10b981" />
                         {booking.location_notes && (
@@ -421,7 +420,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         )}
                     </>)}
 
-                    {/* Payment */}
                     {section('Payment Breakdown', <>
                         <DetailRow icon={Building2}  label="Service"       value={booking.service?.name}  accent="#e2b764" />
                         <DetailRow icon={Banknote}   label="Service Price" value={booking.service?.price ? `AED ${Number(booking.service.price).toFixed(2)}` : '—'} accent="#10b981" />
@@ -437,7 +435,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         </div>
                     </>)}
 
-                    {/* Proof of payment */}
                     {section('Proof of Payment',
                         booking.downpayment_proof ? (
                             <div className="py-3">
@@ -451,7 +448,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                         alt="Payment proof"
                                         className="w-full object-cover max-h-52 transition-transform group-hover:scale-105"
                                         onError={(e) => {
-                                            console.error('Image failed to load:', booking.downpayment_proof);
                                             e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
                                         }}
                                     />
@@ -489,7 +485,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         )
                     )}
 
-                    {/* Rejection reason */}
                     {booking.rejection_reason && (
                         <div
                             className="mb-5 px-4 py-3 rounded-xl flex gap-3"
@@ -505,7 +500,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                 </div>
             </motion.div>
 
-            {/* Reject sub-modal */}
             <AnimatePresence>
                 {showReject && (
                     <RejectConfirmModal
@@ -519,22 +513,18 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                 )}
             </AnimatePresence>
 
-            {/* Image zoom */}
             <AnimatePresence>
                 {imgZoom && (
                     <motion.div
                         className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setImgZoom(false)}
                     >
                         <motion.div
                             className="absolute inset-0"
                             style={{ background: 'rgba(0,0,0,0.95)' }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
                         />
                         <motion.div
                             className="relative z-10 max-w-full max-h-full"
@@ -571,7 +561,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
-    const paymentStatus = booking.payment_proof
+    const paymentStatus = booking.downpayment_proof
         ? (booking.payment_verified ? 'verified' : 'submitted')
         : 'no_proof';
 
@@ -694,6 +684,7 @@ export default function Bookings() {
     const [toast, setToast]                     = useState(null);
     const searchRef                             = useRef(null);
 
+    // ── Full fetch (initial load + manual refresh only) ──────────────────────
     const fetchBookings = useCallback(() => {
         setLoading(true);
         apiFetch('/therapist/api/bookings?per_page=500')
@@ -702,16 +693,53 @@ export default function Bookings() {
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { fetchBookings(); }, [fetchBookings]);
+    useEffect(() => {
+        fetchBookings();
+
+        // ── WebSocket: listen for server-pushed booking updates ──────────────
+        // Keeps every connected client in sync without polling.
+        // Requires Laravel Echo + Reverb and a BookingStatusUpdated broadcast event.
+        if (window.Echo) {
+            const channel = window.Echo.private('bookings');
+
+            channel.listen('BookingStatusUpdated', (e) => {
+                if (!e?.booking) return;
+                setBookings(prev =>
+                    prev.map(b => b.id === e.booking.id ? { ...b, ...e.booking } : b)
+                );
+                setSelectedBooking(prev =>
+                    prev?.id === e.booking.id ? { ...prev, ...e.booking } : prev
+                );
+            });
+
+            return () => window.Echo.leave('bookings');
+        }
+    }, [fetchBookings]);
 
     const showToast = (message, type = 'success') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
     };
 
+    // ── Patch a single booking in local state ────────────────────────────────
+    const patchBooking = useCallback((bookingId, patch) => {
+        setBookings(prev =>
+            prev.map(b => b.id === bookingId ? { ...b, ...patch } : b)
+        );
+        setSelectedBooking(prev =>
+            prev?.id === bookingId ? { ...prev, ...patch } : prev
+        );
+    }, []);
+
     const handleAction = useCallback(async (bookingId, action, body = {}) => {
         const key = `${bookingId}-${action}`;
         setActionLoading(key);
+
+        // ── 1. Optimistic update — instant UI response ───────────────────────
+        const optimisticStatus = OPTIMISTIC_STATUS[action];
+        if (optimisticStatus) {
+            patchBooking(bookingId, { status: optimisticStatus });
+        }
 
         const urlMap = {
             accept:           `/therapist/api/bookings/${bookingId}/accept`,
@@ -728,17 +756,22 @@ export default function Bookings() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
+
             showToast(data.message ?? 'Action completed!');
-            fetchBookings();
-            if (selectedBooking?.id === bookingId) {
-                setSelectedBooking(prev => ({ ...prev, ...data.booking }));
+
+            // ── 2. Reconcile with server response (single record, no refetch) ─
+            if (data.booking) {
+                patchBooking(bookingId, data.booking);
             }
+
         } catch {
+            // ── 3. Revert optimistic update on failure ───────────────────────
             showToast('Something went wrong. Please try again.', 'error');
+            fetchBookings(); // full refetch only on error
         } finally {
             setActionLoading(null);
         }
-    }, [fetchBookings, selectedBooking]);
+    }, [patchBooking, fetchBookings]);
 
     const filtered = bookings.filter(b => {
         const inTab = (TAB_STATUSES[activeTab] ?? []).includes(b.status);
