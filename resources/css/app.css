@@ -133,6 +133,34 @@
   }
 }
 
+/* Custom Scrollbar - IHS Wellness Theme */
+
+/* For Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0f1629;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #b7882a, #e2b764);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #c9963f, #f0c97a);
+}
+
+/* For Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #e2b764 #0f1629;
+}
+
 /* Glassmorphism utility */
 .glass {
   background: var(--glass-bg);

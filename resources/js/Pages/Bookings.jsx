@@ -1224,21 +1224,24 @@ export default function Bookings() {
                                     <p className="text-[10px] mb-3" style={{ color: '#64748b' }}>
                                         We currently serve these areas in Dubai
                                     </p>
-                                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-gold">
                                         {[
-                                            { code: 'JAFZA', name: 'JAFZA', location: 'Dubai, UAE' },
-                                            { code: 'DAFZ', name: 'DAFZ', location: 'Dubai, UAE' },
-                                            { code: 'DMCC', name: 'DMCC / JLT', location: 'Dubai, UAE' },
-                                            { code: 'Dubai South', name: 'Dubai South', location: 'Dubai, UAE' },
-                                            { code: 'DSO', name: 'DSO', location: 'Dubai, UAE' },
-                                            { code: 'DIC', name: 'DIC / DMC', location: 'Dubai, UAE' },
-                                            { code: 'D3', name: 'D3', location: 'Dubai, UAE' },
-                                            { code: 'DIFC', name: 'DIFC', location: 'Dubai, UAE' },
+                                            { name: 'JAFZA', location: 'Dubai, UAE' },
+                                            { name: 'DAFZ', location: 'Dubai, UAE' },
+                                            { name: 'DMCC / JLT', location: 'Dubai, UAE' },
+                                            { name: 'Dubai South', location: 'Dubai, UAE' },
+                                            { name: 'Dubai Silicon Oasis', location: 'Dubai, UAE' },
+                                            { name: 'Dubai Internet City', location: 'Dubai, UAE' },
+                                            { name: 'Dubai Design District', location: 'Dubai, UAE' },
+                                            { name: 'DIFC', location: 'Dubai, UAE' },
                                         ].map((zone) => (
                                             <button
-                                                key={zone.code}
+                                                key={zone.name}
                                                 type="button"
-                                                onClick={() => setNewAddress({ ...newAddress, zone_name: zone.name })}
+                                                onClick={() => {
+                                                    console.log('✅ Selected zone:', zone.name);
+                                                    setNewAddress({ ...newAddress, zone_name: zone.name });
+                                                }}
                                                 className={`text-left p-3 rounded-xl border transition-all ${
                                                     newAddress.zone_name === zone.name
                                                         ? 'border-gold bg-gold/10'
