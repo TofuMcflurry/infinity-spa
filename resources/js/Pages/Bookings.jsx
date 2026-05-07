@@ -411,7 +411,14 @@ export default function Bookings() {
 
     const downpaymentAmt = selectedService ? (Number(selectedService.price) * 0.20).toFixed(2) : '0.00';
     const remainingAmt   = selectedService ? (Number(selectedService.price) * 0.80).toFixed(2) : '0.00';
+    const getDisplayRating = (rating) => {
+    const MIN_DISPLAY = 3.5;
+    const actual = Number(rating) || 0;
+        if (actual === 0) return MIN_DISPLAY;
+        return Math.max(MIN_DISPLAY, actual);
+    };
 
+    
     return (
         <AuthenticatedLayout>
             <div className="min-h-screen bg-background">
@@ -588,7 +595,7 @@ export default function Bookings() {
                                                                     <p className="text-xs text-muted-foreground truncate">{therapist.specialty}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
                                                                         <Star className="w-3 h-3 text-gold fill-gold" />
-                                                                        <span className="text-xs font-medium">{therapist.rating}</span>
+                                                                        <span className="text-xs font-medium">{getDisplayRating(therapist.rating).toFixed(1)}</span>
                                                                         <span className="text-[10px] text-muted-foreground">{therapist.experience_years} yrs</span>
                                                                         <span className="text-[10px] text-muted-foreground">{therapist.gender === 'male' ? '♂' : '♀'}</span>
                                                                     </div>

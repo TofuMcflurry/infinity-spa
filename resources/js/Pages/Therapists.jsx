@@ -19,9 +19,16 @@ async function apiFetch(url) {
 
 // ── Star Display ──────────────────────────────────────────────────────────────
 function StarDisplay({ rating, reviewCount, size = 12 }) {
-    const stars    = Number(rating) || 0;
-    const hasRating = stars > 0 && reviewCount > 0;
-
+    const MIN_DISPLAY_RATING = 3.5;
+    const actualStars = Number(rating) || 0;
+    const hasRating = actualStars > 0 && reviewCount > 0;
+    
+    // SYSTEM RULE: Minimum display rating is 3.5 stars
+    const displayStars = hasRating 
+        ? Math.max(MIN_DISPLAY_RATING, actualStars)
+        : MIN_DISPLAY_RATING;
+    
+    // Check if should show "New" badge (no reviews)
     if (!hasRating) {
         return (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
@@ -31,24 +38,34 @@ function StarDisplay({ rating, reviewCount, size = 12 }) {
         );
     }
 
+    // Optional: You can still pass actual rating to admin via data attribute
+    // Or just show the display rating to customers
+    const needsAdminFlag = actualStars <= 3.5;
+
     return (
         <div className="flex items-center gap-1">
             <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map(s => (
                     <Star key={s} size={size}
                         style={{
-                            color: s <= Math.round(stars) ? '#e2b764' : '#1e2740',
-                            fill:  s <= Math.round(stars) ? '#e2b764' : 'transparent',
+                            color: s <= Math.round(displayStars) ? '#e2b764' : '#1e2740',
+                            fill:  s <= Math.round(displayStars) ? '#e2b764' : 'transparent',
                         }}
                     />
                 ))}
             </div>
             <span className="text-xs font-bold" style={{ color: '#e2b764' }}>
-                {stars.toFixed(1)}
+                {displayStars.toFixed(1)}
             </span>
             {reviewCount > 0 && (
                 <span className="text-xs" style={{ color: '#64748b' }}>
                     ({reviewCount})
+                </span>
+            )}
+            {/* Optional: Hidden badge for admin (only visible to admins) */}
+            {needsAdminFlag && window.userRole === 'admin' && (
+                <span className="text-[8px] ml-1 px-1 py-0.5 rounded" style={{ background: '#ef444420', color: '#ef4444' }}>
+                    ⚠️ Actual: {actualStars.toFixed(1)}
                 </span>
             )}
         </div>
