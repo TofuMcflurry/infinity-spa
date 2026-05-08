@@ -295,10 +295,12 @@ class BookingController extends Controller
                 'id'               => $b->id,
                 'service'          => $b->service->name,
                 'service_id'       => $b->service_id,
-                'therapist'        => $b->therapist->user->name,
+                'therapist'        => $b->therapist?->user?->name,
                 'therapist_id'     => $b->therapist_id,
-                'therapist_avatar' => strtoupper(substr($b->therapist->user->name, 0, 1))
-                                      . strtoupper(substr(explode(' ', $b->therapist->user->name)[1] ?? '', 0, 1)),
+                'therapist_avatar' => $b->therapist?->user
+                    ? strtoupper(substr($b->therapist->user->name, 0, 1))
+                    . strtoupper(substr(explode(' ', $b->therapist->user->name)[1] ?? '', 0, 1))
+                    : '?',
                 'date'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('l, d F Y'),
                 'date_short'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y'),
                 'time'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('g:i A'),

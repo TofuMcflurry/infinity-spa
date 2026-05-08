@@ -35,7 +35,7 @@ class CustomerDashboardController extends Controller
 
         // ── Upcoming Booking ──────────────────────────────────────────────────
         $upcomingBooking = Booking::where('customer_id', $customerId)
-            ->whereIn('status', ['en_route', 'arrived', 'accepted', 'pending', 'pending_payment']) // ✅
+            ->whereIn('status', ['en_route', 'arrived', 'in_progress', 'accepted', 'pending', 'pending_payment'])
             ->where('scheduled_start', '>=', now())
             ->with(['service', 'therapist.user'])
             ->orderByRaw("CASE
@@ -86,10 +86,10 @@ class CustomerDashboardController extends Controller
                     'id'   => $lastBooking->service->id,
                     'name' => $lastBooking->service->name,
                 ],
-                'therapist' => [
+                'therapist' => $lastBooking->therapist ? [
                     'id'   => $lastBooking->therapist->id,
-                    'name' => $lastBooking->therapist->user->name,
-                ],
+                    'name' => $lastBooking->therapist?->user?->name,
+                ] : null,
                 'time'      => $preferredHour !== null
                     ? Carbon::today()->setHour((int)$preferredHour)->setMinute(0)->format('g:i A')
                     : null,
@@ -131,7 +131,7 @@ class CustomerDashboardController extends Controller
             ->map(fn($b) => [
                 'id'             => $b->id,
                 'service'        => $b->service->name,
-                'therapist'      => $b->therapist->user->name,
+                'therapist' => $b->therapist?->user?->name,
                 'datetime'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('F j, Y · g:i A'),
                 'duration'       => $b->service->duration_minutes,
                 'status'         => $b->status,
@@ -184,9 +184,7 @@ class CustomerDashboardController extends Controller
             'stats' => [
                 'total_sessions'     => $totalSessions,
                 'total_spent'        => number_format((float)$totalSpent, 2),
-                'favorite_therapist' => $favoriteTherapist
-                    ? $favoriteTherapist->therapist->user->name
-                    : null,
+                'favorite_therapist' => $favoriteTherapist?->therapist?->user?->name ?? null,
             ],
             'upcoming_booking' => $upcomingBooking ? [
                 'id'        => $upcomingBooking->id,
