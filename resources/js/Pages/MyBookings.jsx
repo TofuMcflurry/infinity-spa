@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { ZoomIn } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { router } from '@inertiajs/react';
+import { router, usePage  } from '@inertiajs/react';
 import {
     Calendar, Clock, MapPin, User, Star,
     ChevronRight, Loader2, CheckCircle2,
@@ -578,6 +578,9 @@ function EmptyState({ tab }) {
 
 // ── MAIN PAGE ──────────────────────────────────────────────────────────────
 export default function MyBookings() {
+    const { props } = usePage();
+    const userId = props.auth?.user?.id;
+
     const [activeTab,       setActiveTab]       = useState('upcoming');
     const [data,            setData]            = useState(null);
     const [loading,         setLoading]         = useState(true);
@@ -595,15 +598,27 @@ export default function MyBookings() {
     const [selectedReason,   setSelectedReason]   = useState(null);
     const [otherText,        setOtherText]        = useState('');
 
-    const fetchBookings = useCallback(() => {
-        setLoading(true);
+    const fetchBookings = useCallback((silent = false) => {
+        if (!silent) setLoading(true);
         apiFetch('/api/my-bookings')
             .then(setData)
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { fetchBookings(); }, []);
+    useEffect(() => {
+        fetchBookings();
+        const interval = setInterval(() => fetchBookings(true), 15_000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // ── WebSocket ──
+    useEffect(() => {
+        if (!window.Echo || !userId) return;
+        const channel = window.Echo.private(`bookings.user.${userId}`);
+        channel.listen('.status.updated', () => fetchBookings(true));
+        return () => window.Echo.leave(`bookings.user.${userId}`);
+    }, [userId]);
 
     // ── Cancel handler ────────────────────────────────────────────────────
         const handleCancelConfirm = useCallback(async () => {
