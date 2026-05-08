@@ -310,10 +310,12 @@ class BookingController extends Controller
                 'status'           => $b->status,
                 'rejection_reason' => $b->rejection_reason,
                 'can_review'       => $this->canReview($b, $customerId),
-                'hours_remaining'  => $b->updated_at
-                    ? max(0, 48 - Carbon::parse($b->updated_at)->diffInHours(now()))
-                    : null,
-                'hours_until_session' => Carbon::parse($b->scheduled_start)->diffInHours(now(), false),
+                'hours_until_session' => now('Asia/Dubai')
+                    ->diffInHours(Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai'), false),
+                'hours_until_session' => Carbon::parse($b->scheduled_start)
+                    ->timezone('Asia/Dubai')
+                    ->diffInHours(now('Asia/Dubai'), false), 
+                'cancellation_reason' => $b->cancellation_reason, // ← idagdag ito
                 'downpayment_amount'  => $b->downpayment_amount,
                 'remaining_amount'    => $b->remaining_amount,
                 'downpayment_status'  => $b->downpayment_status,

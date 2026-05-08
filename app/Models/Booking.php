@@ -30,6 +30,7 @@ class Booking extends Model
         'downpayment_submitted_at',
         'downpayment_verified_at',
         'cancelled_at',
+        'cancellation_reason',
         'cancellation_type',
         'guest_email',
         'guest_name',

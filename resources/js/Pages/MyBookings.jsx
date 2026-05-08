@@ -43,6 +43,15 @@ const TABS = [
     { key: 'cancelled', label: 'Cancelled', icon: XCircle,      color: '#f87171' },
 ];
 
+const CANCEL_REASONS = [
+    { id: 'schedule_conflict', label: 'Schedule conflict',        icon: '📅' },
+    { id: 'personal_reasons',  label: 'Personal reasons',         icon: '🙏' },
+    { id: 'found_alternative', label: 'Found another service',    icon: '🔄' },
+    { id: 'financial_reasons', label: 'Financial reasons',        icon: '💳' },
+    { id: 'emergency',         label: 'Emergency / urgent matter',icon: '🚨' },
+    { id: 'other',             label: 'Other reason',             icon: '✏️'  },
+];
+
 // ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
     const config = {
@@ -583,6 +592,9 @@ export default function MyBookings() {
     const [cancelling,       setCancelling]       = useState(false);
     const [cancelError,      setCancelError]      = useState(null);
 
+    const [selectedReason,   setSelectedReason]   = useState(null);
+    const [otherText,        setOtherText]        = useState('');
+
     const fetchBookings = useCallback(() => {
         setLoading(true);
         apiFetch('/api/my-bookings')
@@ -594,25 +606,34 @@ export default function MyBookings() {
     useEffect(() => { fetchBookings(); }, []);
 
     // ── Cancel handler ────────────────────────────────────────────────────
-    const handleCancelConfirm = useCallback(async () => {
+        const handleCancelConfirm = useCallback(async () => {
         if (!cancelBooking) return;
+
+        const finalReason = selectedReason === 'other' ? otherText.trim() : selectedReason;
+        if (!finalReason) return;
+
         setCancelling(true);
         setCancelError(null);
         try {
             await apiFetch('/api/downpayment/cancel', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ booking_id: cancelBooking.id }),
+                body:    JSON.stringify({
+                    booking_id:          cancelBooking.id,
+                    cancellation_reason: finalReason,
+                }),
             });
             setShowCancelModal(false);
             setCancelBooking(null);
+            setSelectedReason(null);
+            setOtherText('');
             fetchBookings();
         } catch (err) {
             setCancelError(err.message);
         } finally {
             setCancelling(false);
         }
-    }, [cancelBooking, fetchBookings]);
+    }, [cancelBooking, selectedReason, otherText, fetchBookings]);
 
     const currentBookings = data?.[activeTab] ?? [];
     const counts = {
@@ -725,80 +746,148 @@ export default function MyBookings() {
                 {/* ── Cancel Confirmation Modal ── */}
                 <AnimatePresence>
                     {showCancelModal && cancelBooking && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 className="absolute inset-0 backdrop-blur-sm"
-                                style={{ background: 'rgba(0,0,0,0.7)' }}
+                                style={{ background: 'rgba(0,0,0,0.75)' }}
                                 onClick={() => !cancelling && setShowCancelModal(false)}
                             />
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="relative w-full max-w-sm rounded-2xl p-6 z-10"
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
                                 style={{ background: '#0f1629', border: '1px solid #1e2740' }}
                             >
-                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                                    style={{ background: 'rgba(248,113,113,0.1)' }}>
-                                    <AlertTriangle size={24} style={{ color: '#f87171' }} />
-                                </div>
-
-                                <h3 className="font-display font-bold text-lg text-white text-center mb-1">
-                                    Cancel Booking?
-                                </h3>
-                                <p className="text-sm text-center mb-1" style={{ color: '#94a3b8' }}>
-                                    {cancelBooking.service} • {cancelBooking.therapist}
-                                </p>
-                                <p className="text-xs text-center mb-4" style={{ color: '#64748b' }}>
-                                    {cancelBooking.date_short} at {cancelBooking.time}
-                                </p>
-
-                                {/* Grace period warning */}
-                                {cancelBooking.downpayment_status === 'verified' && (
-                                    <div className="p-3 rounded-xl mb-4"
-                                        style={{
-                                            background: cancelBooking.hours_until_session > 24
-                                                ? 'rgba(16,185,129,0.08)'
-                                                : 'rgba(248,113,113,0.08)',
-                                            border: cancelBooking.hours_until_session > 24
-                                                ? '1px solid rgba(16,185,129,0.2)'
-                                                : '1px solid rgba(248,113,113,0.2)',
-                                        }}>
-                                        <p className="text-xs font-medium text-center"
-                                            style={{ color: cancelBooking.hours_until_session > 24 ? '#10b981' : '#f87171' }}>
-                                            {cancelBooking.hours_until_session > 24
-                                                ? '✅ Your downpayment will be fully refunded.'
-                                                : '❌ Your downpayment will be forfeited (within 24hrs).'}
+                                {/* Header */}
+                                <div className="sticky top-0 p-5 border-b flex items-center justify-between"
+                                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                    <div>
+                                        <h3 className="font-display font-semibold text-lg text-white">Cancel Booking</h3>
+                                        <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                                            {cancelBooking.service} • {cancelBooking.date_short} at {cancelBooking.time}
                                         </p>
                                     </div>
-                                )}
+                                    <button onClick={() => !cancelling && setShowCancelModal(false)}
+                                        className="p-1.5 rounded-lg" style={{ color: '#64748b' }}>
+                                        <X size={18} />
+                                    </button>
+                                </div>
 
-                                {cancelError && (
-                                    <p className="text-xs text-center mb-3 px-3 py-2 rounded-xl"
-                                        style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171' }}>
-                                        {cancelError}
-                                    </p>
-                                )}
+                                <div className="p-5 space-y-5">
 
-                                <div className="flex gap-3">
+                                    {/* Refund / Forfeit warning */}
+                                    {cancelBooking.downpayment_status === 'verified' ? (
+                                        cancelBooking.hours_until_session > 24 ? (
+                                            <div className="flex items-start gap-3 p-4 rounded-xl"
+                                                style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                                <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
+                                                <div>
+                                                    <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Full refund eligible</p>
+                                                    <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                        Your session is more than 24 hours away. Downpayment will be refunded within 3-5 business days.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-start gap-3 p-4 rounded-xl"
+                                                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                                                <div>
+                                                    <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Downpayment will be forfeited</p>
+                                                    <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                        Your session is less than 24 hours away. Downpayment cannot be refunded per our policy.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="flex items-start gap-3 p-4 rounded-xl"
+                                            style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
+                                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
+                                            <div>
+                                                <p className="text-sm font-semibold" style={{ color: '#e2b764' }}>No charge</p>
+                                                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                    Your downpayment hasn't been verified yet — no amount will be charged.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Reason selector */}
+                                    <div>
+                                        <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>
+                                            Reason for cancellation *
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {CANCEL_REASONS.map((reason) => {
+                                                const isActive = selectedReason === reason.id;
+                                                return (
+                                                    <button key={reason.id} onClick={() => setSelectedReason(reason.id)}
+                                                        className="flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all"
+                                                        style={{
+                                                            borderColor: isActive ? 'rgba(226,183,100,0.5)' : '#1e2740',
+                                                            background:  isActive ? 'rgba(226,183,100,0.08)' : '#141d33',
+                                                        }}>
+                                                        <span className="text-base">{reason.icon}</span>
+                                                        <span className="text-xs font-medium"
+                                                            style={{ color: isActive ? '#e2b764' : '#94a3b8' }}>
+                                                            {reason.label}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Other text input */}
+                                    <AnimatePresence>
+                                        {selectedReason === 'other' && (
+                                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                                                <textarea
+                                                    value={otherText}
+                                                    onChange={e => setOtherText(e.target.value)}
+                                                    placeholder="Please describe your reason..."
+                                                    rows={3}
+                                                    className="w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none resize-none"
+                                                    style={{ background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' }}
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {cancelError && (
+                                        <div className="flex items-center gap-2 p-3 rounded-xl text-sm"
+                                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                            <AlertCircle size={14} /> {cancelError}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="sticky bottom-0 p-5 border-t flex gap-3"
+                                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
                                     <button
-                                        onClick={() => setShowCancelModal(false)}
+                                        onClick={() => { setShowCancelModal(false); setSelectedReason(null); setOtherText(''); }}
                                         disabled={cancelling}
                                         className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                                        style={{ background: '#141d33', color: '#94a3b8', border: '1px solid #1e2740' }}
-                                    >
+                                        style={{ background: '#141d33', color: '#94a3b8' }}>
                                         Keep Booking
                                     </button>
                                     <button
                                         onClick={handleCancelConfirm}
-                                        disabled={cancelling}
-                                        className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                                        style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}
-                                    >
-                                        {cancelling ? <Loader2 size={14} className="animate-spin" /> : 'Yes, Cancel'}
+                                        disabled={!selectedReason || (selectedReason === 'other' && otherText.trim().length < 4) || cancelling}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                        style={{
+                                            background:  (!selectedReason || cancelling) ? '#141d33' : 'rgba(239,68,68,0.15)',
+                                            border:      '1px solid',
+                                            borderColor: (!selectedReason || cancelling) ? '#1e2740' : 'rgba(239,68,68,0.4)',
+                                            color:       (!selectedReason || cancelling) ? '#475569' : '#ef4444',
+                                            cursor:      !selectedReason ? 'not-allowed' : 'pointer',
+                                        }}>
+                                        {cancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                                        {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
                                     </button>
                                 </div>
                             </motion.div>

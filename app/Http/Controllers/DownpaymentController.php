@@ -86,7 +86,8 @@ class DownpaymentController extends Controller
     public function cancel(Request $request)
     {
         $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
+            'booking_id'          => 'required|exists:bookings,id',
+            'cancellation_reason' => 'required|string|max:500',
         ]);
 
         $customerId = auth()->id();
@@ -97,8 +98,9 @@ class DownpaymentController extends Controller
             ->firstOrFail();
 
         $sessionStart = Carbon::parse($booking->scheduled_start);
-        $hoursUntil   = now()->diffInHours($sessionStart, false);
-        $withinGrace  = $hoursUntil > 24;
+        $hoursUntil = now('Asia/Dubai')
+            ->diffInHours(Carbon::parse($booking->scheduled_start)->timezone('Asia/Dubai'), false);
+        $withinGrace = $hoursUntil > 24; // true = more than 24hrs away = refund
 
         if ($booking->downpayment_status === 'pending') {
             $cancellationType  = 'refunded';
@@ -112,15 +114,17 @@ class DownpaymentController extends Controller
         }
 
         $booking->update([
-            'status'             => 'cancelled',
-            'cancelled_at'       => now(),
-            'cancellation_type'  => $cancellationType,
-            'downpayment_status' => $downpaymentStatus,
+            'status'               => 'cancelled',
+            'cancelled_at'         => now(),
+            'cancellation_type'    => $cancellationType,
+            'cancellation_reason'  => $request->cancellation_reason,
+            'downpayment_status'   => $downpaymentStatus,
         ]);
 
         return response()->json([
             'message'           => 'Booking cancelled.',
             'cancellation_type' => $cancellationType,
+            'hours_until'       => $hoursUntil,
             'downpayment'       => $cancellationType === 'refunded'
                 ? 'Your downpayment will be refunded within 3-5 business days.'
                 : 'Your downpayment has been forfeited as per our cancellation policy.',

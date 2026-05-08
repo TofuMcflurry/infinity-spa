@@ -40,7 +40,7 @@ const STATUS_STEPS = [
     { key: 'accepted',     label: 'Confirmed',   icon: CheckCircle2 },
     { key: 'en_route',     label: 'On The Way',  icon: Navigation   },
     { key: 'arrived',      label: 'Arrived',     icon: MapPin       },
-    { key: 'in_progress',  label: 'In Session',  icon: Sparkles     },
+    { key: 'in_progress',  label: 'Completed',  icon: Sparkles     },
 ];
 
 function StatusTracker({ booking: initialBooking, onCompleted }) {
