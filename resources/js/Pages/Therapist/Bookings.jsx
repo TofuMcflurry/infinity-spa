@@ -105,13 +105,12 @@ const TAB_STATUSES = {
     cancelled: ['rejected', 'cancelled'],
 };
 
-// Optimistic status map for instant UI feedback
 const OPTIMISTIC_STATUS = {
-    accept:     'accepted',
-    reject:     'rejected',
-    start: 'en_route',
-    arrived:    'arrived',
-    complete:   'completed',
+    accept:   'accepted',
+    reject:   'rejected',
+    start:    'en_route',
+    arrived:  'arrived',
+    complete: 'completed',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,6 +130,13 @@ function fmtTime(str) {
 
 function bookingCode(id) {
     return `IHS-${String(id).padStart(4, '0')}`;
+}
+
+// ── Compute paymentStatus from downpayment_status field ──────────────────────
+function getPaymentStatus(booking) {
+    if (booking.downpayment_status === 'verified') return 'verified';
+    if (booking.downpayment_proof) return 'submitted';
+    return 'no_proof';
 }
 
 // ── StatusBadge ──────────────────────────────────────────────────────────────
@@ -251,9 +257,8 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
 
-    const paymentStatus = booking.downpayment_proof
-        ? (booking.payment_verified ? 'verified' : 'submitted')
-        : 'no_proof';
+    // ── Fix: use downpayment_status field ────────────────────────────────────
+    const paymentStatus = getPaymentStatus(booking);
 
     const section = (title, children) => (
         <div className="mb-5">
@@ -268,6 +273,13 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
             </div>
         </div>
     );
+
+    const getFullImageUrl = (path) => {
+        if (!path) return '';
+        if (path.startsWith('http')) return path;
+        if (path.startsWith('/')) return `${window.location.origin}${path}`;
+        return `${window.location.origin}/${path}`;
+    };
 
     const renderStatusActions = () => {
         switch (booking.status) {
@@ -310,13 +322,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
             default:
                 return null;
         }
-    };
-
-    const getFullImageUrl = (path) => {
-        if (!path) return '';
-        if (path.startsWith('http')) return path;
-        if (path.startsWith('/')) return `${window.location.origin}${path}`;
-        return `${window.location.origin}/${path}`;
     };
 
     return (
@@ -435,8 +440,52 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         </div>
                     </>)}
 
+                    {/* ── Proof of Payment ── */}
                     {section('Proof of Payment',
-                        booking.downpayment_proof ? (
+                        paymentStatus === 'verified' ? (
+                            // ── Verified state — green banner + read-only image ──
+                            <div className="py-4 flex flex-col gap-3">
+                                <div
+                                    className="w-full px-4 py-3 rounded-xl flex items-center gap-3"
+                                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}
+                                >
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{ background: 'rgba(16,185,129,0.15)' }}>
+                                        <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold" style={{ color: '#10b981' }}>Downpayment Verified</p>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                            Admin has confirmed this payment.
+                                        </p>
+                                    </div>
+                                </div>
+                                {booking.downpayment_proof && (
+                                    <div
+                                        className="relative rounded-xl overflow-hidden w-full cursor-pointer group"
+                                        style={{ border: '1px solid rgba(16,185,129,0.2)' }}
+                                        onClick={() => setImgZoom(true)}
+                                    >
+                                        <img
+                                            src={getFullImageUrl(booking.downpayment_proof)}
+                                            alt="Payment proof"
+                                            className="w-full object-cover max-h-52 transition-transform group-hover:scale-105"
+                                            onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found'; }}
+                                        />
+                                        <div
+                                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            style={{ background: 'rgba(0,0,0,0.4)' }}
+                                        >
+                                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg" style={{ background: 'rgba(16,185,129,0.9)' }}>
+                                                <Eye size={16} style={{ color: '#fff' }} />
+                                                <span className="text-xs font-semibold text-white">View Full Screenshot</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : paymentStatus === 'submitted' ? (
+                            // ── Submitted but not yet verified ──
                             <div className="py-3">
                                 <div
                                     className="relative rounded-xl overflow-hidden cursor-pointer group"
@@ -447,9 +496,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                         src={getFullImageUrl(booking.downpayment_proof)}
                                         alt="Payment proof"
                                         className="w-full object-cover max-h-52 transition-transform group-hover:scale-105"
-                                        onError={(e) => {
-                                            e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
-                                        }}
+                                        onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found'; }}
                                     />
                                     <div
                                         className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -462,7 +509,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between mt-2 px-1">
-                                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Click image to view full size</p>
+                                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Pending admin verification</p>
                                     <a
                                         href={getFullImageUrl(booking.downpayment_proof)}
                                         target="_blank"
@@ -475,6 +522,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                 </div>
                             </div>
                         ) : (
+                            // ── No proof uploaded ──
                             <div className="py-5 flex flex-col items-center gap-2 text-center">
                                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.08)' }}>
                                     <ImageIcon size={18} style={{ color: '#ef4444' }} />
@@ -561,9 +609,8 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
-    const paymentStatus = booking.downpayment_proof
-        ? (booking.payment_verified ? 'verified' : 'submitted')
-        : 'no_proof';
+    // ── Fix: use downpayment_status field ────────────────────────────────────
+    const paymentStatus = getPaymentStatus(booking);
 
     return (
         <motion.tr
@@ -684,7 +731,6 @@ export default function Bookings() {
     const [toast, setToast]                     = useState(null);
     const searchRef                             = useRef(null);
 
-    // ── Full fetch (initial load + manual refresh only) ──────────────────────
     const fetchBookings = useCallback(() => {
         setLoading(true);
         apiFetch('/therapist/api/bookings?per_page=500')
@@ -696,12 +742,8 @@ export default function Bookings() {
     useEffect(() => {
         fetchBookings();
 
-        // ── WebSocket: listen for server-pushed booking updates ──────────────
-        // Keeps every connected client in sync without polling.
-        // Requires Laravel Echo + Reverb and a BookingStatusUpdated broadcast event.
         if (window.Echo) {
             const channel = window.Echo.private('bookings');
-
             channel.listen('BookingStatusUpdated', (e) => {
                 if (!e?.booking) return;
                 setBookings(prev =>
@@ -711,7 +753,6 @@ export default function Bookings() {
                     prev?.id === e.booking.id ? { ...prev, ...e.booking } : prev
                 );
             });
-
             return () => window.Echo.leave('bookings');
         }
     }, [fetchBookings]);
@@ -721,7 +762,6 @@ export default function Bookings() {
         setTimeout(() => setToast(null), 3500);
     };
 
-    // ── Patch a single booking in local state ────────────────────────────────
     const patchBooking = useCallback((bookingId, patch) => {
         setBookings(prev =>
             prev.map(b => b.id === bookingId ? { ...b, ...patch } : b)
@@ -735,7 +775,6 @@ export default function Bookings() {
         const key = `${bookingId}-${action}`;
         setActionLoading(key);
 
-        // ── 1. Optimistic update — instant UI response ───────────────────────
         const optimisticStatus = OPTIMISTIC_STATUS[action];
         if (optimisticStatus) {
             patchBooking(bookingId, { status: optimisticStatus });
@@ -759,15 +798,13 @@ export default function Bookings() {
 
             showToast(data.message ?? 'Action completed!');
 
-            // ── 2. Reconcile with server response (single record, no refetch) ─
             if (data.booking) {
                 patchBooking(bookingId, data.booking);
             }
 
         } catch {
-            // ── 3. Revert optimistic update on failure ───────────────────────
             showToast('Something went wrong. Please try again.', 'error');
-            fetchBookings(); // full refetch only on error
+            fetchBookings();
         } finally {
             setActionLoading(null);
         }
