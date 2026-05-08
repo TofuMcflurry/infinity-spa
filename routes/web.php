@@ -139,6 +139,10 @@ Route::middleware(['auth', 'admin'])
         // ── Pages ──────────────────────────────────────────────────────────
         Route::get('/', [App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])
             ->name('dashboard');
+        
+        // ── Bookings Manager Page ──────────────────────────────────────────
+        Route::get('/bookings', [App\Http\Controllers\Admin\AdminBookingController::class, 'index'])
+            ->name('bookings');
 
         // ── Therapists ─────────────────────────────────────────────────────
         Route::get('/therapists', [App\Http\Controllers\Admin\AdminTherapistController::class, 'index'])
@@ -160,7 +164,18 @@ Route::middleware(['auth', 'admin'])
         Route::post('/guest-bookings/{booking}/send-promo', [App\Http\Controllers\Admin\AdminDashboardController::class, 'sendConversionPromo'])
             ->name('guest-bookings.send-promo');
 
-        // ── Refunds ────────────────────────────────────────────────────────
+        // ── Bookings API Routes (for AdminBookingController) ────────────────
+        Route::prefix('api/bookings')->name('api.bookings.')->group(function () {
+            Route::get('/',                 [App\Http\Controllers\Admin\AdminBookingController::class, 'allBookings'])->name('all');
+            Route::get('/verification',     [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingVerification'])->name('verification');
+            Route::get('/pending-refunds',  [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingRefunds'])->name('pending-refunds');
+            Route::get('/cancelled-history',[App\Http\Controllers\Admin\AdminBookingController::class, 'cancelledHistory'])->name('cancelled-history');
+            Route::get('/stats',            [App\Http\Controllers\Admin\AdminBookingController::class, 'stats'])->name('stats');
+            Route::post('/verify',          [App\Http\Controllers\Admin\AdminBookingController::class, 'verifyDownpayment'])->name('verify');
+            Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
+        });
+
+        // ── Refunds (keep the existing ones or remove if using API routes) ──
         Route::get('/refunds',                [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingRefunds'])
             ->name('refunds.pending');
         Route::post('/refunds/mark-sent',     [App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])

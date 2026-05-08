@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut } from 'lucide-react'
+import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck } from 'lucide-react'
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },  // ← /admin lang, not /admin/dashboard
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },  
+  { icon: CalendarCheck,   label: 'Bookings',  href: '/admin/bookings' },
   { icon: Users,           label: 'Therapists', href: '/admin/therapists' },
   { icon: BarChart3,       label: 'Reports',    href: '/admin/reports', soon: true },
 ];
@@ -192,4 +193,3 @@ export default function AdminLayout({ title = 'Admin', children }) {
     </div>
   );
 }
-

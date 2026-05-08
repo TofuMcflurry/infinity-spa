@@ -6,10 +6,67 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class AdminBookingController extends Controller
 {
-    // ── Get all bookings eligible for refund ──────────────────────────────────
+    // ── Inertia page ──────────────────────────────────────────────────────────
+    public function index()
+    {
+        return Inertia::render('Admin/BookingsManager');
+    }
+
+    // ── All bookings (for the main table) ────────────────────────────────────
+    public function allBookings()
+    {
+        $bookings = Booking::with(['service', 'therapist.user', 'customer'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($b) => $this->formatBooking($b));
+
+        return response()->json($bookings);
+    }
+
+    // ── Pending downpayment verification ─────────────────────────────────────
+    public function pendingVerification()
+    {
+        $bookings = Booking::with(['service', 'therapist.user', 'customer'])
+            ->where('downpayment_status', 'submitted')
+            ->orderByDesc('downpayment_submitted_at')
+            ->get()
+            ->map(fn($b) => $this->formatBooking($b));
+
+        return response()->json($bookings);
+    }
+
+    // ── Verify downpayment ────────────────────────────────────────────────────
+    public function verifyDownpayment(Request $request)
+    {
+        $request->validate([
+            'booking_id' => 'required|exists:bookings,id',
+        ]);
+
+        $booking = Booking::with(['service', 'therapist.user', 'customer'])
+            ->findOrFail($request->booking_id);
+
+        abort_if($booking->downpayment_status !== 'submitted', 422, 'No proof submitted to verify.');
+
+        $booking->update([
+            'downpayment_status'      => 'verified',
+            'downpayment_verified_at' => now(),
+            'status'                  => 'pending',
+        ]);
+
+        // Optional: notify customer
+        // $booking->customer->notify(new \App\Notifications\BookingNotification($booking, 'downpayment_verified'));
+
+        return response()->json([
+            'message' => 'Downpayment verified!',
+            'booking' => $this->formatBooking($booking->fresh(['service', 'therapist.user', 'customer'])),
+        ]);
+    }
+
+    // ── Pending refunds ───────────────────────────────────────────────────────
     public function pendingRefunds()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -18,18 +75,7 @@ class AdminBookingController extends Controller
             ->where('downpayment_status', 'refunded')
             ->orderByDesc('cancelled_at')
             ->get()
-            ->map(fn($b) => [
-                'id'                  => $b->id,
-                'ref'                 => 'IHS-' . str_pad($b->id, 5, '0', STR_PAD_LEFT),
-                'customer'            => $b->customer->name,
-                'customer_email'      => $b->customer->email,
-                'service'             => $b->service->name,
-                'downpayment_amount'  => $b->downpayment_amount,
-                'cancellation_reason' => $b->cancellation_reason,
-                'cancelled_at'        => Carbon::parse($b->cancelled_at)
-                                            ->timezone('Asia/Dubai')
-                                            ->format('M d, Y g:i A'),
-            ]);
+            ->map(fn($b) => $this->formatBooking($b));
 
         return response()->json($bookings);
     }
@@ -45,7 +91,6 @@ class AdminBookingController extends Controller
         $booking = Booking::with(['customer', 'service'])
             ->findOrFail($request->booking_id);
 
-        // Make sure it's actually a refundable booking
         abort_if(
             $booking->cancellation_type !== 'refunded' || $booking->downpayment_status !== 'refunded',
             422,
@@ -58,16 +103,16 @@ class AdminBookingController extends Controller
             'refund_sent_at'     => now(),
         ]);
 
-        // Uncomment when you create RefundSentNotification:
+        // Optional: notify customer
         // $booking->customer->notify(new \App\Notifications\RefundSentNotification($booking));
 
         return response()->json([
             'message' => 'Refund marked as sent.',
-            'ref'     => 'IHS-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT),
+            'booking' => $this->formatBooking($booking->fresh(['service', 'therapist.user', 'customer'])),
         ]);
     }
 
-    // ── Get all cancelled bookings (forfeited + refund_sent history) ──────────
+    // ── Cancelled history ─────────────────────────────────────────────────────
     public function cancelledHistory()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -75,25 +120,76 @@ class AdminBookingController extends Controller
             ->whereNotNull('cancellation_type')
             ->orderByDesc('cancelled_at')
             ->get()
-            ->map(fn($b) => [
-                'id'                  => $b->id,
-                'ref'                 => 'IHS-' . str_pad($b->id, 5, '0', STR_PAD_LEFT),
-                'customer'            => $b->customer->name,
-                'customer_email'      => $b->customer->email,
-                'service'             => $b->service->name,
-                'downpayment_amount'  => $b->downpayment_amount,
-                'cancellation_type'   => $b->cancellation_type,
-                'cancellation_reason' => $b->cancellation_reason,
-                'downpayment_status'  => $b->downpayment_status,
-                'refund_reference'    => $b->refund_reference,
-                'refund_sent_at'      => $b->refund_sent_at
-                    ? Carbon::parse($b->refund_sent_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
-                    : null,
-                'cancelled_at'        => $b->cancelled_at
-                    ? Carbon::parse($b->cancelled_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
-                    : null,
-            ]);
+            ->map(fn($b) => $this->formatBooking($b));
 
         return response()->json($bookings);
+    }
+
+    // ── Stats for dashboard cards ─────────────────────────────────────────────
+    public function stats()
+    {
+        $today = Carbon::today('Asia/Dubai');
+
+        return response()->json([
+            'total_bookings'        => Booking::count(),
+            'pending_verification'  => Booking::where('downpayment_status', 'submitted')->count(),
+            'pending_refunds'       => Booking::where('status', 'cancelled')
+                                              ->where('cancellation_type', 'refunded')
+                                              ->where('downpayment_status', 'refunded')
+                                              ->count(),
+            'active_today'          => Booking::whereIn('status', ['accepted', 'en_route', 'arrived'])
+                                              ->whereDate('scheduled_start', $today)
+                                              ->count(),
+            'completed_today'       => Booking::where('status', 'completed')
+                                              ->whereDate('scheduled_start', $today)
+                                              ->count(),
+            'revenue_today'         => Booking::where('status', 'completed')
+                                              ->whereDate('scheduled_start', $today)
+                                              ->join('services', 'bookings.service_id', '=', 'services.id')
+                                              ->sum('services.price'),
+        ]);
+    }
+
+    // ── Private formatter ─────────────────────────────────────────────────────
+    private function formatBooking(Booking $b): array
+    {
+        return [
+            'id'                       => $b->id,
+            'ref'                      => 'IHS-' . str_pad($b->id, 5, '0', STR_PAD_LEFT),
+            'customer_name'            => $b->customer?->name,
+            'customer_email'           => $b->customer?->email,
+            'customer_phone'           => $b->customer?->phone,
+            'therapist_name'           => $b->therapist?->user?->name,
+            'service_name'             => $b->service?->name,
+            'service_price'            => $b->service?->price,
+            'status'                   => $b->status,
+            'payment_method'           => $b->payment_method,
+            'location'                 => $b->location,
+            'zone_name'                => $b->zone_name,
+            'scheduled_start'          => $b->scheduled_start,
+            'scheduled_start_fmt'      => $b->scheduled_start
+                ? Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y g:i A')
+                : null,
+            'downpayment_amount'       => $b->downpayment_amount,
+            'remaining_amount'         => $b->remaining_amount,
+            'downpayment_status'       => $b->downpayment_status,
+            'downpayment_proof'        => $b->downpayment_proof,
+            'downpayment_submitted_at' => $b->downpayment_submitted_at
+                ? Carbon::parse($b->downpayment_submitted_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
+                : null,
+            'downpayment_verified_at'  => $b->downpayment_verified_at
+                ? Carbon::parse($b->downpayment_verified_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
+                : null,
+            'cancellation_type'        => $b->cancellation_type,
+            'cancellation_reason'      => $b->cancellation_reason,
+            'cancelled_at'             => $b->cancelled_at
+                ? Carbon::parse($b->cancelled_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
+                : null,
+            'refund_reference'         => $b->refund_reference,
+            'refund_sent_at'           => $b->refund_sent_at
+                ? Carbon::parse($b->refund_sent_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
+                : null,
+            'created_at'               => Carbon::parse($b->created_at)->timezone('Asia/Dubai')->format('M d, Y g:i A'),
+        ];
     }
 }
