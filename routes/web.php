@@ -136,15 +136,28 @@ Route::middleware(['auth', 'admin'])
     ->name('admin.')
     ->group(function () {
 
-        // ── Pages ──────────────────────────────────────────────────────────
+        // ── Dashboard ──────────────────────────────────────────────────────────
         Route::get('/', [App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])
             ->name('dashboard');
-        
-        // ── Bookings Manager Page ──────────────────────────────────────────
+
+        // ── Bookings Manager ──────────────────────────────────────────────────
         Route::get('/bookings', [App\Http\Controllers\Admin\AdminBookingController::class, 'index'])
             ->name('bookings');
 
-        // ── Therapists ─────────────────────────────────────────────────────
+        // ── Guest Bookings ────────────────────────────────────────────────────
+        Route::get('/guest-bookings', [App\Http\Controllers\Admin\GuestBookingController::class, 'index'])
+            ->name('guest-bookings');
+        
+        Route::post('/guest-bookings/{booking}/approve', [App\Http\Controllers\Admin\GuestBookingController::class, 'approve'])
+            ->name('guest-bookings.approve');
+        Route::post('/guest-bookings/{booking}/reject', [App\Http\Controllers\Admin\GuestBookingController::class, 'reject'])
+            ->name('guest-bookings.reject');
+        Route::post('/guest-bookings/{booking}/complete', [App\Http\Controllers\Admin\GuestBookingController::class, 'complete'])
+            ->name('guest-bookings.complete');
+        Route::post('/guest-bookings/{booking}/send-promo', [App\Http\Controllers\Admin\GuestBookingController::class, 'sendPromo'])
+            ->name('guest-bookings.send-promo');
+
+        // ── Therapists ────────────────────────────────────────────────────────
         Route::get('/therapists', [App\Http\Controllers\Admin\AdminTherapistController::class, 'index'])
             ->name('therapists');
         Route::post('/therapists/{therapist}/approve',    [App\Http\Controllers\Admin\AdminTherapistController::class, 'approve'])
@@ -154,17 +167,7 @@ Route::middleware(['auth', 'admin'])
         Route::delete('/therapists/{therapist}',          [App\Http\Controllers\Admin\AdminTherapistController::class, 'reject'])
             ->name('therapists.reject');
 
-        // ── Guest Bookings ─────────────────────────────────────────────────
-        Route::post('/guest-bookings/{booking}/approve',    [App\Http\Controllers\Admin\AdminDashboardController::class, 'approvePendingBooking'])
-            ->name('guest-bookings.approve');
-        Route::post('/guest-bookings/{booking}/reject',     [App\Http\Controllers\Admin\AdminDashboardController::class, 'rejectPendingBooking'])
-            ->name('guest-bookings.reject');
-        Route::post('/guest-bookings/{booking}/complete',   [App\Http\Controllers\Admin\AdminDashboardController::class, 'completeGuestBooking'])
-            ->name('guest-bookings.complete');
-        Route::post('/guest-bookings/{booking}/send-promo', [App\Http\Controllers\Admin\AdminDashboardController::class, 'sendConversionPromo'])
-            ->name('guest-bookings.send-promo');
-
-        // ── Bookings API Routes (for AdminBookingController) ────────────────
+        // ── Bookings API Routes ───────────────────────────────────────────────
         Route::prefix('api/bookings')->name('api.bookings.')->group(function () {
             Route::get('/',                 [App\Http\Controllers\Admin\AdminBookingController::class, 'allBookings'])->name('all');
             Route::get('/verification',     [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingVerification'])->name('verification');
@@ -174,14 +177,6 @@ Route::middleware(['auth', 'admin'])
             Route::post('/verify',          [App\Http\Controllers\Admin\AdminBookingController::class, 'verifyDownpayment'])->name('verify');
             Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
         });
-
-        // ── Refunds (keep the existing ones or remove if using API routes) ──
-        Route::get('/refunds',                [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingRefunds'])
-            ->name('refunds.pending');
-        Route::post('/refunds/mark-sent',     [App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])
-            ->name('refunds.mark-sent');
-        Route::get('/refunds/history',        [App\Http\Controllers\Admin\AdminBookingController::class, 'cancelledHistory'])
-            ->name('refunds.history');
     });
-
+    
 require __DIR__.'/auth.php';

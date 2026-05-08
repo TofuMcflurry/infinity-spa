@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck } from 'lucide-react'
+import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck, UserPlus } from 'lucide-react'
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },  
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
   { icon: CalendarCheck,   label: 'Bookings',  href: '/admin/bookings' },
   { icon: Users,           label: 'Therapists', href: '/admin/therapists' },
+  { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
   { icon: BarChart3,       label: 'Reports',    href: '/admin/reports', soon: true },
 ];
 
@@ -30,6 +31,7 @@ export default function AdminLayout({ title = 'Admin', children }) {
   const { url, props } = usePage();
   const user = props.auth?.user;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pendingGuestCount = props.pendingGuestBookingsCount ?? 0;
 
   const firstName = useMemo(() => (user?.name || 'Admin').split(' ')[0], [user?.name]);
 
@@ -88,13 +90,27 @@ export default function AdminLayout({ title = 'Admin', children }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors',
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors relative',
                 active ? 'bg-secondary text-foreground font-medium' : 'hover:bg-secondary/60'
               )}
               style={{ color: active ? 'var(--theme-text-head)' : 'var(--theme-text-2)' }}
             >
               <Icon size={18} />
               <span className="flex-1">{item.label}</span>
+              {item.badge && pendingGuestCount > 0 && (
+                <span 
+                  className="absolute right-3 top-2 w-2 h-2 rounded-full animate-pulse"
+                  style={{ background: '#ef4444' }}
+                />
+              )}
+              {item.badge && pendingGuestCount > 0 && (
+                <span 
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
+                  style={{ background: '#ef4444', color: 'white' }}
+                >
+                  {pendingGuestCount}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -123,12 +139,10 @@ export default function AdminLayout({ title = 'Admin', children }) {
 
   return (
     <div className="min-h-screen flex w-full" style={{ background: 'var(--theme-bg)' }}>
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:sticky lg:top-0 lg:h-screen glass-card-strong rounded-none border-y-0 border-s-0">
         <Sidebar />
       </aside>
 
-      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40">
           <button className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={() => setMobileOpen(false)} />
