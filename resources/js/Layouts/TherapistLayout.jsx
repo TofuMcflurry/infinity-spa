@@ -10,22 +10,29 @@ import ThemeToggle from '@/Components/ThemeToggle';
 
 // ── Nav items ────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-    { icon: Home,        label: 'Dashboard',   href: '/therapist/dashboard' },
-    { icon: CalendarDays,label: 'Bookings',    href: '/therapist/bookings'  },
-    { icon: User,        label: 'Profile',     href: '/therapist/profile'   },
-    { icon: Calendar,    label: 'My Schedule', href: '/therapist/schedule'  },
-    { icon: TrendingUp,  label: 'Earnings',    href: '/therapist/earnings'  },
+    { icon: Home,         label: 'Dashboard',   href: '/therapist/dashboard' },
+    { icon: CalendarDays, label: 'Bookings',     href: '/therapist/bookings'  },
+    { icon: User,         label: 'Profile',      href: '/therapist/profile'   },
+    { icon: Calendar,     label: 'My Schedule',  href: '/therapist/schedule'  },
+    { icon: TrendingUp,   label: 'Earnings',     href: '/therapist/earnings'  },
 ];
 
 const MOBILE_TABS = [
-    { icon: Home,        label: 'Dashboard', href: '/therapist/dashboard' },
-    { icon: CalendarDays,label: 'Bookings',  href: '/therapist/bookings'  },
-    { icon: User,        label: 'Profile',   href: '/therapist/profile'   },
-    { icon: Calendar,    label: 'Schedule',  href: '/therapist/schedule'  },
-    { icon: TrendingUp,  label: 'Earnings',  href: '/therapist/earnings'  },
+    { icon: Home,         label: 'Dashboard', href: '/therapist/dashboard' },
+    { icon: CalendarDays, label: 'Bookings',  href: '/therapist/bookings'  },
+    { icon: User,         label: 'Profile',   href: '/therapist/profile'   },
+    { icon: Calendar,     label: 'Schedule',  href: '/therapist/schedule'  },
+    { icon: TrendingUp,   label: 'Earnings',  href: '/therapist/earnings'  },
 ];
 
-// ── CSRF helper ───────────────────────────────────────────────────────────────
+const mainNav     = NAV_ITEMS.slice(0, 2);
+const personalNav = NAV_ITEMS.slice(2);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getInitials(name = '') {
+    return name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'T';
+}
+
 function getCsrf() {
     const cookie = document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='));
     return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
@@ -116,27 +123,21 @@ function NotificationBell() {
                 {open && (
                     <>
                         <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-
                         <motion.div
                             initial={{ opacity: 0, y: -8, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0,  scale: 1    }}
-                            exit={{ opacity: 0,  y: -8, scale: 0.95  }}
+                            exit={{    opacity: 0, y: -8, scale: 0.95 }}
                             transition={{ duration: 0.15 }}
                             className="absolute right-0 top-11 z-50 w-80 rounded-2xl shadow-2xl overflow-hidden"
                             style={{ background: 'var(--theme-notif-bg)', border: '1px solid var(--theme-border)' }}
                         >
-                            <div
-                                className="flex items-center justify-between px-4 py-3 border-b"
-                                style={{ borderColor: 'var(--theme-border)' }}
-                            >
+                            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--theme-border)' }}>
                                 <div className="flex items-center gap-2">
                                     <Bell size={13} style={{ color: '#e2b764' }} />
                                     <span className="text-sm font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>Notifications</span>
                                     {unreadCount > 0 && (
-                                        <span
-                                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                            style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}
-                                        >
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                            style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
                                             {unreadCount} new
                                         </span>
                                     )}
@@ -195,91 +196,124 @@ function NotificationBell() {
     );
 }
 
-// ── Sidebar ──────────────────────────────────────────────────────────────────
+// ── Sidebar ───────────────────────────────────────────────────────────────────
 function TherapistSidebar({ user }) {
     const { url } = usePage();
-
-    const initials = (name = '') =>
-        name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'T';
-
     const isActive = (href) => href && url.startsWith(href);
 
+    const NavLink = ({ item }) => {
+        const Icon   = item.icon;
+        const active = isActive(item.href);
+
+        if (item.soon) {
+            return (
+                <div
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm cursor-not-allowed"
+                    style={{ color: 'var(--theme-text-muted)', opacity: 0.5 }}
+                >
+                    <Icon size={18} className="flex-shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    <span
+                        className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                        style={{
+                            background: 'rgba(226,183,100,0.08)',
+                            border: '1px solid rgba(226,183,100,0.2)',
+                            color: '#b7882a',
+                        }}
+                    >
+                        Soon
+                    </span>
+                </div>
+            );
+        }
+
+        return (
+            <Link
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+                    active ? 'bg-secondary font-medium' : 'hover:bg-secondary/60'
+                }`}
+                style={{ color: active ? 'var(--theme-text-head)' : 'var(--theme-text-2)' }}
+            >
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {active && <ChevronRight size={14} style={{ opacity: 0.5 }} />}
+            </Link>
+        );
+    };
+
     return (
-        <aside className="hidden md:flex flex-col w-64 sticky top-0 h-screen overflow-y-auto glass-card-strong rounded-none border-y-0 border-s-0">
+        <aside className="hidden md:flex flex-col w-64 sticky top-0 h-screen glass-card-strong rounded-none border-y-0 border-s-0">
 
             {/* ── Logo ── */}
-            <div className="p-6 border-b border-border">
+            <div className="p-5 border-b" style={{ borderColor: 'var(--theme-border)' }}>
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center flex-shrink-0">
-                        <Crown className="w-5 h-5 text-primary-foreground" />
+                    <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
+                    >
+                        <Crown size={18} />
                     </div>
-                    <div>
-                        <h2 className="font-display text-sm font-bold">Infinity Home Spa</h2>
-                        <p className="text-[10px] text-muted-foreground">Therapist Portal</p>
+                    <div className="min-w-0">
+                        <div className="text-sm font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>
+                            Infinity Home Spa
+                        </div>
+                        <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                            Therapist Portal
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* ── Nav ── */}
-            <nav className="flex-1 p-4 space-y-1">
-                {NAV_ITEMS.map(item => {
-                    const Icon   = item.icon;
-                    const active = isActive(item.href);
+            <nav className="p-3 flex-1 flex flex-col gap-0.5">
+                <p className="text-[9px] font-semibold uppercase tracking-widest px-4 pb-1 mt-1"
+                    style={{ color: 'var(--theme-text-muted)', opacity: 0.6 }}>
+                    Main
+                </p>
+                {mainNav.map(item => <NavLink key={item.label} item={item} />)}
 
-                    if (item.soon) {
-                        return (
-                            <div
-                                key={item.label}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm cursor-not-allowed text-muted-foreground/30"
-                            >
-                                <Icon className="w-5 h-5 flex-shrink-0" />
-                                <span className="flex-1">{item.label}</span>
-                                <span
-                                    className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                                    style={{
-                                        background: 'rgba(226,183,100,0.08)',
-                                        border: '1px solid rgba(226,183,100,0.2)',
-                                        color: '#b7882a',
-                                    }}
-                                >
-                                    Soon
-                                </span>
-                            </div>
-                        );
-                    }
+                <div className="my-2 border-t" style={{ borderColor: 'var(--theme-border)' }} />
 
-                    return (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
-                                active
-                                    ? 'bg-secondary text-foreground font-medium'
-                                    : 'text-muted-foreground hover:bg-secondary/60'
-                            }`}
-                        >
-                            <Icon className="w-5 h-5 flex-shrink-0" />
-                            <span className="flex-1">{item.label}</span>
-                            {active && <ChevronRight size={14} />}
-                        </Link>
-                    );
-                })}
+                <p className="text-[9px] font-semibold uppercase tracking-widest px-4 pb-1"
+                    style={{ color: 'var(--theme-text-muted)', opacity: 0.6 }}>
+                    Personal
+                </p>
+                {personalNav.map(item => <NavLink key={item.label} item={item} />)}
             </nav>
 
             {/* ── Footer ── */}
-            <div className="p-4 border-t border-glass-border space-y-3">
-                <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                        <div className="w-full h-full gold-gradient flex items-center justify-center text-xs font-display font-bold text-primary-foreground">
-                            {initials(user?.name)}
+            <div className="p-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: 'var(--theme-btn-bg)' }}>
+                    <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-display font-bold flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
+                    >
+                        {getInitials(user?.name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold truncate" style={{ color: 'var(--theme-text-head)' }}>
+                            {user?.name ?? 'Therapist'}
                         </div>
+                        <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Therapist</div>
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
-                        <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Therapist</p>
-                    </div>
+                    <button
+                        onClick={() => router.post(route('logout'))}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
+                        style={{
+                            background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.2)',
+                            color: '#ef4444',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                        title="Logout"
+                    >
+                        <LogOut size={13} />
+                    </button>
                 </div>
             </div>
+
         </aside>
     );
 }
@@ -304,7 +338,9 @@ function MobileTopBar({ user, menuOpen, setMenuOpen }) {
                 </div>
                 <div>
                     <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Infinity Home Spa</p>
-                    <p className="text-sm font-display font-bold leading-tight" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
+                    <p className="text-sm font-display font-bold leading-tight" style={{ color: 'var(--theme-text-head)' }}>
+                        {user?.name ?? 'Therapist'}
+                    </p>
                 </div>
             </div>
 
@@ -330,8 +366,6 @@ function MobileTopBar({ user, menuOpen, setMenuOpen }) {
 function MobileMenu({ user, onClose }) {
     const { url } = usePage();
     const isActive = (href) => href && url.startsWith(href);
-    const initials = (name = '') =>
-        name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'T';
 
     return (
         <motion.div
@@ -375,7 +409,7 @@ function MobileMenu({ user, onClose }) {
                             key={item.label}
                             href={item.href}
                             onClick={onClose}
-                            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
+                            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors"
                             style={{
                                 background: active ? 'rgba(226,183,100,0.1)' : 'transparent',
                                 color:      active ? '#e2b764' : 'var(--theme-text-2)',
@@ -396,7 +430,7 @@ function MobileMenu({ user, onClose }) {
                             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                             style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
                         >
-                            {initials(user?.name)}
+                            {getInitials(user?.name)}
                         </div>
                         <div>
                             <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{user?.name ?? 'Therapist'}</p>
@@ -441,19 +475,6 @@ function TherapistBottomNav() {
                     const Icon   = tab.icon;
                     const active = isActive(tab.href);
 
-                    if (tab.soon) {
-                        return (
-                            <div
-                                key={tab.label}
-                                className="relative flex flex-col items-center gap-0.5 py-1.5 px-3 min-w-[48px]"
-                                style={{ opacity: 0.3, cursor: 'not-allowed' }}
-                            >
-                                <Icon className="w-5 h-5" style={{ color: 'var(--theme-text-muted)' }} />
-                                <span className="text-[10px] font-medium" style={{ color: 'var(--theme-text-muted)' }}>{tab.label}</span>
-                            </div>
-                        );
-                    }
-
                     return (
                         <Link
                             key={tab.label}
@@ -469,8 +490,9 @@ function TherapistBottomNav() {
                                 />
                             )}
                             <Icon
-                                className="w-5 h-5 transition-colors"
+                                size={20}
                                 style={{ color: active ? '#e2b764' : 'var(--theme-text-muted)' }}
+                                className="transition-colors"
                             />
                             <span
                                 className="text-[10px] font-medium transition-colors"
@@ -486,24 +508,28 @@ function TherapistBottomNav() {
     );
 }
 
-// ── Main Layout ───────────────────────────────────────────────────────────────
+// ── Main layout ───────────────────────────────────────────────────────────────
 export default function TherapistLayout({ children }) {
     const { props } = usePage();
     const user      = props.auth?.user;
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const hour      = new Date().getHours();
-    const greeting  = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const hour     = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = user?.name?.split(' ')[0] ?? 'Therapist';
-    const initials  = user?.name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'T';
 
     return (
         <div className="flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
+
+            {/* Desktop sidebar */}
             <TherapistSidebar user={user} />
 
             <div className="flex-1 min-h-screen overflow-y-auto pb-24 md:pb-0">
+
+                {/* Mobile top bar */}
                 <MobileTopBar user={user} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
 
+                {/* Mobile slide-down menu + backdrop */}
                 <AnimatePresence>
                     {menuOpen && (
                         <>
@@ -520,50 +546,47 @@ export default function TherapistLayout({ children }) {
                     )}
                 </AnimatePresence>
 
-                {/* ── Desktop header ── */}
+                {/* Desktop header */}
                 <header
-                    className="hidden md:flex items-center justify-between border-b backdrop-blur-xl sticky top-0 z-30"
+                    className="hidden md:flex items-center border-b backdrop-blur-xl sticky top-0 z-30"
                     style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}
                 >
-                    <div className="max-w-7xl mx-auto w-full px-6 h-20 flex items-center justify-between">
-                        {/* Left: Avatar + Greeting */}
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
-                                style={{ boxShadow: '0 0 0 2px rgba(226,183,100,0.4)' }}>
-                                <div className="w-full h-full gold-gradient flex items-center justify-center">
-                                    <span className="text-sm font-display font-bold text-primary-foreground">{initials}</span>
-                                </div>
+                    <div className="max-w-7xl mx-auto w-full px-6 h-16 flex items-center justify-between">
+                        {/* Greeting */}
+                        <div className="min-w-0">
+                            <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                                {greeting}
                             </div>
-                            <div>
-                                <h1 className="text-lg font-display font-semibold leading-tight" style={{ color: 'var(--theme-text-head)' }}>
-                                    {greeting}, {firstName}
-                                </h1>
-                                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Therapist Portal</p>
-                            </div>
+                            <h1 className="text-base font-display font-semibold truncate" style={{ color: 'var(--theme-text-head)' }}>
+                                {firstName}
+                            </h1>
                         </div>
 
-                        {/* Right: Theme + Notification + Logout */}
-                        <div className="flex items-center gap-3">
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
                             <ThemeToggle />
                             <NotificationBell />
                             <button
                                 onClick={() => router.post(route('logout'))}
-                                className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-2)'; }}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.querySelector('svg').style.color = '#ef4444'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.querySelector('svg').style.color = 'var(--theme-text-2)'; }}
                                 title="Logout"
                             >
-                                <LogOut size={18} />
+                                <LogOut size={16} style={{ color: 'var(--theme-text-2)' }} />
                             </button>
                         </div>
                     </div>
                 </header>
 
                 {children}
+
             </div>
 
+            {/* Mobile bottom nav */}
             <TherapistBottomNav />
+
         </div>
     );
 }

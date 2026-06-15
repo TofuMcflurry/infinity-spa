@@ -237,8 +237,8 @@ class BookingController extends Controller
                 ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
                 ->whereNotNull('travel_start')
                 ->whereNotNull('buffer_end')
-                ->where('travel_start', '<', $timeBlocks['buffer_end'])
-                ->where('buffer_end',   '>', $timeBlocks['travel_start'])
+                ->where('travel_start', '<=', $timeBlocks['buffer_end'])
+                ->where('buffer_end',   '>=', $timeBlocks['travel_start'])
                 ->exists()
             : false;
 
@@ -364,8 +364,8 @@ class BookingController extends Controller
             $existingStart       = Carbon::parse($booking->scheduled_start);
             $existingEnd         = Carbon::parse($booking->scheduled_end);
 
-            $overlaps = $thisBlocks['travel_start']->lt($existingBufferEnd)
-                     && $thisBlocks['buffer_end']->gt($existingTravelStart);
+            $overlaps = $thisBlocks['travel_start']->lte($existingBufferEnd)
+                && $thisBlocks['buffer_end']->gte($existingTravelStart);
 
             if (!$overlaps) continue;
 
@@ -422,8 +422,8 @@ class BookingController extends Controller
     ): bool {
         return Booking::where('therapist_id', $therapistId)
             ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->where('travel_start', '<', $bufferEnd)
-            ->where('buffer_end',   '>', $travelStart)
+            ->where('travel_start', '<=', $bufferEnd)
+            ->where('buffer_end',   '>=', $travelStart)
             ->exists();
     }
 
