@@ -177,6 +177,19 @@ Route::middleware(['auth', 'admin'])
             Route::post('/verify',          [App\Http\Controllers\Admin\AdminBookingController::class, 'verifyDownpayment'])->name('verify');
             Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
         });
+
+        // ── Reports ───────────────────────────────────────────────────────────
+        Route::get('/reports', [App\Http\Controllers\Admin\AdminReportController::class, 'index'])
+            ->name('reports');
+
+        Route::prefix('api/reports')->name('api.reports.')->group(function () {
+            Route::get('/overview',          [App\Http\Controllers\Admin\AdminReportController::class, 'overview'])->name('overview');
+            Route::get('/revenue-trend',     [App\Http\Controllers\Admin\AdminReportController::class, 'revenueTrend'])->name('revenue-trend');
+            Route::get('/top-services',      [App\Http\Controllers\Admin\AdminReportController::class, 'topServices'])->name('top-services');
+            Route::get('/top-therapists',    [App\Http\Controllers\Admin\AdminReportController::class, 'topTherapists'])->name('top-therapists');
+            Route::get('/status-breakdown',  [App\Http\Controllers\Admin\AdminReportController::class, 'statusBreakdown'])->name('status-breakdown');
+            Route::get('/bookings-by-zone',  [App\Http\Controllers\Admin\AdminReportController::class, 'bookingsByZone'])->name('bookings-by-zone');
+        });
     });
     
 require __DIR__.'/auth.php';

@@ -8,7 +8,7 @@ const NAV = [
   { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
   { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
   { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
-  { icon: BarChart3,       label: 'Reports',        href: '/admin/reports', soon: true },
+  { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
 ];
 
 function cn(...v) {
@@ -67,72 +67,50 @@ export default function AdminLayout({ title = 'Admin', children }) {
           Main
         </p>
 
-        {NAV.slice(0, 4).map(item => {
+        {NAV.map((item, idx) => {
           const Icon = item.icon;
           const active = item.href && (url === item.href || url.startsWith(item.href + '/'));
+          const isLast = idx === NAV.length - 1;
 
           return (
-            <Link
-              key={item.label}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors relative',
-                active ? 'bg-secondary font-medium' : 'hover:bg-secondary/60'
-              )}
-              style={{ color: active ? 'var(--theme-text-head)' : 'var(--theme-text-2)' }}
-            >
-              <Icon size={18} className="flex-shrink-0" />
-              <span className="flex-1">{item.label}</span>
-              {item.badge && pendingGuestCount > 0 && (
-                <>
-                  <span
-                    className="absolute right-3 top-2 w-2 h-2 rounded-full animate-pulse"
-                    style={{ background: '#ef4444' }}
-                  />
-                  <span
-                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: '#ef4444', color: 'white' }}
-                  >
-                    {pendingGuestCount}
-                  </span>
-                </>
-              )}
-              {active && !item.badge && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ opacity: 0.5 }}>
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              )}
-            </Link>
-          );
-        })}
-
-        {/* Divider */}
-        <div className="my-2 border-t" style={{ borderColor: 'var(--theme-border)' }} />
-
-        {/* Reports (soon) */}
-        {NAV.slice(4).map(item => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.label}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm cursor-not-allowed"
-              style={{ color: 'var(--theme-text-muted)', opacity: 0.5 }}
-            >
-              <Icon size={18} className="flex-shrink-0" />
-              <span className="flex-1">{item.label}</span>
-              <span
-                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+            <div key={item.label}>
+              {isLast && <div className="my-2 border-t" style={{ borderColor: 'var(--theme-border)' }} />}
+              <Link
+                href={item.href}
+                onClick={onNavigate}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors relative"
                 style={{
-                  background: 'rgba(226,183,100,0.08)',
-                  border: '1px solid rgba(226,183,100,0.15)',
-                  color: '#b7882a',
+                  background: active ? 'var(--theme-btn-bg)' : 'transparent',
+                  color: active ? 'var(--theme-text-head)' : 'var(--theme-text-2)',
+                  fontWeight: active ? 500 : 400,
                 }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
               >
-                Soon
-              </span>
+                <Icon size={18} className="flex-shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {item.badge && pendingGuestCount > 0 && (
+                  <>
+                    <span
+                      className="absolute right-3 top-2 w-2 h-2 rounded-full animate-pulse"
+                      style={{ background: '#ef4444' }}
+                    />
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: '#ef4444', color: 'white' }}
+                    >
+                      {pendingGuestCount}
+                    </span>
+                  </>
+                )}
+                {active && !item.badge && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ opacity: 0.5 }}>
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                )}
+              </Link>
             </div>
           );
         })}
