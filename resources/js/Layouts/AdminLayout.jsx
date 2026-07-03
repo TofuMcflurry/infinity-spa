@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck, UserPlus } from 'lucide-react';
+import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck, UserPlus, Tag } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
   { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
   { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
+  { icon: Tag,             label: 'Services',       href: '/admin/services' },
   { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
 ];
 
