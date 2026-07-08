@@ -191,6 +191,15 @@ Route::middleware(['auth', 'admin'])
             Route::post('/{service}/restore',     [App\Http\Controllers\Admin\AdminServiceController::class, 'restore'])->name('restore');
         });
 
+        // ── Audit Log ─────────────────────────────────────────────────────────
+        Route::get('/audit-log', [App\Http\Controllers\Admin\AdminAuditController::class, 'index'])
+            ->name('audit-log');
+
+        Route::prefix('api/audit-logs')->name('api.audit.')->group(function () {
+            Route::get('/',       [App\Http\Controllers\Admin\AdminAuditController::class, 'list'])->name('list');
+            Route::get('/stats',  [App\Http\Controllers\Admin\AdminAuditController::class, 'stats'])->name('stats');
+        });
+
         // ── Reports ───────────────────────────────────────────────────────────
         Route::get('/reports', [App\Http\Controllers\Admin\AdminReportController::class, 'index'])
             ->name('reports');

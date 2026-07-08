@@ -1,10 +1,14 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="300" alt="Laravel Logo">
 </p>
-<h1 align="center">✨ Luxury Spa Booking System</h1>
+
+<h1 align="center">✨ Infinity Home Spa — Booking System</h1>
+
 <p align="center">
-  A full-stack web application for managing luxury spa and massage therapy bookings — built with Laravel, React, and Inertia.js.
+  A full-stack luxury spa booking platform built with Laravel, React, and Inertia.js —
+  featuring role-based dashboards, real-time updates, and an enterprise-grade service management system.
 </p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/Laravel-11-red?logo=laravel" alt="Laravel">
   <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React">
@@ -14,60 +18,97 @@
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
-📖 About the Project
-This is a luxury spa booking platform that allows customers to browse services, book therapists, and manage appointments — while giving therapists and admins full control over scheduling, payments, and operations.
-Built as a portfolio project to demonstrate full-stack development with real-time features, role-based access control, and a polished UI with dark/light mode support.
+---
 
-✨ Features
-👤 Customer Portal
+## 📖 About the Project
 
-Authentication — Email OTP verification + Google OAuth login
-Service Browsing — Browse grouped spa services with real-time availability
-Multi-step Booking Flow — Step-by-step booking with calendar, time slot selection, and payment
-Address Book — Save multiple addresses with Dubai service zone selection
-20% Downpayment System — Bank transfer payment with proof upload
-My Bookings Dashboard — Real-time booking status tracking with WebSocket updates
-Review & Rating System — CSAT ratings for completed bookings
-Profile Management — Avatar upload and profile editing
+Infinity Home Spa is a luxury home-service spa booking platform that allows customers to browse services, book therapists, and manage appointments — while giving therapists and admins full control over scheduling, payments, and operations.
 
-💆 Therapist Dashboard
+Built as a capstone and portfolio project to demonstrate full-stack development with real-time features, role-based access control, analytics dashboards, and a polished UI with dark/light mode support.
 
-Booking Management — View and manage assigned bookings with status updates (En Route → Arrived → Completed)
-Schedule Management — Calendar view, unavailable slot marking, and rest day requests
-Earnings Tracker — Weekly earnings stats
-Downpayment Verification — Fullscreen image viewer for payment proof review
-Cancellation Handling — Cancel bookings with reason input
+---
 
-🛠️ Admin Panel
+## ✨ Features
 
-Dashboard — Stats overview with charts and recent booking activity
-Bookings Manager — FIFO queue system with dedicated Guest Bookings page
-Therapist Management — Assign therapists to bookings
-Payment Verification — Review and verify downpayment submissions
-Auto-cancel — Automatically cancels past-due unconfirmed bookings
+### 👤 Customer Portal
+- **Authentication** — Email OTP verification + Google OAuth login
+- **Service Browsing** — Browse grouped spa services with real-time availability and bilingual (EN/AR) support
+- **Multi-step Booking Flow** — Step-by-step booking with calendar, time slot selection, and payment
+- **Address Book** — Save multiple addresses with Dubai service zone selection
+- **20% Downpayment System** — Bank transfer payment with proof upload
+- **My Bookings Dashboard** — Real-time booking status tracking with WebSocket updates
+- **Review & Rating System** — CSAT ratings for completed bookings
+- **Profile Management** — Avatar upload and profile editing
 
-⚡ Real-time Features
+### 💆 Therapist Dashboard
+- **Booking Management** — View and manage assigned bookings with status updates (En Route → Arrived → Completed)
+- **Schedule Management** — Calendar view, unavailable slot marking, and rest day requests
+- **Earnings Tracker** — Weekly earnings stats with transaction history
+- **Downpayment Verification** — Fullscreen image viewer for payment proof review
+- **Cancellation Handling** — Cancel bookings with reason input
+- **In-app Notifications** — Real-time notification bell with mark-as-read support
 
-WebSocket Broadcasting — Powered by Laravel Reverb
-Live Booking Status — Auto-refresh polling + WebSocket push for instant updates
-Notifications — In-app notification system
+### 🛠️ Admin Panel
+- **Dashboard** — Stats overview with charts and recent booking activity
+- **Bookings Manager** — FIFO queue system with dedicated Guest Bookings page and pending badge
+- **Therapist Management** — Approve, deactivate, and manage therapist accounts
+- **Payment Verification** — Review and verify downpayment submissions with refund tracking
+- **Auto-cancel** — Automatically cancels past-due unconfirmed bookings
+- **Service Management** — Full CRUD with parent-variant pricing structure (see below)
+- **Reports Dashboard** — Revenue analytics, booking trends, and therapist performance (see below)
 
+### 📦 Service Management System
+- **Parent-Variant Structure** — One service (e.g. "Couple Massage") with multiple duration/price options (60 min / 90 min / 120 min)
+- **Per-Variant Availability Toggle** — Mark individual durations as "Unavailable" without deleting — booking history preserved
+- **Archive Instead of Delete** — Services are archived, never permanently deleted — maintains data integrity across all historical bookings
+- **Image Upload** — Per-service image stored in public disk
+- **Zero-Data-Loss Migration** — Custom Artisan command (`services:migrate-variants`) with dry-run support migrated 75 existing bookings to the new variant schema without any data loss
 
-🛠️ Tech Stack
-LayerTechnologyBackendLaravel 11 (PHP)FrontendReact 18 + Inertia.jsDatabasePostgreSQLReal-timeLaravel Reverb (WebSocket)AuthLaravel Breeze + Google OAuth + OTPStylingTailwind CSS (Dark/Light Mode)
+### 📊 Reports Dashboard
+- **Revenue KPIs** — Total revenue, this month vs last month with percentage change
+- **Revenue Trend Chart** — Line chart of completed booking revenue over the last 6 months
+- **Top Services** — Horizontal bar chart ranked by booking count
+- **Booking Status Breakdown** — Donut chart (completed / accepted / pending / cancelled / rejected)
+- **Top Therapists Table** — Ranked by completed sessions with revenue and average rating
+- **Bookings by Zone** — Bar chart of top Dubai areas by booking volume
+- Revenue computed from `services.price` — reliable across all payment methods including cash bookings
 
-🚀 Getting Started
-Prerequisites
+### ⚡ Real-time Features
+- **WebSocket Broadcasting** — Powered by Laravel Reverb
+- **Live Booking Status** — Auto-refresh polling + WebSocket push for instant updates
+- **Notifications** — In-app notification system with unread count badge
 
-PHP 8.2+
-Composer
-Node.js 18+
-PostgreSQL
+---
 
-Installation
-bash# Clone the repository
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Laravel 11 (PHP 8.2) |
+| Frontend | React 18 + Inertia.js |
+| Database | PostgreSQL |
+| Real-time | Laravel Reverb (WebSocket) |
+| Auth | Laravel Breeze + Google OAuth + OTP |
+| Styling | Tailwind CSS (Dark / Light Mode) |
+| Charts | Recharts |
+| Animations | Framer Motion |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- PHP 8.2+
+- Composer
+- Node.js 18+
+- PostgreSQL
+
+### Installation
+
+```bash
+# Clone the repository
 git clone https://github.com/TofuMcflurry/infinity-spa-hub.git
-cd your-repo-name
+cd infinity-spa-hub
 
 # Install PHP dependencies
 composer install
@@ -81,7 +122,7 @@ cp .env.example .env
 # Generate application key
 php artisan key:generate
 
-# Configure your .env with your PostgreSQL credentials and mail settings
+# Configure your .env with PostgreSQL credentials and mail settings
 # DB_CONNECTION=pgsql
 # DB_HOST=127.0.0.1
 # DB_PORT=5432
@@ -91,6 +132,9 @@ php artisan key:generate
 
 # Run database migrations
 php artisan migrate
+
+# Link public storage (for service images)
+php artisan storage:link
 
 # Seed the database (optional)
 php artisan db:seed
@@ -106,42 +150,86 @@ php artisan reverb:start
 
 # In another terminal, watch for assets (development)
 npm run dev
+```
 
-📁 Project Structure
+---
+
+## 📁 Project Structure
+
+```
 ├── app/
 │   ├── Http/Controllers/
-│   │   ├── Admin/          # Admin panel controllers
-│   │   ├── Auth/           # Authentication (OTP, Google OAuth)
+│   │   ├── Admin/                  # Admin panel controllers
+│   │   │   ├── AdminDashboardController.php
+│   │   │   ├── AdminBookingController.php
+│   │   │   ├── AdminServiceController.php
+│   │   │   ├── AdminReportController.php
+│   │   │   └── AdminTherapistController.php
+│   │   ├── Auth/                   # Authentication (OTP, Google OAuth)
 │   │   ├── BookingController.php
 │   │   ├── CustomerDashboardController.php
-│   │   └── TherapistController.php
-│   ├── Models/             # Eloquent models
-│   └── Events/             # Broadcasting events (Reverb)
-├── resources/
-│   └── js/
-│       ├── Pages/
-│       │   ├── Admin/      # Admin dashboard pages
-│       │   ├── Customer/   # Customer-facing pages
-│       │   └── Therapist/  # Therapist dashboard pages
-│       └── Components/     # Reusable React components
+│   │   └── TherapistBookingController.php
+│   ├── Console/Commands/
+│   │   └── MigrateServicesToVariants.php   # Zero-data-loss migration command
+│   └── Models/
+│       ├── Service.php             # Parent service (name, image, category)
+│       ├── ServiceVariant.php      # Duration + price options per service
+│       ├── Booking.php
+│       ├── Therapist.php
+│       └── User.php
+├── resources/js/
+│   ├── Layouts/
+│   │   ├── AdminLayout.jsx         # Admin sidebar + header
+│   │   ├── TherapistLayout.jsx     # Therapist sidebar + mobile nav + notifications
+│   │   ├── CustomerLayout.jsx      # Customer sidebar + bottom nav + floating concierge
+│   │   └── GuestLayout.jsx         # Auth pages
+│   ├── Pages/
+│   │   ├── Admin/
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Bookings.jsx
+│   │   │   ├── Services.jsx        # Service management with variants
+│   │   │   ├── Reports.jsx         # Analytics dashboard
+│   │   │   └── Therapists.jsx
+│   │   ├── Therapist/
+│   │   └── Customer/
+│   └── Components/
 ├── routes/
-│   ├── web.php
-│   └── api.php
+│   └── web.php
 └── database/
-    └── migrations/         # Database schema
+    └── migrations/
+```
 
-🔐 User Roles
-RoleAccessCustomerBrowse services, book appointments, manage profile & addressesTherapistView assigned bookings, manage schedule, track earningsAdminFull system access — bookings, therapists, payments, analytics
+---
 
-📸 Screenshots
+## 🔐 User Roles
 
-Coming soon — UI screenshots of customer dashboard, booking flow, and admin panel.
+| Role | Access |
+|---|---|
+| **Customer** | Browse services, book appointments, manage profile & addresses |
+| **Therapist** | View assigned bookings, manage schedule, track earnings, handle notifications |
+| **Admin** | Full system access — bookings, therapists, services, payments, analytics & reports |
 
+---
 
-🤝 Contributing
-This is a personal portfolio project and is not open for contributions at this time.
+## 📐 Key Engineering Decisions
 
-📄 License
-This project is open-sourced under the MIT License.
+- **Service Variant Pattern** — Modeled after industry-standard product/variant architecture (similar to Shopify). A `Service` is the parent; `ServiceVariant` holds duration + price. `bookings` references both `service_id` (for grouping/reports) and `service_variant_id` (for the exact option booked).
+- **Archive over Delete** — No hard deletes on services or variants. `archived_at` soft-archiving preserves all historical booking data and report integrity.
+- **Revenue from `services.price`** — Downpayment columns can be null on cash bookings, so revenue is always sourced from the variant price for accuracy.
+- **Consistent Design System** — All three portals share the same `--theme-*` CSS variable system and gold accent (`#e2b764`) for dark/light mode compatibility.
+
+---
+
+## 📸 Screenshots
+
+> Coming soon — UI screenshots of customer dashboard, booking flow, admin reports, and service management.
+
+---
+
+## 📄 License
+
+This project is open-sourced under the [MIT License](LICENSE).
+
+---
 
 <p align="center">Made with ❤️ using Laravel + React</p>

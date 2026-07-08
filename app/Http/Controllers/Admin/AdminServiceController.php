@@ -11,6 +11,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
+// Audit Events
+use App\Events\Audit\ServiceCreated;
+use App\Events\Audit\ServiceUpdated;
+use App\Events\Audit\ServiceArchived;
+use App\Events\Audit\ServiceRestored;
+use App\Events\Audit\ServiceToggled;
+
 class AdminServiceController extends Controller
 {
     public function index()
@@ -73,6 +80,10 @@ class AdminServiceController extends Controller
             }
 
             DB::commit();
+
+            // ── Audit ──────────────────────────────────────────────────────────
+            ServiceCreated::dispatch($service->id, $service->name, $request);
+
             return response()->json($this->transform($service->load('variants')), 201);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -139,6 +150,10 @@ class AdminServiceController extends Controller
             }
 
             DB::commit();
+
+            // ── Audit ──────────────────────────────────────────────────────────
+            ServiceUpdated::dispatch($service->id, $service->name, [], $request);
+
             return response()->json($this->transform($service->load('variants')));
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -146,21 +161,33 @@ class AdminServiceController extends Controller
         }
     }
 
-    public function toggleActive(Service $service)
+    public function toggleActive(Request $request, Service $service)
     {
         $service->update(['is_active' => !$service->is_active]);
+
+        // ── Audit ──────────────────────────────────────────────────────────────
+        ServiceToggled::dispatch($service->id, $service->name, $service->is_active, $request);
+
         return response()->json($this->transform($service->load('variants')));
     }
 
-    public function archive(Service $service)
+    public function archive(Request $request, Service $service)
     {
         $service->update(['archived_at' => now(), 'is_active' => false]);
+
+        // ── Audit ──────────────────────────────────────────────────────────────
+        ServiceArchived::dispatch($service->id, $service->name, $request);
+
         return response()->json(['message' => 'Service archived.']);
     }
 
-    public function restore(Service $service)
+    public function restore(Request $request, Service $service)
     {
         $service->update(['archived_at' => null, 'is_active' => true]);
+
+        // ── Audit ──────────────────────────────────────────────────────────────
+        ServiceRestored::dispatch($service->id, $service->name, $request);
+
         return response()->json($this->transform($service->load('variants')));
     }
 

@@ -16,13 +16,15 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
-
         $middleware->alias([
             'therapist' => \App\Http\Middleware\EnsureUserIsTherapist::class,
             'customer'  => \App\Http\Middleware\EnsureUserIsCustomer::class,
             'admin'     => \App\Http\Middleware\AdminMiddleware::class,
         ]);
     })
+    ->withProviders([
+        \App\Providers\EventServiceProvider::class,
+    ])
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

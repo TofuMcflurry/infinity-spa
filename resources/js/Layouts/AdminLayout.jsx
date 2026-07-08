@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, CalendarCheck, UserPlus, Tag } from 'lucide-react';
+import { 
+    BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, 
+    CalendarCheck, UserPlus, Sparkles, ShieldCheck 
+} from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard',     href: '/admin' },
+  { icon: LayoutDashboard, label: 'Dashboard',      href: '/admin' },
   { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
   { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
   { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
-  { icon: Tag,             label: 'Services',       href: '/admin/services' },
+  { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
   { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
+  { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
 ];
 
 function cn(...v) {
@@ -70,7 +74,11 @@ export default function AdminLayout({ title = 'Admin', children }) {
 
         {NAV.map((item, idx) => {
           const Icon = item.icon;
-          const active = item.href && (url === item.href || url.startsWith(item.href + '/'));
+          const active = item.href && (
+              item.href === '/admin'
+                  ? url === '/admin' || url === '/admin/'
+                  : url === item.href || url.startsWith(item.href + '/')
+          );
           const isLast = idx === NAV.length - 1;
 
           return (

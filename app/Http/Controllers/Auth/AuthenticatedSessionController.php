@@ -4,60 +4,56 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Providers\RouteServiceProvider;
-use App\Services\OtpService; // <--- ADD THIS IMPORT
+use App\Services\OtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 
+// Audit Events
+use App\Events\Audit\UserLoggedIn;
+use App\Events\Audit\UserLoggedOut;
+use App\Events\Audit\LoginFailed;
+
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * OtpService instance
-     */
-    protected $otpService; // <--- ADD THIS PROPERTY
+    protected $otpService;
 
-    /**
-     * Constructor
-     */
-    public function __construct(OtpService $otpService) // <--- ADD THIS CONSTRUCTOR
+    public function __construct(OtpService $otpService)
     {
         $this->otpService = $otpService;
     }
 
-    /**
-     * Display the login view.
-     */
     public function create()
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'status' => session('status'),
+            'status'           => session('status'),
         ]);
     }
 
-    /**
-     * Handle an incoming authentication request.
-     */
     public function store(LoginRequest $request)
     {
-        $request->authenticate();
+        try {
+            $request->authenticate();
+        } catch (ValidationException $e) {
+            // ── Audit: failed login attempt ────────────────────────────────────
+            LoginFailed::dispatch($request->input('email', ''), $request);
+            throw $e;
+        }
 
         $request->session()->regenerate();
 
         $user = Auth::user();
 
-        // ✅ CHECK KUNG VERIFIED NA ANG EMAIL
+        // ── Audit: successful login ────────────────────────────────────────────
+        UserLoggedIn::dispatch($user->id, $user->name, $user->role, $request);
+
+        // Check if email is verified
         if (!$user->email_verified_at) {
-            // Logout muna
             Auth::logout();
-            
-            // Generate bagong OTP
             $this->otpService->generateOtp($user);
-            
-            // Redirect sa OTP page
             return redirect()->route('otp.form', ['email' => $user->email]);
         }
 
@@ -68,18 +64,21 @@ class AuthenticatedSessionController extends Controller
         } else {
             $destination = '/dashboard';
         }
+
         return redirect()->intended($destination);
     }
 
-    /**
-     * Destroy an authenticated session.
-     */
     public function destroy(Request $request)
     {
+        $user = Auth::user();
+
+        // ── Audit: logout ──────────────────────────────────────────────────────
+        if ($user) {
+            UserLoggedOut::dispatch($user->id, $user->name, $request);
+        }
+
         Auth::guard('web')->logout();
-
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
 
         return redirect('/');

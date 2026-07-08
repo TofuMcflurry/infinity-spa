@@ -8,15 +8,20 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+// Audit Events
+use App\Events\Audit\BookingAccepted;
+use App\Events\Audit\BookingRejected;
+use App\Events\Audit\BookingCancelled;
+use App\Events\Audit\DownpaymentVerified;
+use App\Events\Audit\RefundSent;
+
 class AdminBookingController extends Controller
 {
-    // ── Inertia page ──────────────────────────────────────────────────────────
     public function index()
     {
         return Inertia::render('Admin/BookingsManager');
     }
 
-    // ── All bookings (for the main table) ────────────────────────────────────
     public function allBookings()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -27,7 +32,6 @@ class AdminBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // ── Pending downpayment verification ─────────────────────────────────────
     public function pendingVerification()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -39,7 +43,6 @@ class AdminBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // ── Verify downpayment ────────────────────────────────────────────────────
     public function verifyDownpayment(Request $request)
     {
         $request->validate([
@@ -57,8 +60,12 @@ class AdminBookingController extends Controller
             'status'                  => 'pending',
         ]);
 
-        // Optional: notify customer
-        // $booking->customer->notify(new \App\Notifications\BookingNotification($booking, 'downpayment_verified'));
+        // ── Audit ──────────────────────────────────────────────────────────────
+        DownpaymentVerified::dispatch(
+            $booking->id,
+            $booking->customer?->name ?? $booking->guest_name ?? 'Guest',
+            $request,
+        );
 
         return response()->json([
             'message' => 'Downpayment verified!',
@@ -66,7 +73,6 @@ class AdminBookingController extends Controller
         ]);
     }
 
-    // ── Pending refunds ───────────────────────────────────────────────────────
     public function pendingRefunds()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -80,7 +86,6 @@ class AdminBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // ── Mark refund as sent ───────────────────────────────────────────────────
     public function markRefundSent(Request $request)
     {
         $request->validate([
@@ -103,8 +108,12 @@ class AdminBookingController extends Controller
             'refund_sent_at'     => now(),
         ]);
 
-        // Optional: notify customer
-        // $booking->customer->notify(new \App\Notifications\RefundSentNotification($booking));
+        // ── Audit ──────────────────────────────────────────────────────────────
+        RefundSent::dispatch(
+            $booking->id,
+            $request->bank_reference,
+            $request,
+        );
 
         return response()->json([
             'message' => 'Refund marked as sent.',
@@ -112,7 +121,6 @@ class AdminBookingController extends Controller
         ]);
     }
 
-    // ── Cancelled history ─────────────────────────────────────────────────────
     public function cancelledHistory()
     {
         $bookings = Booking::with(['service', 'therapist.user', 'customer'])
@@ -125,32 +133,30 @@ class AdminBookingController extends Controller
         return response()->json($bookings);
     }
 
-    // ── Stats for dashboard cards ─────────────────────────────────────────────
     public function stats()
     {
         $today = Carbon::today('Asia/Dubai');
 
         return response()->json([
-            'total_bookings'        => Booking::count(),
-            'pending_verification'  => Booking::where('downpayment_status', 'submitted')->count(),
-            'pending_refunds'       => Booking::where('status', 'cancelled')
-                                              ->where('cancellation_type', 'refunded')
-                                              ->where('downpayment_status', 'refunded')
-                                              ->count(),
-            'active_today'          => Booking::whereIn('status', ['accepted', 'en_route', 'arrived'])
-                                              ->whereDate('scheduled_start', $today)
-                                              ->count(),
-            'completed_today'       => Booking::where('status', 'completed')
-                                              ->whereDate('scheduled_start', $today)
-                                              ->count(),
-            'revenue_today'         => Booking::where('status', 'completed')
-                                              ->whereDate('scheduled_start', $today)
-                                              ->join('services', 'bookings.service_id', '=', 'services.id')
-                                              ->sum('services.price'),
+            'total_bookings'       => Booking::count(),
+            'pending_verification' => Booking::where('downpayment_status', 'submitted')->count(),
+            'pending_refunds'      => Booking::where('status', 'cancelled')
+                                             ->where('cancellation_type', 'refunded')
+                                             ->where('downpayment_status', 'refunded')
+                                             ->count(),
+            'active_today'         => Booking::whereIn('status', ['accepted', 'en_route', 'arrived'])
+                                             ->whereDate('scheduled_start', $today)
+                                             ->count(),
+            'completed_today'      => Booking::where('status', 'completed')
+                                             ->whereDate('scheduled_start', $today)
+                                             ->count(),
+            'revenue_today'        => Booking::where('status', 'completed')
+                                             ->whereDate('scheduled_start', $today)
+                                             ->join('services', 'bookings.service_id', '=', 'services.id')
+                                             ->sum('services.price'),
         ]);
     }
 
-    // ── Private formatter ─────────────────────────────────────────────────────
     private function formatBooking(Booking $b): array
     {
         return [
