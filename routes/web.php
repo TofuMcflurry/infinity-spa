@@ -200,6 +200,20 @@ Route::middleware(['auth', 'admin'])
             Route::get('/stats',  [App\Http\Controllers\Admin\AdminAuditController::class, 'stats'])->name('stats');
         });
 
+        // ── CSAT & Performance ────────────────────────────────────────────────
+        Route::get('/csat', [App\Http\Controllers\Admin\AdminCsatController::class, 'index'])
+            ->name('csat');
+
+        Route::prefix('api/csat')->name('api.csat.')->group(function () {
+            Route::get('/overview',                          [App\Http\Controllers\Admin\AdminCsatController::class, 'overview'])->name('overview');
+            Route::get('/flagged-therapists',                [App\Http\Controllers\Admin\AdminCsatController::class, 'flaggedTherapists'])->name('flagged');
+            Route::get('/all-therapists',                    [App\Http\Controllers\Admin\AdminCsatController::class, 'allTherapists'])->name('all');
+            Route::get('/therapist/{therapist}/reviews',     [App\Http\Controllers\Admin\AdminCsatController::class, 'therapistReviews'])->name('reviews');
+            Route::get('/therapist/{therapist}/rating-history', [App\Http\Controllers\Admin\AdminCsatController::class, 'ratingHistory'])->name('history');
+            Route::post('/review/{review}/note',             [App\Http\Controllers\Admin\AdminCsatController::class, 'addNote'])->name('note');
+            Route::post('/therapist/{therapist}/resolve-flag', [App\Http\Controllers\Admin\AdminCsatController::class, 'resolveFlag'])->name('resolve');
+        });
+
         // ── Reports ───────────────────────────────────────────────────────────
         Route::get('/reports', [App\Http\Controllers\Admin\AdminReportController::class, 'index'])
             ->name('reports');

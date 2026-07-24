@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { 
     BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, 
-    CalendarCheck, UserPlus, Sparkles, ShieldCheck 
+    CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp 
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
@@ -14,6 +14,7 @@ const NAV = [
   { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
   { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
   { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
+  { icon: TrendingUp,      label: 'CSAT',           href: '/admin/csat' },
 ];
 
 function cn(...v) {

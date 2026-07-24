@@ -10,47 +10,60 @@ use Inertia\Inertia;
 
 class AdminReportController extends Controller
 {
-    /**
-     * Render the Reports page (Inertia).
-     */
     public function index()
     {
         return Inertia::render('Admin/Reports');
     }
 
     /**
-     * KPI overview cards.
-     * GET /admin/api/reports/overview
+     * Revenue helper — joins service_variants for accurate price.
+     * Falls back to services.price for old bookings without a variant link.
      */
+    private function revenueQuery()
+    {
+        return Booking::leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
+            ->where('bookings.status', 'completed')
+            ->selectRaw('COALESCE(service_variants.price, services.price, 0) as resolved_price');
+    }
+
+    private function revenueSum($query)
+    {
+        return DB::table(DB::raw("({$query->toSql()}) as sub"))
+            ->mergeBindings($query->getQuery())
+            ->sum('resolved_price');
+    }
+
     public function overview(Request $request)
     {
-        // Revenue is sourced from services.price (downpayment/remaining can be
-        // null even on completed cash bookings, so it's not reliable on its own).
-        $totalRevenue = Booking::join('services', 'bookings.service_id', '=', 'services.id')
+        // Total revenue — use variant price, fall back to service price
+        $totalRevenue = Booking::leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
             ->where('bookings.status', 'completed')
-            ->sum('services.price');
+            ->sum(DB::raw('COALESCE(service_variants.price, services.price, 0)'));
 
-        $totalBookings     = Booking::count();
-        $completedCount    = Booking::where('status', 'completed')->count();
-        $cancelledCount    = Booking::whereIn('status', ['cancelled', 'rejected'])->count();
-        $pendingCount      = Booking::whereIn('status', ['pending', 'accepted'])->count();
+        $totalBookings  = Booking::count();
+        $completedCount = Booking::where('status', 'completed')->count();
+        $cancelledCount = Booking::whereIn('status', ['cancelled', 'rejected'])->count();
+        $pendingCount   = Booking::whereIn('status', ['pending', 'accepted'])->count();
 
         $completionRate = $totalBookings > 0
             ? round(($completedCount / $totalBookings) * 100, 1)
             : 0;
 
-        // This month vs last month revenue (for trend %)
-        $thisMonthRevenue = Booking::join('services', 'bookings.service_id', '=', 'services.id')
+        $thisMonthRevenue = Booking::leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
             ->where('bookings.status', 'completed')
             ->whereMonth('bookings.created_at', now()->month)
             ->whereYear('bookings.created_at', now()->year)
-            ->sum('services.price');
+            ->sum(DB::raw('COALESCE(service_variants.price, services.price, 0)'));
 
-        $lastMonthRevenue = Booking::join('services', 'bookings.service_id', '=', 'services.id')
+        $lastMonthRevenue = Booking::leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
             ->where('bookings.status', 'completed')
             ->whereMonth('bookings.created_at', now()->subMonth()->month)
             ->whereYear('bookings.created_at', now()->subMonth()->year)
-            ->sum('services.price');
+            ->sum(DB::raw('COALESCE(service_variants.price, services.price, 0)'));
 
         $revenueChange = $lastMonthRevenue > 0
             ? round((($thisMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
@@ -73,20 +86,17 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Revenue trend over the last N months.
-     * GET /admin/api/reports/revenue-trend?months=6
-     */
     public function revenueTrend(Request $request)
     {
         $months = (int) $request->input('months', 6);
 
-        $rows = Booking::join('services', 'bookings.service_id', '=', 'services.id')
+        $rows = Booking::leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
             ->where('bookings.status', 'completed')
             ->where('bookings.created_at', '>=', now()->subMonths($months - 1)->startOfMonth())
             ->select(
                 DB::raw("TO_CHAR(bookings.created_at, 'YYYY-MM') as month"),
-                DB::raw('SUM(services.price) as revenue'),
+                DB::raw('SUM(COALESCE(service_variants.price, services.price, 0)) as revenue'),
                 DB::raw('COUNT(bookings.id) as bookings_count')
             )
             ->groupBy('month')
@@ -94,10 +104,9 @@ class AdminReportController extends Controller
             ->get()
             ->keyBy('month');
 
-        // Fill in missing months with zero so the chart has no gaps
         $result = [];
         for ($i = $months - 1; $i >= 0; $i--) {
-            $key = now()->subMonths($i)->format('Y-m');
+            $key   = now()->subMonths($i)->format('Y-m');
             $label = now()->subMonths($i)->format('M Y');
 
             $result[] = [
@@ -110,20 +119,17 @@ class AdminReportController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * Top services by booking count and revenue.
-     * GET /admin/api/reports/top-services
-     */
     public function topServices(Request $request)
     {
         $limit = (int) $request->input('limit', 5);
 
         $rows = Booking::join('services', 'bookings.service_id', '=', 'services.id')
+            ->leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
             ->select(
                 'services.id',
                 'services.name',
                 DB::raw('COUNT(bookings.id) as bookings_count'),
-                DB::raw("SUM(CASE WHEN bookings.status = 'completed' THEN services.price ELSE 0 END) as revenue")
+                DB::raw("SUM(CASE WHEN bookings.status = 'completed' THEN COALESCE(service_variants.price, services.price, 0) ELSE 0 END) as revenue")
             )
             ->groupBy('services.id', 'services.name')
             ->orderByDesc('bookings_count')
@@ -133,23 +139,20 @@ class AdminReportController extends Controller
         return response()->json($rows);
     }
 
-    /**
-     * Top therapists by completed bookings.
-     * GET /admin/api/reports/top-therapists
-     */
     public function topTherapists(Request $request)
     {
         $limit = (int) $request->input('limit', 5);
 
         $rows = Booking::join('therapists', 'bookings.therapist_id', '=', 'therapists.id')
             ->join('users', 'therapists.user_id', '=', 'users.id')
-            ->join('services', 'bookings.service_id', '=', 'services.id')
+            ->leftJoin('service_variants', 'bookings.service_variant_id', '=', 'service_variants.id')
+            ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
             ->where('bookings.status', 'completed')
             ->select(
                 'therapists.id',
                 'users.name',
                 DB::raw('COUNT(bookings.id) as completed_count'),
-                DB::raw('SUM(services.price) as revenue'),
+                DB::raw('SUM(COALESCE(service_variants.price, services.price, 0)) as revenue'),
                 DB::raw('AVG(therapists.rating) as avg_rating')
             )
             ->groupBy('therapists.id', 'users.name')
@@ -160,10 +163,6 @@ class AdminReportController extends Controller
         return response()->json($rows);
     }
 
-    /**
-     * Bookings grouped by status (for a pie/donut chart).
-     * GET /admin/api/reports/status-breakdown
-     */
     public function statusBreakdown(Request $request)
     {
         $rows = Booking::select('status', DB::raw('COUNT(*) as count'))
@@ -173,10 +172,6 @@ class AdminReportController extends Controller
         return response()->json($rows);
     }
 
-    /**
-     * Bookings grouped by zone/location.
-     * GET /admin/api/reports/bookings-by-zone
-     */
     public function bookingsByZone(Request $request)
     {
         $rows = Booking::select('zone_name', DB::raw('COUNT(*) as count'))

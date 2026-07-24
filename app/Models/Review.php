@@ -27,7 +27,7 @@ class Review extends Model
         'therapist_csat'   => 'decimal:2',
     ];
 
-    // ── Relations ─────────────────────────────────────────────────────────────
+    // ── Relations ──────────────────────────────────────────────────────────────
     public function booking()
     {
         return $this->belongsTo(Booking::class);
@@ -48,10 +48,9 @@ class Review extends Model
         return $this->belongsTo(Service::class);
     }
 
-    // ── CSAT Calculator ───────────────────────────────────────────────────────
+    // ── CSAT Calculator ────────────────────────────────────────────────────────
     public static function computeCsat(int $stars): float
     {
-        // Stars to points mapping
         $points = match($stars) {
             5 => 100,
             4 => 80,
@@ -64,7 +63,7 @@ class Review extends Model
         return $points;
     }
 
-    // ── Recompute service rating after new review ─────────────────────────────
+    // ── Recompute service rating after new review ──────────────────────────────
     public static function recomputeServiceRating(string $serviceGroup): void
     {
         $reviews = self::where('service_group', $serviceGroup)
@@ -74,19 +73,20 @@ class Review extends Model
 
         if ($reviews->isEmpty()) return;
 
-        // CSAT formula: SUM of points / total reviews
         $totalPoints = $reviews->sum(fn($r) => self::computeCsat($r->service_rating));
         $csat        = $totalPoints / $reviews->count();
         $stars       = round($csat / 20, 1);
 
-        // Update all services in this group
         Service::where('group_name', $serviceGroup)
             ->update(['rating' => $stars]);
     }
 
-    // ── Recompute therapist rating after new review ───────────────────────────
-    public static function recomputeTherapistRating(int $therapistId): void
+    // ── Recompute therapist rating after new review ────────────────────────────
+    public static function recomputeTherapistRating(int $therapistId, int $reviewId): void
     {
+        $therapist = Therapist::find($therapistId);
+        if (!$therapist) return;
+
         $reviews = self::where('therapist_id', $therapistId)
             ->where('is_visible', true)
             ->whereNotNull('therapist_rating')
@@ -94,18 +94,31 @@ class Review extends Model
 
         if ($reviews->isEmpty()) return;
 
-        // CSAT formula
+        $oldRating   = $therapist->rating;
         $totalPoints = $reviews->sum(fn($r) => self::computeCsat($r->therapist_rating));
         $csat        = $totalPoints / $reviews->count();
-        $stars       = round($csat / 20, 1);
+        $newStars    = round($csat / 20, 1);
+        $isFlagged   = $newStars < 3.5;
 
-        // Update therapist rating
-        Therapist::where('id', $therapistId)
-            ->update(['rating' => $stars]);
+        // ── Update therapist rating + flag status ──────────────────────────────
+        $therapist->update([
+            'rating'      => $newStars,
+            'is_flagged'  => $isFlagged,
+            'flagged_at'  => $isFlagged && !$therapist->is_flagged ? now() : $therapist->flagged_at,
+            'flag_reason' => $isFlagged
+                ? "CSAT dropped to {$newStars} stars ({$csat}%) based on {$reviews->count()} review(s). Threshold: 3.5 stars (70%)."
+                : $therapist->flag_reason, // keep existing reason if no longer flagged
+        ]);
 
-        // Flag if below 3.5 stars (70% CSAT)
-        if ($stars < 3.5) {
-            // TODO: Notify admin
-        }
+        // ── Write to rating_logs for history ───────────────────────────────────
+        \App\Models\RatingLog::create([
+            'therapist_id'   => $therapistId,
+            'review_id'      => $reviewId,
+            'old_rating'     => $oldRating,
+            'new_rating'     => $newStars,
+            'csat_score'     => $csat,
+            'total_reviews'  => $reviews->count(),
+            'triggered_flag' => $isFlagged && !$therapist->getOriginal('is_flagged'),
+        ]);
     }
 }
