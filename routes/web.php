@@ -214,6 +214,20 @@ Route::middleware(['auth', 'admin'])
             Route::post('/therapist/{therapist}/resolve-flag', [App\Http\Controllers\Admin\AdminCsatController::class, 'resolveFlag'])->name('resolve');
         });
 
+        // ── Customers ─────────────────────────────────────────────────────────
+        Route::get('/customers', [App\Http\Controllers\Admin\AdminCustomerController::class, 'index'])
+            ->name('customers');
+
+        Route::prefix('api/customers')->name('api.customers.')->group(function () {
+            Route::get('/',                                    [App\Http\Controllers\Admin\AdminCustomerController::class, 'list'])->name('list');
+            Route::get('/stats',                               [App\Http\Controllers\Admin\AdminCustomerController::class, 'stats'])->name('stats');
+            Route::get('/{user}/bookings',                     [App\Http\Controllers\Admin\AdminCustomerController::class, 'bookings'])->name('bookings');
+            Route::get('/{user}/reports',                      [App\Http\Controllers\Admin\AdminCustomerController::class, 'reports'])->name('reports');
+            Route::post('/{user}/block',                       [App\Http\Controllers\Admin\AdminCustomerController::class, 'block'])->name('block');
+            Route::post('/{user}/unblock',                     [App\Http\Controllers\Admin\AdminCustomerController::class, 'unblock'])->name('unblock');
+            Route::post('/{user}/reports/{report}/review',     [App\Http\Controllers\Admin\AdminCustomerController::class, 'reviewReport'])->name('report.review');
+        });
+
         // ── Reports ───────────────────────────────────────────────────────────
         Route::get('/reports', [App\Http\Controllers\Admin\AdminReportController::class, 'index'])
             ->name('reports');

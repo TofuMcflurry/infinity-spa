@@ -113,7 +113,10 @@ class User extends Authenticatable
         return !is_null($this->google_id);
     }
 
-    // Idagdag sa User.php
+    protected $casts = [
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
+    ];
 
     // User as Customer — has many bookings
     public function bookings()

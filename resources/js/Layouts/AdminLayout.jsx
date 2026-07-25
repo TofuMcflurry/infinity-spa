@@ -2,19 +2,20 @@ import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { 
     BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, 
-    CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp 
+    CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp, UserCog 
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard',      href: '/admin' },
-  { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
-  { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
-  { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
-  { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
-  { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
-  { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
-  { icon: TrendingUp,      label: 'CSAT',           href: '/admin/csat' },
+    { icon: LayoutDashboard, label: 'Dashboard',     href: '/admin' },
+    { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
+    { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
+    { icon: UserCog,         label: 'Customers',      href: '/admin/customers' },  // ← bagong ito
+    { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
+    { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
+    { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
+    { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
+    { icon: TrendingUp,      label: 'CSAT',           href: '/admin/csat' },
 ];
 
 function cn(...v) {
