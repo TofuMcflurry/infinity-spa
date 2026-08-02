@@ -167,6 +167,14 @@ Route::middleware(['auth', 'admin'])
         Route::delete('/therapists/{therapist}',          [App\Http\Controllers\Admin\AdminTherapistController::class, 'reject'])
             ->name('therapists.reject');
 
+        Route::prefix('api/therapists')->name('api.therapists.')->group(function () {
+            Route::get('/{therapist}/bookings',              [App\Http\Controllers\Admin\AdminTherapistController::class, 'bookings'])->name('bookings');
+            Route::get('/{therapist}/reviews',               [App\Http\Controllers\Admin\AdminTherapistController::class, 'reviews'])->name('reviews');
+            Route::get('/{therapist}/reports',               [App\Http\Controllers\Admin\AdminTherapistController::class, 'reports'])->name('reports');
+            Route::post('/{therapist}/reviews/{review}/note',[App\Http\Controllers\Admin\AdminTherapistController::class, 'addReviewNote'])->name('review.note');
+            Route::post('/{therapist}/reports/{report}/review',[App\Http\Controllers\Admin\AdminTherapistController::class, 'reviewReport'])->name('report.review');
+        });
+
         // ── Bookings API Routes ───────────────────────────────────────────────
         Route::prefix('api/bookings')->name('api.bookings.')->group(function () {
             Route::get('/',                 [App\Http\Controllers\Admin\AdminBookingController::class, 'allBookings'])->name('all');
