@@ -2,20 +2,30 @@ import { useMemo, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { 
     BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, 
-    CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp, UserCog 
+    CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp, UserCog, ShieldAlert 
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
 const NAV = [
-    { icon: LayoutDashboard, label: 'Dashboard',     href: '/admin' },
-    { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
-    { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
-    { icon: UserCog,         label: 'Customers',      href: '/admin/customers' },  // ← bagong ito
-    { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
-    { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
-    { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
-    { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
-    { icon: TrendingUp,      label: 'CSAT',           href: '/admin/csat' },
+  { type: 'divider', label: 'MAIN' },
+  { icon: LayoutDashboard, label: 'Dashboard',     href: '/admin' },
+  { icon: CalendarCheck,   label: 'Bookings',       href: '/admin/bookings' },
+
+  { type: 'divider', label: 'PEOPLE' },
+  { icon: Users,           label: 'Therapists',     href: '/admin/therapists' },
+  { icon: UserCog,         label: 'Customers',      href: '/admin/customers' },
+  { icon: UserPlus,        label: 'Guest Bookings', href: '/admin/guest-bookings', badge: true },
+
+  { type: 'divider', label: 'CATALOG' },
+  { icon: Sparkles,        label: 'Services',       href: '/admin/services' },
+
+  { type: 'divider', label: 'ANALYTICS' },
+  { icon: BarChart3,       label: 'Reports',        href: '/admin/reports' },
+  { icon: TrendingUp,      label: 'CSAT',           href: '/admin/csat' },
+
+  { type: 'divider', label: 'SECURITY' },
+  { icon: ShieldCheck,     label: 'Audit Log',      href: '/admin/audit-log' },
+  { icon: ShieldAlert,     label: 'Trust & Safety', href: '/admin/trust-safety' },
 ];
 
 function cn(...v) {
@@ -68,24 +78,30 @@ export default function AdminLayout({ title = 'Admin', children }) {
       {/* ── Nav ── */}
       <nav className="p-3 flex-1 flex flex-col gap-0.5">
 
-        {/* Main group */}
-        <p className="text-[9px] font-semibold uppercase tracking-widest px-4 pb-1 mt-1"
-          style={{ color: 'var(--theme-text-muted)', opacity: 0.6 }}>
-          Main
-        </p>
-
         {NAV.map((item, idx) => {
+          if (item.type === 'divider') {
+            return (
+              <div key={`div-${item.label}-${idx}`} className="px-4 mt-3">
+                <p
+                  className="text-[9px] font-semibold uppercase tracking-widest pb-1"
+                  style={{ color: 'var(--theme-text-muted)', opacity: 0.6 }}
+                >
+                  {item.label}
+                </p>
+                <div className="border-t" style={{ borderColor: 'var(--theme-border)' }} />
+              </div>
+            );
+          }
+
           const Icon = item.icon;
           const active = item.href && (
               item.href === '/admin'
                   ? url === '/admin' || url === '/admin/'
                   : url === item.href || url.startsWith(item.href + '/')
           );
-          const isLast = idx === NAV.length - 1;
 
           return (
             <div key={item.label}>
-              {isLast && <div className="my-2 border-t" style={{ borderColor: 'var(--theme-border)' }} />}
               <Link
                 href={item.href}
                 onClick={onNavigate}

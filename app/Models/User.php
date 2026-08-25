@@ -114,9 +114,15 @@ class User extends Authenticatable
     }
 
     protected $casts = [
-        'is_blocked' => 'boolean',
-        'blocked_at' => 'datetime',
+        'is_blocked'       => 'boolean',
+        'blocked_at'       => 'datetime',
+        'restricted_until' => 'datetime',  // ← bagong ito
     ];
+
+    public function violations()
+    {
+        return $this->hasMany(\App\Models\UserViolation::class);
+    }
 
     // User as Customer — has many bookings
     public function bookings()

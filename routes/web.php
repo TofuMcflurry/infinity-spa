@@ -236,6 +236,20 @@ Route::middleware(['auth', 'admin'])
             Route::post('/{user}/reports/{report}/review',     [App\Http\Controllers\Admin\AdminCustomerController::class, 'reviewReport'])->name('report.review');
         });
 
+        // ── Trust & Safety ────────────────────────────────────────────────────
+        Route::get('/trust-safety', [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'index'])
+            ->name('trust-safety');
+
+        Route::prefix('api/trust-safety')->name('api.trust.')->group(function () {
+            Route::get('/overview',                        [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'overview'])->name('overview');
+            Route::get('/flagged-users',                   [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'flaggedUsers'])->name('flagged');
+            Route::get('/user/{user}/violations',          [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'userViolations'])->name('violations');
+            Route::post('/user/{user}/warn',               [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'warn'])->name('warn');
+            Route::post('/user/{user}/temp-block',         [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'tempBlock'])->name('temp-block');
+            Route::post('/user/{user}/permanent-block',    [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'permanentBlock'])->name('permanent-block');
+            Route::post('/user/{user}/lift',               [App\Http\Controllers\Admin\AdminTrustSafetyController::class, 'liftRestriction'])->name('lift');
+});
+
         // ── Reports ───────────────────────────────────────────────────────────
         Route::get('/reports', [App\Http\Controllers\Admin\AdminReportController::class, 'index'])
             ->name('reports');

@@ -69,5 +69,11 @@ class EventServiceProvider extends ServiceProvider
         CustomerDownpaymentUploaded::class => [AuditLogListener::class],
         CustomerReviewSubmitted::class     => [AuditLogListener::class],
         CustomerProfileUpdated::class      => [AuditLogListener::class],
+
+        // ── Trust & Safety ────────────────────────────────────────────────────
+        \App\Events\Audit\TrustWarningIssued::class       => [AuditLogListener::class],
+        \App\Events\Audit\TrustTempBlockIssued::class     => [AuditLogListener::class],
+        \App\Events\Audit\TrustPermanentBlock::class      => [AuditLogListener::class],
+        \App\Events\Audit\TrustRestrictionLifted::class   => [AuditLogListener::class],
     ];
 }
