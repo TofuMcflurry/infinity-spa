@@ -251,14 +251,9 @@ class TrustSafetyService
      */
     private static function notifyUser(User $user, string $title, string $message): void
     {
-        // Uses the existing notifications table
-        \DB::table('notifications')->insert([
-            'user_id'    => $user->id,
-            'title'      => $title,
-            'message'    => $message,
-            'read'       => false,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $user->notify(new \App\Notifications\InAppNotification(
+            title:   $title,
+            message: $message,
+        ));
     }
 }

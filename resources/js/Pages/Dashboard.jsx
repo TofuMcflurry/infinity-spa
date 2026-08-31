@@ -6,7 +6,7 @@ import {
     Bell, LogOut, MapPin, Clock, Calendar,
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
-    Loader2, Banknote
+    Loader2, Banknote, Gift, 
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -319,44 +319,209 @@ function PreferenceItem({ icon: Icon, label, value }) {
     );
 }
 
-function LoyaltyWidget({ stats }) {
-    const sessions = stats?.total_sessions ?? 0;
-    const goal     = 10;
-    const pct      = Math.min((sessions / goal) * 100, 100);
+// ── Replace your existing LoyaltyWidget function with this ───────────────────
+// Make sure these are imported at the top of Dashboard.jsx:
+// import { Activity, Gift, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+
+function LoyaltyWidget({ loyalty, onRedeemed }) {
+    const [claiming, setClaiming] = useState(false);
+    const [claimed,  setClaimed]  = useState(false);
+
+    const count     = loyalty?.completed_count    ?? 0;
+    const goal      = loyalty?.bookings_required  ?? 10;
+    const remaining = loyalty?.bookings_remaining ?? 10;
+    const pct       = loyalty?.progress_percentage ?? 0;
+    const status    = loyalty?.status             ?? 'in_progress';
+    const cycle     = loyalty?.reward_cycle       ?? 1;
+    const totalDone = loyalty?.total_completed    ?? 0;
+    const redeemed  = loyalty?.total_redeemed     ?? 0;
+    const isAvailable = status === 'available';
+    const hasVoucher  = status === 'voucher_issued' || !!loyalty?.active_voucher;
+    const voucher     = loyalty?.active_voucher;
+
+    // Estimate relaxation hours — average 90 mins per session
+    const relaxHours = totalDone > 0 ? Math.round((totalDone * 90) / 60) : 0;
+
+    const handleClaim = async () => {
+        setClaiming(true);
+        try {
+            const res = await fetch('/api/loyalty/claim', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': decodeURIComponent(
+                        document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='))?.split('=')[1] ?? ''
+                    ),
+                },
+            });
+            const data = await res.json();
+            if (data.success) {
+                setClaimed(true);
+                onRedeemed?.();
+            }
+        } catch (e) {
+            console.error('Redeem failed:', e);
+        } finally {
+            setClaiming(false);
+        }
+    };
+
     return (
-        <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
-                    <Activity size={16} />
-                </div>
-                <h3 className="font-display font-semibold text-white">Wellness Journey</h3>
-            </div>
-            <div className="mb-6">
-                <div className="flex justify-between text-sm mb-2">
-                    <span style={{ color: '#cbd5e1' }}>Sessions completed</span>
-                    <span className="font-medium" style={{ color: '#e2b764' }}>{sessions}/{goal} Bookings</span>
-                </div>
-                <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: '#1e2740' }}>
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1, delay: 0.5 }}
-                        className="h-full rounded-full" style={{ background: '#e2b764' }} />
-                </div>
-                {sessions < goal && (
-                    <p className="text-xs mt-3" style={{ color: '#64748b' }}>
-                        Just <strong className="text-white">{goal - sessions} more bookings</strong> to unlock a complimentary 60-min upgrade.
+        <div className="rounded-2xl border overflow-hidden"
+            style={{ background: '#0f1629', borderColor: isAvailable ? 'rgba(226,183,100,0.4)' : '#1e2740' }}>
+
+            {/* ── Reward available banner ── */}
+            {isAvailable && !claimed && (
+                <div className="px-5 py-3 flex items-center gap-2"
+                    style={{ background: 'linear-gradient(135deg, rgba(183,136,42,0.2), rgba(226,183,100,0.12))' }}>
+                    <Gift size={14} style={{ color: '#e2b764', flexShrink: 0 }} />
+                    <p className="text-xs font-semibold" style={{ color: '#e2b764' }}>
+                        🎉 Your free session is ready to claim!
                     </p>
+                </div>
+            )}
+
+            {/* ── Claimed success banner ── */}
+            {claimed && (
+                <div className="px-5 py-3 flex items-center gap-2"
+                    style={{ background: 'rgba(34,197,94,0.1)' }}>
+                    <CheckCircle2 size={14} style={{ color: '#22c55e', flexShrink: 0 }} />
+                    <p className="text-xs font-semibold" style={{ color: '#22c55e' }}>
+                        Reward claimed! Cycle {cycle + 1} has started. 🎊
+                    </p>
+                </div>
+            )}
+
+            <div className="p-6">
+                {/* ── Header ── */}
+                <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
+                            <Activity size={16} />
+                        </div>
+                        <h3 className="font-display font-semibold text-white">Wellness Journey</h3>
+                    </div>
+                    {cycle > 1 && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                            style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.2)' }}>
+                            Cycle {cycle}
+                        </span>
+                    )}
+                </div>
+
+                {/* ── Progress ── */}
+                <div className="mb-5">
+                    <div className="flex justify-between text-sm mb-2">
+                        <span style={{ color: '#cbd5e1' }}>Sessions completed</span>
+                        <span className="font-semibold" style={{ color: '#e2b764' }}>
+                            {count}/{goal} Bookings
+                        </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="h-2.5 w-full rounded-full overflow-hidden" style={{ background: '#1e2740' }}>
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 1, delay: 0.3, ease: 'easeOut' }}
+                            className="h-full rounded-full"
+                            style={{
+                                background: isAvailable
+                                    ? 'linear-gradient(90deg, #b7882a, #e2b764, #f5d78e)'
+                                    : 'linear-gradient(90deg, #b7882a, #e2b764)',
+                            }}
+                        />
+                    </div>
+
+                    {/* Status message */}
+                    <div className="mt-2.5">
+                        {isAvailable && !claimed ? (
+                            <p className="text-xs font-medium" style={{ color: '#e2b764' }}>
+                                ✨ Congratulations! You've earned a complimentary 60-min session.
+                            </p>
+                        ) : claimed ? (
+                            <p className="text-xs" style={{ color: '#22c55e' }}>
+                                Starting fresh — 10 more sessions to your next free reward!
+                            </p>
+                        ) : (
+                            <p className="text-xs" style={{ color: '#64748b' }}>
+                                Just{' '}
+                                <strong className="text-white">{remaining} more {remaining === 1 ? 'booking' : 'bookings'}</strong>
+                                {' '}to unlock a complimentary 60-min upgrade.
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Claim button — kapag available pa lang */}
+                {isAvailable && !claimed && (
+                    <button
+                        onClick={handleClaim}
+                        disabled={claiming}
+                        className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mb-5 transition-opacity disabled:opacity-70"
+                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
+                    >
+                        {claiming
+                            ? <Loader2 size={15} className="animate-spin" />
+                            : <Sparkles size={15} />
+                        }
+                        {claiming ? 'Claiming...' : 'Claim Free Session'}
+                    </button>
                 )}
-            </div>
-            <div className="pt-6 border-t" style={{ borderColor: '#1e2740' }}>
-                <h4 className="text-sm font-medium text-white mb-4">Your Stats</h4>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
-                        <div className="text-2xl font-display text-white mb-1">{sessions ? `${Math.round(sessions * 1.2)}h` : '0h'}</div>
-                        <div className="text-xs" style={{ color: '#94a3b8' }}>Relaxation Time</div>
+
+                {/* Voucher code display — kapag may voucher na */}
+                {hasVoucher && voucher && (
+                    <div className="mb-5 p-4 rounded-xl text-center"
+                        style={{ background: 'rgba(226,183,100,0.1)', border: '1px solid rgba(226,183,100,0.3)' }}>
+                        <p className="text-xs mb-2" style={{ color: '#94a3b8' }}>Your voucher code</p>
+                        <p className="text-2xl font-display font-bold tracking-widest mb-1" style={{ color: '#e2b764' }}>
+                            {voucher.code}
+                        </p>
+                        <p className="text-xs" style={{ color: '#94a3b8' }}>
+                            Valid for any 60-min service · Expires {voucher.expires_at}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: '#64748b' }}>
+                            {voucher.days_until_expiry} days remaining
+                        </p>
+                        {/* Copy button */}
+                        <button
+                            onClick={() => navigator.clipboard.writeText(voucher.code)}
+                            className="mt-3 px-4 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: 'rgba(226,183,100,0.15)', border: '1px solid rgba(226,183,100,0.3)', color: '#e2b764' }}>
+                            📋 Copy Code
+                        </button>
                     </div>
-                    <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
-                        <div className="text-2xl font-display text-white mb-1">{sessions}</div>
-                        <div className="text-xs" style={{ color: '#94a3b8' }}>Sessions</div>
+                )}
+
+                {/* ── Stats ── */}
+                <div className="pt-5 border-t" style={{ borderColor: '#1e2740' }}>
+                    <h4 className="text-sm font-medium text-white mb-3">Your Stats</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
+                            <div className="text-2xl font-display text-white mb-0.5">
+                                {relaxHours > 0 ? `${relaxHours}h` : '0h'}
+                            </div>
+                            <div className="text-xs" style={{ color: '#94a3b8' }}>Relaxation Time</div>
+                        </div>
+                        <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
+                            <div className="text-2xl font-display text-white mb-0.5">{totalDone}</div>
+                            <div className="text-xs" style={{ color: '#94a3b8' }}>Total Sessions</div>
+                        </div>
                     </div>
+
+                    {/* Redeemed count */}
+                    {redeemed > 0 && (
+                        <div className="mt-3 flex items-center justify-center gap-1.5 py-2 rounded-xl"
+                            style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.12)' }}>
+                            <Gift size={12} style={{ color: '#e2b764' }} />
+                            <p className="text-xs" style={{ color: '#e2b764' }}>
+                                {redeemed} free {redeemed === 1 ? 'session' : 'sessions'} redeemed
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -688,7 +853,14 @@ export default function Dashboard() {
                         </div>
 
                         <div className="space-y-8">
-                            <LoyaltyWidget stats={stats} />
+                            <LoyaltyWidget
+                                loyalty={data?.loyalty}
+                                onRedeemed={() => {
+                                    apiFetch('/api/dashboard-data')
+                                        .then(setData)
+                                        .catch(console.error);
+                                }}
+                            />
                             <AutoPreferencesWidget prefs={prefs} />
                         </div>
                     </div>

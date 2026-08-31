@@ -67,6 +67,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/notifications/unread-count',   [NotificationController::class, 'unreadCount'])->name('api.notifications.count');
         Route::post('/notifications/read-all',      [NotificationController::class, 'markAllRead'])->name('api.notifications.read-all');
         Route::post('/notifications/{id}/read',     [NotificationController::class, 'markRead'])->name('api.notifications.read');
+        Route::post('/loyalty/claim',    [CustomerDashboardController::class, 'claimLoyalty'])->name('loyalty.claim');
+        Route::post('/loyalty/validate', [CustomerDashboardController::class, 'validateVoucher'])->name('loyalty.validate');
+        Route::post('/loyalty/use',      [CustomerDashboardController::class, 'useVoucher'])->name('loyalty.use');
     });
 });
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Therapist;
+use App\Services\LoyaltyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -200,6 +201,58 @@ class CustomerDashboardController extends Controller
             'top_therapists'  => $topTherapists,
             'recent_activity' => $recentActivity,
             'preferences'     => $preferences,
+            'loyalty'         => LoyaltyService::getSummary(auth()->id()),
         ]);
+    }
+
+    /**
+     * POST /api/loyalty/redeem
+     * Legacy redeem method — kept for compatibility
+     */
+    public function redeemLoyalty(Request $request)
+    {
+        $result = LoyaltyService::redeem(auth()->id());
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
+     * POST /api/loyalty/claim
+     * Generate a voucher code for the customer
+     */
+    public function claimLoyalty(Request $request)
+    {
+        $result = \App\Services\LoyaltyService::generateVoucher(auth()->id());
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
+     * POST /api/loyalty/validate
+     * Validate a voucher code during booking
+     */
+    public function validateVoucher(Request $request)
+    {
+        $request->validate(['code' => 'required|string']);
+        $result = \App\Services\LoyaltyService::validateVoucher($request->code, auth()->id());
+        return response()->json($result);
+    }
+
+    /**
+     * POST /api/loyalty/use
+     * Mark voucher as used after booking is confirmed
+     */
+    public function useVoucher(Request $request)
+    {
+        $request->validate([
+            'code'       => 'required|string',
+            'booking_id' => 'required|integer|exists:bookings,id',
+        ]);
+
+        $result = \App\Services\LoyaltyService::useVoucher(
+            $request->code,
+            auth()->id(),
+            $request->booking_id
+        );
+
+        return response()->json($result, $result['success'] ? 200 : 422);
     }
 }
