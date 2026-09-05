@@ -221,6 +221,43 @@ class LoyaltyService
     }
 
     /**
+     * Restore a voucher back to 'unused' after its booking was cancelled
+     * within the cancellation grace period. Keeps the same code and
+     * original expires_at (does not extend it), and does NOT touch the
+     * loyalty reward cycle that was already started when the voucher was
+     * originally used — only the voucher record itself is restored.
+     */
+    public static function restoreVoucher(int $bookingId, int $customerId): array
+    {
+        $voucher = LoyaltyVoucher::where('customer_id', $customerId)
+            ->where('used_in_booking_id', $bookingId)
+            ->where('status', 'used')
+            ->first();
+
+        if (!$voucher) {
+            return ['success' => false, 'message' => 'No used voucher found for this booking.'];
+        }
+
+        $voucher->update([
+            'status'             => 'unused',
+            'used_at'            => null,
+            'used_in_booking_id' => null,
+        ]);
+
+        $user = User::find($customerId);
+        $user?->notify(new InAppNotification(
+            title:   '🎫 Voucher Restored',
+            message: "Your voucher {$voucher->code} has been restored since you cancelled more than 24 hours before your session. You can use it on a future booking.",
+        ));
+
+        return [
+            'success' => true,
+            'voucher' => self::formatVoucher($voucher),
+            'message' => 'Voucher restored successfully.',
+        ];
+    }
+
+    /**
      * Get the active voucher for a customer (if any).
      */
     public static function getActiveVoucher(int $customerId): ?array

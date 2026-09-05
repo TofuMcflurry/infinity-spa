@@ -134,9 +134,9 @@ class BookingController extends Controller
         $customerBookings = $customerId
             ? Booking::where('customer_id', $customerId)
                 ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-                ->whereNotNull('travel_start')
-                ->whereNotNull('buffer_end')
-                ->get(['travel_start', 'buffer_end'])
+                ->whereNotNull('scheduled_start')
+                ->whereNotNull('scheduled_end')
+                ->get(['scheduled_start', 'scheduled_end'])
             : collect();
 
         $slots   = [];
@@ -165,10 +165,12 @@ class BookingController extends Controller
                         $travelMinutes
                     );
 
-                    // Check against pre-fetched customer bookings
-                    $customerConflict = $customerBookings->contains(function ($b) use ($thisBlocks) {
-                        return Carbon::parse($b->travel_start)->lt($thisBlocks['buffer_end'])
-                            && Carbon::parse($b->buffer_end)->gt($thisBlocks['travel_start']);
+                    // Customer-side conflict: compare only the actual session
+                    // window (scheduled_start/scheduled_end) — no therapist
+                    // travel/rest buffer applies to the customer's own schedule.
+                    $customerConflict = $customerBookings->contains(function ($b) use ($slotDateTime, $thisBlocks) {
+                        return Carbon::parse($b->scheduled_start)->lt($thisBlocks['scheduled_end'])
+                            && Carbon::parse($b->scheduled_end)->gt($slotDateTime);
                     });
 
                     if ($customerConflict) {
@@ -211,14 +213,18 @@ class BookingController extends Controller
             'zone_name'      => 'required|string',
             'location'       => 'required|string',
             'datetime'       => 'required|string',
-            'payment_method' => 'required|in:cash,cashless',
+            'payment_method' => 'required_unless:is_voucher_covered,true|nullable|in:cash,cashless',
+            'voucher_code'       => 'nullable|string',
+            'is_voucher_covered' => 'nullable|boolean',
         ]);
 
         $variant   = ServiceVariant::findOrFail($request->service_id);
         $therapist = Therapist::findOrFail($request->therapist_id);
 
-        $downpaymentAmount = round($variant->price * 0.20, 2);
-        $remainingAmount   = round($variant->price * 0.80, 2);
+        $isVoucherCovered = $request->boolean('is_voucher_covered');
+
+        $downpaymentAmount = $isVoucherCovered ? 0 : round($variant->price * 0.20, 2);
+        $remainingAmount   = $isVoucherCovered ? 0 : round($variant->price * 0.80, 2);
 
         $slotDatetime  = Carbon::parse($request->datetime);
         $travelMinutes = $therapist->getTravelTime($request->zone_name);
@@ -229,13 +235,16 @@ class BookingController extends Controller
         );
 
         // ── FIX 3: Customer double booking prevention ─────────────────────────
+        // Customer-side conflict only cares about the actual session window
+        // (scheduled_start/scheduled_end) — the therapist travel/rest buffer
+        // is not the customer's concern, so back-to-back bookings are fine.
         $customerConflict = auth()->id()
             ? Booking::where('customer_id', auth()->id())
                 ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-                ->whereNotNull('travel_start')
-                ->whereNotNull('buffer_end')
-                ->where('travel_start', '<=', $timeBlocks['buffer_end'])
-                ->where('buffer_end',   '>=', $timeBlocks['travel_start'])
+                ->whereNotNull('scheduled_start')
+                ->whereNotNull('scheduled_end')
+                ->where('scheduled_start', '<', $timeBlocks['scheduled_end'])
+                ->where('scheduled_end',   '>', $slotDatetime)
                 ->exists()
             : false;
 
@@ -267,11 +276,18 @@ class BookingController extends Controller
             'scheduled_end'      => $timeBlocks['scheduled_end'],
             'travel_start'       => $timeBlocks['travel_start'],
             'buffer_end'         => $timeBlocks['buffer_end'],
-            'payment_method'     => $request->payment_method,
-            'status'             => 'pending_payment',
+            'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
+            // A voucher-covered booking has nothing to pay via Stripe, so it
+            // skips 'pending_payment' and is marked paid/accepted immediately —
+            // the same end state the Stripe webhook reaches for a paid booking.
+            'status'             => $isVoucherCovered ? 'accepted' : 'pending_payment',
             'downpayment_amount' => $downpaymentAmount,
             'remaining_amount'   => $remainingAmount,
             'downpayment_status' => 'pending',
+            'payment_status'     => $isVoucherCovered ? 'paid' : 'pending',
+            'paid_amount'        => $isVoucherCovered ? 0 : null,
+            'voucher_code'       => $request->voucher_code,
+            'is_voucher_covered' => $isVoucherCovered,
         ]);
 
         return response()->json([
@@ -299,6 +315,8 @@ class BookingController extends Controller
             'paid_amount'        => $booking->paid_amount,
             'downpayment_amount' => $booking->downpayment_amount,
             'remaining_amount'   => $booking->remaining_amount,
+            'is_voucher_covered' => $booking->is_voucher_covered,
+            'voucher_code'       => $booking->voucher_code,
             'service_name'       => trim($booking->service->group_name . ' ' . ($booking->serviceVariant->duration_minutes ?? '') . ' min'),
             'therapist_name'     => $booking->therapist?->user?->name,
             'location'           => $booking->location,
@@ -329,6 +347,7 @@ class BookingController extends Controller
                 'date'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('l, d F Y'),
                 'date_short'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y'),
                 'time'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('g:i A'),
+                'time_end'         => Carbon::parse($b->scheduled_end)->timezone('Asia/Dubai')->format('g:i A'),
                 'duration'         => $b->serviceVariant->duration_minutes ?? $b->service->duration_minutes,
                 'price'            => $b->serviceVariant->price ?? $b->service->price,
                 'location'         => $b->location,
@@ -347,6 +366,8 @@ class BookingController extends Controller
                 'remaining_amount'    => $b->remaining_amount,
                 'downpayment_status'  => $b->downpayment_status,
                 'downpayment_proof'   => $b->downpayment_proof,
+                'is_voucher_covered'  => $b->is_voucher_covered,
+                'voucher_code'        => $b->voucher_code,
                 'cancellation_type'   => $b->cancellation_type,
                 'cancelled_at'        => $b->cancelled_at
                     ? Carbon::parse($b->cancelled_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')

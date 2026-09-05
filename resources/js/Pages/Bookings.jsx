@@ -70,6 +70,11 @@ export default function Bookings() {
     const [newAddress, setNewAddress] = useState({ label: '', address: '', zone_name: '' });
     const [submittingAddress, setSubmittingAddress] = useState(false);
 
+    const [voucherCode,       setVoucherCode]       = useState('');
+    const [appliedVoucher,    setAppliedVoucher]    = useState(null);
+    const [voucherError,      setVoucherError]      = useState(null);
+    const [validatingVoucher, setValidatingVoucher]  = useState(false);
+
     const TOTAL_STEPS = 5;
     const stepLabels  = [t.stepService, t.stepTherapist, t.stepDateLocation, t.stepTime, t.stepPayment];
 
@@ -121,6 +126,51 @@ export default function Bookings() {
         } finally {
             setSubmittingAddress(false);
         }
+    };
+
+    const handleApplyVoucher = async () => {
+        setVoucherError(null);
+
+        if (!voucherCode.trim()) return;
+
+        if (Number(selectedService?.duration_minutes) !== 60) {
+            setVoucherError('This voucher only covers 60-minute services. Go back to Step 1 and choose a 60-min option to use it.');
+            return;
+        }
+
+        setValidatingVoucher(true);
+        try {
+            const csrfToken = getCsrf();
+            const res = await fetch('/api/loyalty/validate', {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'Accept':           'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN':     csrfToken,
+                },
+                body: JSON.stringify({ code: voucherCode.trim() }),
+            });
+
+            const data = await res.json();
+
+            if (data.valid) {
+                setAppliedVoucher(data.voucher);
+            } else {
+                setVoucherError(data.message || 'Invalid voucher code.');
+            }
+        } catch (err) {
+            setVoucherError('Failed to validate voucher. Please try again.');
+        } finally {
+            setValidatingVoucher(false);
+        }
+    };
+
+    const handleRemoveVoucher = () => {
+        setAppliedVoucher(null);
+        setVoucherError(null);
+        setVoucherCode('');
     };
 
     // ── Fetch services ────────────────────────────────────────────────────────
@@ -202,7 +252,7 @@ export default function Bookings() {
         if (step === 2) return !!selectedTherapist;
         if (step === 3) return !!selectedAddress && !!selectedDate;
         if (step === 4) return !!selectedTime;
-        if (step === 5) return !!selectedPayment && !!selectedPaymentType;
+        if (step === 5) return appliedVoucher ? true : (!!selectedPayment && !!selectedPaymentType);
         return false;
     };
 
@@ -234,6 +284,10 @@ export default function Bookings() {
                         location:       `${selectedAddress.label} - ${selectedAddress.address}`,
                         datetime:       selectedTime,
                         payment_method: selectedPayment,
+                        ...(appliedVoucher ? {
+                            voucher_code:       appliedVoucher.code,
+                            is_voucher_covered: true,
+                        } : {}),
                     }),
                 });
 
@@ -245,6 +299,38 @@ export default function Bookings() {
                 const bookingData = await res.json();
                 bookingId = bookingData.booking.id;
                 setCreatedBookingId(bookingId);
+            }
+
+            // Voucher-covered booking: nothing to pay, so skip Stripe entirely.
+            if (appliedVoucher) {
+                const useRes = await fetch('/api/loyalty/use', {
+                    method:      'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type':     'application/json',
+                        'Accept':           'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN':     csrfToken,
+                    },
+                    body: JSON.stringify({
+                        code:       appliedVoucher.code,
+                        booking_id: bookingId,
+                    }),
+                });
+
+                const useData = await useRes.json();
+
+                if (!useRes.ok || !useData.success) {
+                    // The booking exists but the voucher didn't get marked used —
+                    // this must surface as an error, not a silent success.
+                    throw new Error(
+                        `Your booking was created, but we couldn't mark the voucher as used (${useData.message ?? 'unknown error'}). Please contact support with your booking reference before assuming this session is confirmed.`
+                    );
+                }
+
+                setIsConfirmed(true);
+                setIsSubmitting(false);
+                return;
             }
 
             const checkoutRes = await fetch('/api/stripe/checkout', {
@@ -275,7 +361,7 @@ export default function Bookings() {
             setError(err.message);
             setIsSubmitting(false);
         }
-    }, [createdBookingId, selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, selectedPaymentType]);
+    }, [createdBookingId, selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, selectedPaymentType, appliedVoucher]);
 
     const formattedDate = selectedDate
         ? selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -695,26 +781,98 @@ export default function Bookings() {
 
                                                 {/* ── Price breakdown ── */}
                                                 <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: '#1e2740' }}>
-                                                    <div className="flex justify-between text-sm">
-                                                        <span style={{ color: '#64748b' }}>Total</span>
-                                                        <span className="font-medium text-white">AED {Number(selectedService?.price).toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm" style={{ color: '#64748b' }}>Downpayment</span>
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>20% · Due now</span>
+                                                    {appliedVoucher ? (
+                                                        <>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Total</span>
+                                                                <span className="font-medium line-through" style={{ color: '#64748b' }}>AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Voucher Applied</span>
+                                                                <span className="font-medium" style={{ color: '#4ade80' }}>-AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center pt-1">
+                                                                <span className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>You Pay</span>
+                                                                <span className="font-display font-bold text-lg" style={{ color: '#4ade80' }}>AED 0.00</span>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Total</span>
+                                                                <span className="font-medium text-white">AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm" style={{ color: '#64748b' }}>Downpayment</span>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>20% · Due now</span>
+                                                                </div>
+                                                                <span className="font-display font-bold text-lg" style={{ color: '#e2b764' }}>AED {downpaymentAmt}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Remaining</span>
+                                                                <span className="font-medium" style={{ color: '#94a3b8' }}>AED {remainingAmt} <span className="text-xs">(on session day)</span></span>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* ── Voucher code ── */}
+                                                <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1e2740' }}>
+                                                    {appliedVoucher ? (
+                                                        <div className="flex items-center justify-between gap-3 p-3 rounded-xl"
+                                                            style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)' }}>
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <Check size={15} className="flex-shrink-0" style={{ color: '#4ade80' }} />
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs font-semibold" style={{ color: '#4ade80' }}>Voucher Applied</p>
+                                                                    <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>{appliedVoucher.code}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={handleRemoveVoucher} className="text-xs font-medium underline flex-shrink-0" style={{ color: '#64748b' }}>
+                                                                Remove
+                                                            </button>
                                                         </div>
-                                                        <span className="font-display font-bold text-lg" style={{ color: '#e2b764' }}>AED {downpaymentAmt}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-sm">
-                                                        <span style={{ color: '#64748b' }}>Remaining</span>
-                                                        <span className="font-medium" style={{ color: '#94a3b8' }}>AED {remainingAmt} <span className="text-xs">(on session day)</span></span>
-                                                    </div>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>Have a voucher code?</p>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={voucherCode}
+                                                                    onChange={(e) => { setVoucherCode(e.target.value); setVoucherError(null); }}
+                                                                    placeholder="IHS-FREE-XXXX"
+                                                                    className="flex-1 px-3 py-2.5 rounded-xl border text-sm transition-all focus:outline-none"
+                                                                    style={{ background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' }}
+                                                                />
+                                                                <button
+                                                                    onClick={handleApplyVoucher}
+                                                                    disabled={validatingVoucher || !voucherCode.trim()}
+                                                                    className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-shrink-0"
+                                                                    style={{
+                                                                        background: 'linear-gradient(135deg, #b7882a, #e2b764)',
+                                                                        color: '#0b1120',
+                                                                        opacity: (validatingVoucher || !voucherCode.trim()) ? 0.5 : 1,
+                                                                        cursor: (validatingVoucher || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
+                                                                    }}
+                                                                >
+                                                                    {validatingVoucher && <Loader2 size={14} className="animate-spin" />}
+                                                                    Apply
+                                                                </button>
+                                                            </div>
+                                                            {voucherError && (
+                                                                <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: '#f87171' }}>
+                                                                    <AlertCircle size={12} className="flex-shrink-0" /> {voucherError}
+                                                                </p>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </motion.div>
 
                                         {/* ── Payment Type ── */}
+                                        {!appliedVoucher && (
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                                             className="rounded-2xl border overflow-hidden"
                                             style={{ borderColor: 'rgba(226,183,100,0.25)', background: 'linear-gradient(135deg, #0d1528 0%, #0a0f1e 100%)' }}>
@@ -769,8 +927,10 @@ export default function Bookings() {
                                                 </div>
                                             </div>
                                         </motion.div>
+                                        )}
 
                                         {/* ── Session Payment Method ── */}
+                                        {!appliedVoucher && (
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                                             className="rounded-2xl border overflow-hidden"
                                             style={{ borderColor: '#1e2740', background: '#080d1a' }}>
@@ -812,6 +972,7 @@ export default function Bookings() {
                                                 })}
                                             </div>
                                         </motion.div>
+                                        )}
 
                                     </div>
                                 )}
@@ -837,7 +998,9 @@ export default function Bookings() {
                                 <button onClick={handleConfirm} disabled={!canProceed() || isSubmitting}
                                     className="btn-gold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isSubmitting ? 'Redirecting to Stripe…' : `Pay AED ${payAmount} with Stripe`}
+                                    {appliedVoucher
+                                        ? (isSubmitting ? 'Confirming Booking…' : 'Confirm Free Booking')
+                                        : (isSubmitting ? 'Redirecting to Stripe…' : `Pay AED ${payAmount} with Stripe`)}
                                 </button>
                             )}
                         </div>

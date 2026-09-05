@@ -43,6 +43,8 @@ class Booking extends Model
         'stripe_payment_intent_id',
         'paid_amount',
         'payment_status',
+        'voucher_code',
+        'is_voucher_covered',
     ];
 
     protected $casts = [
@@ -56,6 +58,7 @@ class Booking extends Model
         'downpayment_amount'       => 'decimal:2',
         'remaining_amount'         => 'decimal:2',
         'paid_amount'              => 'decimal:2',
+        'is_voucher_covered'       => 'boolean',
     ];
 
     // Booking belongs to a Customer (User)

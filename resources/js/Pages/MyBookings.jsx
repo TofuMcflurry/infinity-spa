@@ -154,11 +154,12 @@ function BookingDetailsModal({ booking, onClose }) {
                         </div>
 
                         {[
-                            { icon: Calendar,  label: 'Date',     value: booking.date                          },
-                            { icon: Clock,     label: 'Time',     value: booking.time                          },
-                            { icon: Clock,     label: 'Duration', value: `${booking.duration} minutes`         },
-                            { icon: MapPin,    label: 'Location', value: booking.location                      },
-                            { icon: User,      label: 'Zone',     value: booking.zone_name                     },
+                            { icon: User,      label: 'Therapist', value: booking.therapist                                          },
+                            { icon: Calendar,  label: 'Date',      value: booking.date                                               },
+                            { icon: Clock,     label: 'Time',      value: booking.time_end ? `${booking.time} - ${booking.time_end}` : booking.time },
+                            { icon: Clock,     label: 'Duration',  value: `${booking.duration} minutes`                              },
+                            { icon: MapPin,    label: 'Location',  value: booking.location                                           },
+                            { icon: User,      label: 'Zone',      value: booking.zone_name                                          },
                         ].map(({ icon: Icon, label, value }) => (
                             <div key={label} className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -170,7 +171,23 @@ function BookingDetailsModal({ booking, onClose }) {
                         ))}
                     </div>
 
-                    {/* ── Payment Breakdown ── */}
+                    {/* ── Payment Breakdown / Voucher Redemption ── */}
+                    {booking.is_voucher_covered ? (
+                        <div className="rounded-xl p-4 flex items-center gap-3"
+                            style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)' }}>
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-base"
+                                style={{ background: 'rgba(74,222,128,0.15)' }}>
+                                🎁
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold" style={{ color: '#4ade80' }}>Redeemed via Loyalty Voucher</p>
+                                {booking.voucher_code && (
+                                    <p className="text-[11px] font-mono mt-0.5" style={{ color: '#94a3b8' }}>Voucher: {booking.voucher_code}</p>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                    <>
                     <div className="rounded-xl p-4 space-y-2.5"
                         style={{ background: '#141d33', border: '1px solid #1e2740' }}>
                         <p className="text-[10px] uppercase tracking-wider font-semibold mb-3"
@@ -291,6 +308,8 @@ function BookingDetailsModal({ booking, onClose }) {
                             )}
                         </div>
                     )}
+                    </>
+                    )}
 
                     {/* ── Cancellation Info ── */}
                     {booking.cancellation_type && (
@@ -410,20 +429,26 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: '#141d33' }}>
-                        {booking.payment_method === 'cash'
-                            ? <Banknote size={13} style={{ color: '#e2b764' }} />
-                            : <CreditCard size={13} style={{ color: '#e2b764' }} />
+                        {booking.is_voucher_covered
+                            ? <span style={{ fontSize: 13 }}>🎁</span>
+                            : booking.payment_method === 'cash'
+                                ? <Banknote size={13} style={{ color: '#e2b764' }} />
+                                : <CreditCard size={13} style={{ color: '#e2b764' }} />
                         }
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>Payment</p>
-                        <p className="text-xs font-medium text-white capitalize">{booking.payment_method}</p>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>
+                            {booking.is_voucher_covered ? 'Voucher' : 'Payment'}
+                        </p>
+                        <p className="text-xs font-medium text-white capitalize">
+                            {booking.is_voucher_covered ? 'Redeemed' : booking.payment_method}
+                        </p>
                     </div>
                 </div>
             </div>
 
             {/* Downpayment status bar */}
-            {tab === 'pending' && booking.downpayment_status && (
+            {tab === 'pending' && !booking.is_voucher_covered && booking.downpayment_status && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
                     style={{
                         background: booking.downpayment_status === 'verified'
@@ -456,12 +481,24 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
 
             {/* Price + Actions row */}
             <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: '#1e2740' }}>
-                <div>
-                    <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#64748b' }}>Total</p>
-                    <p className="text-lg font-display font-bold" style={{ color: '#e2b764' }}>
-                        AED {booking.price}
-                    </p>
-                </div>
+                {booking.is_voucher_covered ? (
+                    <div className="flex items-center gap-2">
+                        <span style={{ fontSize: 16 }}>🎁</span>
+                        <div>
+                            <p className="text-xs font-semibold" style={{ color: '#4ade80' }}>Redeemed via Loyalty Voucher</p>
+                            {booking.voucher_code && (
+                                <p className="text-[10px] font-mono" style={{ color: '#64748b' }}>{booking.voucher_code}</p>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#64748b' }}>Total</p>
+                        <p className="text-lg font-display font-bold" style={{ color: '#e2b764' }}>
+                            AED {booking.price}
+                        </p>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                     {/* Cancel button */}

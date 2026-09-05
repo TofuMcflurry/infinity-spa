@@ -102,6 +102,38 @@ class DownpaymentController extends Controller
             ->diffInHours(Carbon::parse($booking->scheduled_start)->timezone('Asia/Dubai'), false);
         $withinGrace = $hoursUntil > 24; // true = more than 24hrs away = refund
 
+        // ── Voucher-covered booking: nothing was paid, so the downpayment
+        // refund/forfeit logic below doesn't apply. Apply the same 24hr grace
+        // period to the voucher itself instead — restore it if cancelled with
+        // enough notice, otherwise it stays used/forfeited.
+        if ($booking->is_voucher_covered) {
+            $voucherRestored = false;
+
+            if ($withinGrace) {
+                $restoreResult   = \App\Services\LoyaltyService::restoreVoucher($booking->id, $customerId);
+                $voucherRestored = $restoreResult['success'];
+            }
+
+            $cancellationType = $voucherRestored ? 'refunded' : 'forfeited';
+
+            $booking->update([
+                'status'              => 'cancelled',
+                'cancelled_at'        => now(),
+                'cancellation_type'   => $cancellationType,
+                'cancellation_reason' => $request->cancellation_reason,
+            ]);
+
+            return response()->json([
+                'message'           => 'Booking cancelled.',
+                'cancellation_type' => $cancellationType,
+                'hours_until'       => $hoursUntil,
+                'voucher_restored'  => $voucherRestored,
+                'downpayment'       => $voucherRestored
+                    ? "Your voucher {$booking->voucher_code} has been restored and can be used on a future booking."
+                    : 'Your voucher has been forfeited as per our cancellation policy (cancelled within 24hrs of the session).',
+            ]);
+        }
+
         if ($booking->downpayment_status === 'pending') {
             $cancellationType  = 'refunded';
             $downpaymentStatus = 'refunded';
