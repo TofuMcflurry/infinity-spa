@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'customer'  => \App\Http\Middleware\EnsureUserIsCustomer::class,
             'admin'     => \App\Http\Middleware\AdminMiddleware::class,
         ]);
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/stripe',
+        ]);
     })
     ->withProviders([
         \App\Providers\EventServiceProvider::class,

@@ -10,6 +10,7 @@ use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\GuestBookingController;
+use App\Http\Controllers\StripePaymentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,8 @@ Broadcast::routes(['middleware' => ['web', 'auth']]);
 
 Route::get('/api/guest/services', [GuestBookingController::class, 'services'])->name('guest.services');
 Route::post('/guest-booking', [GuestBookingController::class, 'store'])->name('guest.booking.store');
+
+Route::post('/webhooks/stripe', [StripePaymentController::class, 'handleWebhook'])->name('webhooks.stripe');
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -34,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/dashboard',    fn() => Inertia::render('Dashboard'))->name('dashboard');
         Route::get('/book-session', fn() => Inertia::render('Bookings'))->name('bookings');
         Route::get('/my-bookings',  fn() => Inertia::render('MyBookings'))->name('my.bookings');
+        Route::get('/booking/payment-success', fn() => Inertia::render('PaymentSuccess'))->name('payment.success');
         Route::get('/therapists',   fn() => Inertia::render('Therapists'))->name('therapists');
         Route::get('/my-profile',   fn() => Inertia::render('Profile'))->name('my.profile');
         Route::get('/services',     fn() => Inertia::render('Services'))->name('services');
@@ -46,7 +50,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/available-slots',              [BookingController::class, 'getAvailableSlots'])->name('api.available-slots');
         Route::get('/available-therapists',         [BookingController::class, 'getAvailableTherapists'])->name('api.available-therapists');
         Route::post('/bookings',                    [BookingController::class, 'store'])->name('api.bookings.store');
+        Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'paymentStatus'])->name('api.bookings.payment-status');
         Route::get('/my-bookings',                  [BookingController::class, 'myBookings'])->name('api.my-bookings');
+        Route::post('/stripe/checkout',              [StripePaymentController::class, 'createCheckoutSession'])->name('api.stripe.checkout');
         Route::get('/reviews/check',                [ReviewController::class, 'checkEligibility'])->name('api.reviews.check');
         Route::post('/reviews',                     [ReviewController::class, 'store'])->name('api.reviews.store');
         Route::get('/reviews/pending',              [ReviewController::class, 'pendingReviews'])->name('api.reviews.pending');

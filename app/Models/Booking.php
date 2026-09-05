@@ -14,6 +14,7 @@ class Booking extends Model
         'customer_id',
         'therapist_id',
         'service_id',
+        'service_variant_id',
         'location',
         'zone_name',
         'scheduled_start',
@@ -37,6 +38,11 @@ class Booking extends Model
         'guest_phone',
         'is_converted',
         'converted_to_customer_id',
+        'payment_type',
+        'stripe_checkout_session_id',
+        'stripe_payment_intent_id',
+        'paid_amount',
+        'payment_status',
     ];
 
     protected $casts = [
@@ -49,6 +55,7 @@ class Booking extends Model
         'cancelled_at'             => 'datetime',
         'downpayment_amount'       => 'decimal:2',
         'remaining_amount'         => 'decimal:2',
+        'paid_amount'              => 'decimal:2',
     ];
 
     // Booking belongs to a Customer (User)
@@ -67,6 +74,12 @@ class Booking extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    // Booking belongs to a ServiceVariant (duration/price)
+    public function serviceVariant()
+    {
+        return $this->belongsTo(ServiceVariant::class);
     }
 
     // ── Status helpers ──────────────────────────────

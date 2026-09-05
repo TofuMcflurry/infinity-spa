@@ -5,12 +5,12 @@ import { router } from '@inertiajs/react';
 import {
     ChevronLeft, Star, Loader2, Check, Clock,
     Banknote, CreditCard, MapPin, Home, Building2, Hotel,
-    AlertCircle, Upload, Copy, CheckCircle2, QrCode,
-    Sparkles, X, ShieldCheck, Plus
+    AlertCircle, X, Plus
 } from 'lucide-react';
 import { Calendar } from '@/Components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import SuccessScreen from '@/Components/SuccessScreen';
 
 const PAYMENT_METHODS = [
     { id: 'cash',     label: 'Cash',     sub: 'Pay on arrival', desc: 'Pay directly to the therapist in cash', icon: Banknote  },
@@ -37,176 +37,6 @@ function toLocalDateString(date) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(date);
 }
 
-// ── Copyable row component ────────────────────────────────────────────────────
-function CopyRow({ label, value, highlight }) {
-    const [copied, setCopied] = useState(false);
-    const copy = () => {
-        navigator.clipboard.writeText(value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-    return (
-        <div className="flex items-center justify-between py-2.5 border-b last:border-0" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-            <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-semibold" style={{ color: highlight ? '#e2b764' : '#e2e8f0' }}>{value}</span>
-                <button onClick={copy}
-                    className="w-5 h-5 rounded flex items-center justify-center transition-all"
-                    style={{ background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)', color: copied ? '#10b981' : '#64748b' }}>
-                    {copied ? <CheckCircle2 size={10} /> : <Copy size={10} />}
-                </button>
-            </div>
-        </div>
-    );
-}
-
-// ── Upload zone component ─────────────────────────────────────────────────────
-function UploadZone({ file, onFile, onRemove }) {
-    return (
-        <div>
-            {file ? (
-                <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-                    className="relative rounded-2xl overflow-hidden border"
-                    style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.04)' }}>
-                    <img src={URL.createObjectURL(file)} alt="Proof" className="w-full max-h-48 object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 size={14} style={{ color: '#10b981' }} />
-                            <span className="text-xs font-medium text-white truncate max-w-[180px]">{file.name}</span>
-                        </div>
-                        <button onClick={onRemove}
-                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: 'rgba(239,68,68,0.25)', color: '#ef4444' }}>
-                            <X size={11} />
-                        </button>
-                    </div>
-                </motion.div>
-            ) : (
-                <label className="flex flex-col items-center justify-center gap-3 p-7 rounded-2xl border-2 border-dashed cursor-pointer transition-all group"
-                    style={{ borderColor: '#1e2740' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(226,183,100,0.4)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1e2740'}>
-                    <input type="file" accept="image/jpg,image/jpeg,image/png" className="hidden"
-                        onChange={e => onFile(e.target.files?.[0] ?? null)} />
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all"
-                        style={{ background: '#141d33', color: '#64748b' }}>
-                        <Upload size={20} />
-                    </div>
-                    <div className="text-center">
-                        <p className="text-sm font-medium text-white mb-0.5">Drop your screenshot here</p>
-                        <p className="text-xs" style={{ color: '#64748b' }}>JPG, PNG · max 5MB</p>
-                    </div>
-                </label>
-            )}
-        </div>
-    );
-}
-
-// ── Success screen ────────────────────────────────────────────────────────────
-function SuccessScreen({ bookingId, serviceName, therapistName, datetime }) {
-    const [countdown, setCountdown] = useState(3);
-    const bookingRef = bookingId ? `IHS-${String(bookingId).padStart(5, '0')}` : '—';
-
-    useEffect(() => {
-        const interval = setInterval(() => setCountdown(c => c - 1), 1000);
-        const timeout  = setTimeout(() => router.visit(route('dashboard')), 3000);
-        return () => { clearInterval(interval); clearTimeout(timeout); };
-    }, []);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-3xl p-8 text-center mt-6"
-            style={{ background: 'linear-gradient(135deg, #0d1528 0%, #0a0f1e 100%)', border: '1px solid rgba(226,183,100,0.2)' }}
-        >
-            {/* Ambient glow */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl pointer-events-none"
-                style={{ background: 'rgba(226,183,100,0.08)' }} />
-
-            <div className="relative z-10">
-                {/* Check icon */}
-                <motion.div
-                    initial={{ scale: 0, rotate: -20 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764, #f0c97a)', boxShadow: '0 0 40px rgba(226,183,100,0.3)' }}
-                >
-                    <Check size={36} style={{ color: '#0b1120', strokeWidth: 3 }} />
-                </motion.div>
-
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#e2b764' }}>
-                        Booking Received
-                    </p>
-                    <h2 className="text-2xl font-display font-semibold text-white mb-2">
-                        You're all set!
-                    </h2>
-                    <p className="text-sm mb-6 leading-relaxed" style={{ color: '#94a3b8' }}>
-                        We've received your payment proof. Our team will verify within <strong className="text-white">30 minutes</strong> and confirm your booking.
-                    </p>
-                </motion.div>
-
-                {/* Booking ref pill */}
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-                    className="inline-flex items-center gap-3 px-5 py-3 rounded-2xl mb-6"
-                    style={{ background: 'rgba(226,183,100,0.08)', border: '1px solid rgba(226,183,100,0.2)' }}>
-                    <div className="text-left">
-                        <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#64748b' }}>Booking Reference</p>
-                        <p className="text-xl font-display font-bold" style={{ color: '#e2b764' }}>{bookingRef}</p>
-                    </div>
-                </motion.div>
-
-                {/* Booking details */}
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-                    className="rounded-2xl p-4 mb-6 text-left space-y-2"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="flex justify-between text-sm">
-                        <span style={{ color: '#64748b' }}>Service</span>
-                        <span className="font-medium text-white">{serviceName}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span style={{ color: '#64748b' }}>Therapist</span>
-                        <span className="font-medium text-white">{therapistName}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span style={{ color: '#64748b' }}>Schedule</span>
-                        <span className="font-medium text-white">{datetime}</span>
-                    </div>
-                </motion.div>
-
-                {/* What happens next */}
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-                    className="flex flex-col gap-2 mb-8">
-                    {[
-                        { icon: ShieldCheck, color: '#3b82f6', text: 'Payment verification — within 30 mins' },
-                        { icon: CheckCircle2, color: '#10b981', text: 'Booking confirmed via notification'    },
-                        { icon: Sparkles,    color: '#a855f7', text: 'Therapist assigned & on the way'       },
-                    ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                            style={{ background: 'rgba(255,255,255,0.02)' }}>
-                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                                style={{ background: `${item.color}15`, color: item.color }}>
-                                <item.icon size={13} />
-                            </div>
-                            <p className="text-xs text-left" style={{ color: '#94a3b8' }}>{item.text}</p>
-                        </div>
-                    ))}
-                </motion.div>
-
-                {/* Redirect countdown */}
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}
-                    className="text-xs" style={{ color: '#475569' }}>
-                    Redirecting to dashboard in <span className="text-white font-bold">{countdown}</span>s...
-                </motion.p>
-            </div>
-        </motion.div>
-    );
-}
-
 export default function Bookings() {
     const { t: translations } = useLanguage();
     const t = translations.booking;
@@ -220,25 +50,22 @@ export default function Bookings() {
     const [selectedDate,      setSelectedDate]      = useState(undefined);
     const [selectedTime,      setSelectedTime]      = useState(null);
     const [selectedPayment,   setSelectedPayment]   = useState(null);
+    const [selectedPaymentType, setSelectedPaymentType] = useState('downpayment');
 
     const [services,       setServices]       = useState([]);
     const [addresses,      setAddresses]      = useState([]);
     const [therapists,     setTherapists]     = useState([]);
     const [availableSlots, setAvailableSlots] = useState([]);
-    const [bankDetails,    setBankDetails]    = useState(null);
 
     const [loadingServices,   setLoadingServices]   = useState(false);
     const [loadingAddresses,  setLoadingAddresses]  = useState(false);
     const [loadingTherapists, setLoadingTherapists] = useState(false);
     const [loadingSlots,      setLoadingSlots]      = useState(false);
-    const [loadingBank,       setLoadingBank]       = useState(false);
     const [isSubmitting,      setIsSubmitting]      = useState(false);
     const [isConfirmed,       setIsConfirmed]       = useState(false);
     const [createdBookingId,  setCreatedBookingId]  = useState(null);
     const [error,             setError]             = useState(null);
-    const [proofFile,         setProofFile]         = useState(null);
     const [genderFilter,      setGenderFilter]      = useState('all');
-    const [paymentTab,        setPaymentTab]        = useState('bank');
     const [showAddAddressModal, setShowAddAddressModal] = useState(false);
     const [newAddress, setNewAddress] = useState({ label: '', address: '', zone_name: '' });
     const [submittingAddress, setSubmittingAddress] = useState(false);
@@ -370,33 +197,57 @@ export default function Bookings() {
             .finally(() => setLoadingSlots(false));
     }, [step, selectedTherapist?.id, selectedDate?.toDateString(), selectedAddress?.id, selectedAddress?.zone_name]);
 
-    // ── Fetch bank details when entering step 5 ───────────────────────────────
-    useEffect(() => {
-        if (step !== 5) return;
-        setLoadingBank(true);
-        apiFetch('/api/downpayment/bank-details')
-            .then(setBankDetails)
-            .catch(() => setError('Failed to load bank details.'))
-            .finally(() => setLoadingBank(false));
-    }, [step]);
-
     const canProceed = () => {
         if (step === 1) return !!selectedService;
         if (step === 2) return !!selectedTherapist;
         if (step === 3) return !!selectedAddress && !!selectedDate;
         if (step === 4) return !!selectedTime;
-        if (step === 5) return !!selectedPayment && !!proofFile;
+        if (step === 5) return !!selectedPayment && !!selectedPaymentType;
         return false;
     };
 
+    // Creates the booking (once) then immediately starts a Stripe Checkout
+    // session for it and redirects — a single "Confirm Booking" click does
+    // both, so createdBookingId doubles as a guard against re-creating the
+    // booking if the Stripe call needs to be retried after a failure.
     const handleConfirm = useCallback(async () => {
         setIsSubmitting(true);
         setError(null);
         try {
             const csrfToken = getCsrf();
+            let bookingId = createdBookingId;
 
-            // Step 1 — Create booking
-            const res = await fetch('/api/bookings', {
+            if (!bookingId) {
+                const res = await fetch('/api/bookings', {
+                    method:      'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type':     'application/json',
+                        'Accept':           'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN':     csrfToken,
+                    },
+                    body: JSON.stringify({
+                        service_id:     selectedService.id,
+                        therapist_id:   selectedTherapist.id,
+                        zone_name:      selectedAddress.zone_name,
+                        location:       `${selectedAddress.label} - ${selectedAddress.address}`,
+                        datetime:       selectedTime,
+                        payment_method: selectedPayment,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.message ?? 'Booking failed.');
+                }
+
+                const bookingData = await res.json();
+                bookingId = bookingData.booking.id;
+                setCreatedBookingId(bookingId);
+            }
+
+            const checkoutRes = await fetch('/api/stripe/checkout', {
                 method:      'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -406,49 +257,25 @@ export default function Bookings() {
                     'X-XSRF-TOKEN':     csrfToken,
                 },
                 body: JSON.stringify({
-                    service_id:     selectedService.id,
-                    therapist_id:   selectedTherapist.id,
-                    zone_name:      selectedAddress.zone_name,
-                    location:       `${selectedAddress.label} - ${selectedAddress.address}`,
-                    datetime:       selectedTime,
-                    payment_method: selectedPayment,
+                    booking_id:   bookingId,
+                    payment_type: selectedPaymentType,
                 }),
             });
 
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message ?? 'Booking failed.');
+            if (!checkoutRes.ok) {
+                const data = await checkoutRes.json();
+                throw new Error(data.message ?? 'Failed to start payment.');
             }
 
-            const bookingData = await res.json();
-            const bookingId   = bookingData.booking.id;
-            setCreatedBookingId(bookingId);
-
-            // Step 2 — Upload proof
-            const formData = new FormData();
-            formData.append('booking_id', bookingId);
-            formData.append('proof', proofFile);
-
-            const proofRes = await fetch('/api/downpayment/upload-proof', {
-                method:      'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Accept':           'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN':     csrfToken,
-                },
-                body: formData,
-            });
-
-            if (!proofRes.ok) throw new Error('Failed to upload payment proof.');
-
-            setIsConfirmed(true);
+            const { checkout_url } = await checkoutRes.json();
+            window.location.href = checkout_url;
+            // Left isSubmitting=true intentionally — the tab is navigating
+            // away to Stripe, so there's no "done" state to reset to.
         } catch (err) {
             setError(err.message);
-        } finally {
             setIsSubmitting(false);
         }
-    }, [selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, proofFile]);
+    }, [createdBookingId, selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, selectedPaymentType]);
 
     const formattedDate = selectedDate
         ? selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -464,6 +291,8 @@ export default function Bookings() {
 
     const downpaymentAmt = selectedService ? (Number(selectedService.price) * 0.20).toFixed(2) : '0.00';
     const remainingAmt   = selectedService ? (Number(selectedService.price) * 0.80).toFixed(2) : '0.00';
+    const fullAmt        = selectedService ? Number(selectedService.price).toFixed(2) : '0.00';
+    const payAmount      = selectedPaymentType === 'full' ? fullAmt : downpaymentAmt;
     const getDisplayRating = (rating) => {
     const MIN_DISPLAY = 3.5;
     const actual = Number(rating) || 0;
@@ -885,7 +714,7 @@ export default function Bookings() {
                                             </div>
                                         </motion.div>
 
-                                        {/* ── Bank Transfer / QR Details ── */}
+                                        {/* ── Payment Type ── */}
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                                             className="rounded-2xl border overflow-hidden"
                                             style={{ borderColor: 'rgba(226,183,100,0.25)', background: 'linear-gradient(135deg, #0d1528 0%, #0a0f1e 100%)' }}>
@@ -894,177 +723,50 @@ export default function Bookings() {
                                             <div className="px-5 py-4 border-b flex items-center gap-3" style={{ borderColor: 'rgba(226,183,100,0.1)' }}>
                                                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                                                     style={{ background: 'rgba(226,183,100,0.12)', color: '#e2b764' }}>
-                                                    <Building2 size={15} />
+                                                    <CreditCard size={15} />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-display font-semibold text-white">Downpayment</p>
-                                                    <p className="text-[11px]" style={{ color: '#64748b' }}>Transfer AED {downpaymentAmt} to confirm your booking</p>
+                                                    <p className="text-sm font-display font-semibold text-white">Pay with Stripe</p>
+                                                    <p className="text-[11px]" style={{ color: '#64748b' }}>Choose how much to pay now to confirm your booking</p>
                                                 </div>
                                             </div>
 
-                                            {/* Tab toggle */}
-                                            <div className="flex gap-2 px-5 pt-4">
+                                            <div className="p-5 space-y-3">
                                                 {[
-                                                    { id: 'bank', label: 'Bank Transfer', Icon: Building2 },
-                                                    { id: 'qr',   label: 'QR / InstaPay', Icon: QrCode   },
-                                                ].map(({ id, label, Icon }) => {
-                                                    const isActive = paymentTab === id;
+                                                    { id: 'downpayment', label: 'Downpayment (20%)', amount: downpaymentAmt, sub: `Pay remaining AED ${remainingAmt} on session day` },
+                                                    { id: 'full',        label: 'Full Payment',       amount: fullAmt,       sub: 'No balance due on session day' },
+                                                ].map((type) => {
+                                                    const isActive = selectedPaymentType === type.id;
                                                     return (
-                                                        <button key={id} onClick={() => setPaymentTab(id)}
-                                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-sm font-semibold transition-all"
+                                                        <button key={type.id} onClick={() => setSelectedPaymentType(type.id)}
+                                                            className="w-full flex items-center gap-4 p-4 rounded-xl border text-start transition-all"
                                                             style={{
                                                                 borderColor: isActive ? '#e2b764' : '#1e2740',
                                                                 background:  isActive ? 'rgba(226,183,100,0.08)' : 'transparent',
-                                                                color:       isActive ? '#e2b764' : '#64748b',
-                                                            }}>
-                                                            <Icon size={14} /> {label}
+                                                            }}
+                                                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                                                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                                                        >
+                                                            <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                                                                style={{ borderColor: isActive ? '#e2b764' : '#2a3555' }}>
+                                                                {isActive && <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#e2b764' }} />}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <span className="text-sm font-semibold font-display text-white">{type.label}</span>
+                                                                <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{type.sub}</p>
+                                                            </div>
+                                                            <span className="font-display font-bold text-base flex-shrink-0" style={{ color: '#e2b764' }}>AED {type.amount}</span>
                                                         </button>
                                                     );
                                                 })}
-                                            </div>
 
-                                            <div className="p-5">
-
-                                                {/* ── Bank Transfer Panel ── */}
-                                                {paymentTab === 'bank' && (
-                                                    <>
-                                                        {loadingBank ? (
-                                                            <div className="flex items-center justify-center py-6 gap-3">
-                                                                <Loader2 size={16} className="animate-spin" style={{ color: '#e2b764' }} />
-                                                                <span className="text-sm" style={{ color: '#64748b' }}>Loading bank details…</span>
-                                                            </div>
-                                                        ) : bankDetails ? (
-                                                            <div className="space-y-0">
-                                                                <CopyRow label="Bank"         value={bankDetails.bank_name}      />
-                                                                <CopyRow label="Account Name" value={bankDetails.account_name}   />
-                                                                <CopyRow label="Account No."  value={bankDetails.account_number} />
-                                                                <CopyRow label="IBAN"         value={bankDetails.iban}           />
-                                                                <CopyRow label="Reference"    value={`Use your name + IHS booking`} highlight />
-                                                            </div>
-                                                        ) : null}
-
-                                                        <div className="mt-4 flex items-start gap-2 p-3 rounded-xl"
-                                                            style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.12)' }}>
-                                                            <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
-                                                            <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>
-                                                                After transferring, upload your screenshot below. We'll verify within <strong className="text-white">30 minutes.</strong>
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="mt-4 p-3 rounded-xl space-y-1.5"
-                                                            style={{ background: 'rgba(248,113,113,0.04)', border: '1px solid rgba(248,113,113,0.12)' }}>
-                                                            <p className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'rgba(248,113,113,0.7)' }}>Cancellation Policy</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• Cancel <span className="text-white font-medium">before 24hrs</span> → Full refund ✅</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• Cancel <span className="text-white font-medium">within 24hrs</span> → Downpayment forfeited ❌</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• No-show → Downpayment forfeited ❌</p>
-                                                        </div>
-                                                    </>
-                                                )}
-
-                                                {/* ── QR / InstaPay Panel ── */}
-                                                {paymentTab === 'qr' && (
-                                                    <div className="flex flex-col items-center gap-4">
-
-                                                        {/* Verified badge */}
-                                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold"
-                                                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10b981' }}>
-                                                            <ShieldCheck size={12} /> Secure · Instant · Zero fees
-                                                        </div>
-
-                                                        {/* QR Frame */}
-                                                        <div className="relative w-44 h-44 rounded-2xl flex items-center justify-center p-2.5"
-                                                            style={{ border: '2px solid rgba(226,183,100,0.35)', background: '#fff' }}>
-                                                            {/* Gold corner accents */}
-                                                            {[
-                                                                { top: 6, left: 6,   borderWidth: '3px 0 0 3px',   borderRadius: '4px 0 0 0'   },
-                                                                { top: 6, right: 6,  borderWidth: '3px 3px 0 0',   borderRadius: '0 4px 0 0'   },
-                                                                { bottom: 6, left: 6,  borderWidth: '0 0 3px 3px', borderRadius: '0 0 0 4px'   },
-                                                                { bottom: 6, right: 6, borderWidth: '0 3px 3px 0', borderRadius: '0 0 4px 0'   },
-                                                            ].map((s, i) => (
-                                                                <div key={i} className="absolute w-5 h-5" style={{ ...s, borderColor: '#e2b764', borderStyle: 'solid' }} />
-                                                            ))}
-                                                            {/* QR Code image — replace src with your real QR URL */}
-                                                            <QrCode size={120} style={{ color: '#0b1120' }} />
-                                                        </div>
-
-                                                        {/* Amount pill */}
-                                                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-base font-bold font-display"
-                                                            style={{ background: 'rgba(226,183,100,0.08)', border: '1px solid rgba(226,183,100,0.25)', color: '#e2b764' }}>
-                                                            AED {downpaymentAmt} · Downpayment
-                                                        </div>
-
-                                                        {/* Label */}
-                                                        <div className="text-center">
-                                                            <p className="text-sm font-semibold text-white mb-1">IHS Wellness — InstaPay / AANI</p>
-                                                            <p className="text-[11px] leading-relaxed" style={{ color: '#64748b' }}>
-                                                                Scan with your banking app or any<br />UAE payment app that supports QR
-                                                            </p>
-                                                        </div>
-
-                                                        {/* Steps */}
-                                                        <div className="w-full flex flex-col gap-2">
-                                                            {[
-                                                                { n: 1, text: <>Open your banking app (ENBD, FAB, ADCB…) and tap <strong className="text-white">Scan QR / Pay</strong></> },
-                                                                { n: 2, text: <>Point your camera at the QR above — enter <strong className="text-white">AED {downpaymentAmt}</strong> and your <strong className="text-white">name as reference</strong></> },
-                                                                { n: 3, text: <>Take a screenshot of the confirmation and <strong className="text-white">upload it below</strong></> },
-                                                            ].map(({ n, text }) => (
-                                                                <div key={n} className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                                                                    style={{ background: 'rgba(255,255,255,0.02)' }}>
-                                                                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
-                                                                        style={{ background: 'rgba(226,183,100,0.12)', color: '#e2b764' }}>
-                                                                        {n}
-                                                                    </div>
-                                                                    <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>{text}</p>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-
-                                                        {/* Note */}
-                                                        <div className="w-full flex items-start gap-2 p-3 rounded-xl"
-                                                            style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.12)' }}>
-                                                            <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
-                                                            <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>
-                                                                After paying, upload your screenshot below. We'll verify within <strong className="text-white">30 minutes.</strong>
-                                                            </p>
-                                                        </div>
-
-                                                        {/* Cancellation policy */}
-                                                        <div className="w-full p-3 rounded-xl space-y-1.5"
-                                                            style={{ background: 'rgba(248,113,113,0.04)', border: '1px solid rgba(248,113,113,0.12)' }}>
-                                                            <p className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: 'rgba(248,113,113,0.7)' }}>Cancellation Policy</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• Cancel <span className="text-white font-medium">before 24hrs</span> → Full refund ✅</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• Cancel <span className="text-white font-medium">within 24hrs</span> → Downpayment forfeited ❌</p>
-                                                            <p className="text-[11px]" style={{ color: '#94a3b8' }}>• No-show → Downpayment forfeited ❌</p>
-                                                        </div>
-
-                                                    </div>
-                                                )}
-
-                                            </div>
-                                        </motion.div>
-
-                                        {/* ── Upload Screenshot ── */}
-                                        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-                                            className="rounded-2xl border overflow-hidden"
-                                            style={{ borderColor: '#1e2740', background: '#080d1a' }}>
-                                            <div className="px-5 py-4 border-b flex items-center gap-3" style={{ borderColor: '#1e2740' }}>
-                                                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                    style={{ background: 'rgba(255,255,255,0.04)', color: '#94a3b8' }}>
-                                                    <Upload size={15} />
+                                                <div className="flex items-start gap-2 p-3 rounded-xl"
+                                                    style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.12)' }}>
+                                                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
+                                                    <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>
+                                                        Cancel <span className="text-white font-medium">before 24hrs</span> for a full refund. Cancelling within 24hrs or a no-show forfeits the amount paid.
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-display font-semibold text-white">Payment Screenshot</p>
-                                                    <p className="text-[11px]" style={{ color: '#64748b' }}>Upload proof of your bank transfer</p>
-                                                </div>
-                                                {proofFile && (
-                                                    <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                                                        style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
-                                                        <Check size={11} />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="p-5">
-                                                <UploadZone file={proofFile} onFile={setProofFile} onRemove={() => setProofFile(null)} />
                                             </div>
                                         </motion.div>
 
@@ -1135,7 +837,7 @@ export default function Bookings() {
                                 <button onClick={handleConfirm} disabled={!canProceed() || isSubmitting}
                                     className="btn-gold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isSubmitting ? t.confirmingBooking : t.confirm}
+                                    {isSubmitting ? 'Redirecting to Stripe…' : `Pay AED ${payAmount} with Stripe`}
                                 </button>
                             )}
                         </div>

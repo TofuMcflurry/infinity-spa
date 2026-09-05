@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Service;
+use App\Models\ServiceVariant;
 use App\Models\Therapist;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,23 +15,26 @@ class BookingController extends Controller
     public function getServices()
     {
         $services = Service::where('is_active', true)
+            ->with(['variants' => fn($q) => $q->where('is_active', true)->orderBy('duration_minutes')])
             ->orderBy('group_name')
-            ->orderBy('duration_minutes')
             ->get();
 
         $grouped = $services->groupBy('group_name')->map(function ($items, $groupName) {
-            $first = $items->first();
+            $first    = $items->first();
+            $variants = $items->flatMap->variants;
+
             return [
                 'group_name'    => $groupName,
                 'group_name_ar' => $first->group_name_ar,
                 'category'      => $first->category,
-                'min_price'     => $items->min('price'),
-                'durations'     => $items->map(fn($s) => [
-                    'id'               => $s->id,
-                    'duration_minutes' => $s->duration_minutes,
-                    'price'            => $s->price,
-                    'rating'           => $s->rating,
-                    'description'      => $s->description,
+                'min_price'     => $variants->min('price'),
+                'durations'     => $variants->map(fn($v) => [
+                    'id'               => $v->id,
+                    'service_id'       => $v->service_id,
+                    'duration_minutes' => $v->duration_minutes,
+                    'price'            => $v->price,
+                    'rating'           => $first->rating,
+                    'description'      => $first->description,
                 ])->values(),
             ];
         })->values();
@@ -76,13 +80,13 @@ class BookingController extends Controller
     public function getAvailableSlots(Request $request)
     {
         $request->validate([
-            'service_id'   => 'required|exists:services,id',
+            'service_id'   => 'required|exists:service_variants,id',
             'zone_name'    => 'required|string',
             'date'         => 'required|date',
             'therapist_id' => 'nullable|exists:therapists,id',
         ]);
 
-        $service     = Service::findOrFail($request->service_id);
+        $variant     = ServiceVariant::findOrFail($request->service_id);
         $date        = $request->date;
         $zoneName    = $request->zone_name;
         $therapistId = $request->therapist_id;
@@ -90,13 +94,6 @@ class BookingController extends Controller
 
         // ── Day-off check ─────────────────────────────────────────────────────
         $dayName = Carbon::parse($date, 'Asia/Dubai')->format('l');
-
-// TEMP DEBUG
-\Log::info('DATE DEBUG', [
-    'date'    => $date,
-    'dayName' => $dayName,
-    'day_off' => $therapist->day_off ?? 'no therapist yet',
-]);
 
         if ($therapistId) {
             $therapist = Therapist::findOrFail($therapistId);
@@ -126,7 +123,7 @@ class BookingController extends Controller
         $shiftStart    = Carbon::parse($date . ' 16:00:00');
         $shiftEnd      = Carbon::parse($date . ' 04:00:00')->addDay();
         $maxBuffer     = 30;
-        $lastValidTime = $shiftEnd->copy()->subMinutes($service->duration_minutes + $maxBuffer);
+        $lastValidTime = $shiftEnd->copy()->subMinutes($variant->duration_minutes + $maxBuffer);
 
         // ── Pre-fetch ONCE before loop ────────────────────────────────────────
         $travelMinutes = $therapistId
@@ -156,7 +153,7 @@ class BookingController extends Controller
                 $slotResult = $this->getTherapistSlotStatus(
                     $therapistId,
                     $slotDateTime,
-                    $service->duration_minutes,
+                    $variant->duration_minutes,
                     $zoneName
                 );
 
@@ -164,7 +161,7 @@ class BookingController extends Controller
                 if ($slotResult['available']) {
                     $thisBlocks = Booking::computeTimeBlocks(
                         $slotDateTime->toDateTimeString(),
-                        $service->duration_minutes,
+                        $variant->duration_minutes,
                         $travelMinutes
                     );
 
@@ -181,7 +178,7 @@ class BookingController extends Controller
             } else {
                 $isAvail    = $this->hasAvailableTherapist(
                     $slotDateTime,
-                    $service->duration_minutes,
+                    $variant->duration_minutes,
                     $zoneName,
                     $dayName
                 );
@@ -209,7 +206,7 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'service_id'     => 'required|exists:services,id',
+            'service_id'     => 'required|exists:service_variants,id',
             'therapist_id'   => 'required|exists:therapists,id',
             'zone_name'      => 'required|string',
             'location'       => 'required|string',
@@ -217,17 +214,17 @@ class BookingController extends Controller
             'payment_method' => 'required|in:cash,cashless',
         ]);
 
-        $service   = Service::findOrFail($request->service_id);
+        $variant   = ServiceVariant::findOrFail($request->service_id);
         $therapist = Therapist::findOrFail($request->therapist_id);
 
-        $downpaymentAmount = round($service->price * 0.20, 2);
-        $remainingAmount   = round($service->price * 0.80, 2);
+        $downpaymentAmount = round($variant->price * 0.20, 2);
+        $remainingAmount   = round($variant->price * 0.80, 2);
 
         $slotDatetime  = Carbon::parse($request->datetime);
         $travelMinutes = $therapist->getTravelTime($request->zone_name);
         $timeBlocks    = Booking::computeTimeBlocks(
             $slotDatetime->toDateTimeString(),
-            $service->duration_minutes,
+            $variant->duration_minutes,
             $travelMinutes
         );
 
@@ -262,7 +259,8 @@ class BookingController extends Controller
         $booking = Booking::create([
             'customer_id'        => auth()->id(),
             'therapist_id'       => $request->therapist_id,
-            'service_id'         => $request->service_id,
+            'service_id'         => $variant->service_id,
+            'service_variant_id' => $variant->id,
             'location'           => $request->location,
             'zone_name'          => $request->zone_name,
             'scheduled_start'    => $slotDatetime,
@@ -278,8 +276,35 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Booking submitted!',
-            'booking' => $booking->load('service', 'therapist.user'),
+            'booking' => $booking->load('service', 'serviceVariant', 'therapist.user'),
         ], 201);
+    }
+
+    // ── Payment status (polled by PaymentSuccess page after Stripe redirect) ──
+    public function paymentStatus(Booking $booking)
+    {
+        if (auth()->id() !== $booking->customer_id) {
+            abort(403);
+        }
+
+        $booking->load('service', 'serviceVariant', 'therapist.user');
+
+        $scheduledStart = Carbon::parse($booking->scheduled_start)->timezone('Asia/Dubai');
+
+        return response()->json([
+            'id'                 => $booking->id,
+            'status'             => $booking->status,
+            'payment_status'     => $booking->payment_status,
+            'payment_type'       => $booking->payment_type,
+            'paid_amount'        => $booking->paid_amount,
+            'downpayment_amount' => $booking->downpayment_amount,
+            'remaining_amount'   => $booking->remaining_amount,
+            'service_name'       => trim($booking->service->group_name . ' ' . ($booking->serviceVariant->duration_minutes ?? '') . ' min'),
+            'therapist_name'     => $booking->therapist?->user?->name,
+            'location'           => $booking->location,
+            'date_formatted'     => $scheduledStart->format('l, d F Y'),
+            'time_formatted'     => $scheduledStart->format('g:i A'),
+        ]);
     }
 
     // ── My Bookings ───────────────────────────────────────────────────────────
@@ -287,7 +312,7 @@ class BookingController extends Controller
     {
         $customerId = auth()->id();
 
-        $bookings = Booking::with(['service', 'therapist.user'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user'])
             ->where('customer_id', $customerId)
             ->orderByDesc('scheduled_start')
             ->get()
@@ -304,8 +329,8 @@ class BookingController extends Controller
                 'date'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('l, d F Y'),
                 'date_short'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y'),
                 'time'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('g:i A'),
-                'duration'         => $b->service->duration_minutes,
-                'price'            => $b->service->price,
+                'duration'         => $b->serviceVariant->duration_minutes ?? $b->service->duration_minutes,
+                'price'            => $b->serviceVariant->price ?? $b->service->price,
                 'location'         => $b->location,
                 'zone_name'        => $b->zone_name,
                 'payment_method'   => $b->payment_method,
