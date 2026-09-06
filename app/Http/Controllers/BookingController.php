@@ -8,6 +8,7 @@ use App\Models\ServiceVariant;
 use App\Models\Therapist;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
@@ -213,7 +214,15 @@ class BookingController extends Controller
             'zone_name'      => 'required|string',
             'location'       => 'required|string',
             'datetime'       => 'required|string',
-            'payment_method' => 'required_unless:is_voucher_covered,true|nullable|in:cash,cashless',
+            'payment_type'   => 'nullable|in:downpayment,full',
+            'payment_method' => [
+                Rule::requiredIf(fn () =>
+                    !$request->boolean('is_voucher_covered')
+                    && $request->input('payment_type', 'downpayment') !== 'full'
+                ),
+                'nullable',
+                'in:cash,cashless',
+            ],
             'voucher_code'       => 'nullable|string',
             'is_voucher_covered' => 'nullable|boolean',
         ]);

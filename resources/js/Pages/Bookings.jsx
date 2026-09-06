@@ -252,7 +252,11 @@ export default function Bookings() {
         if (step === 2) return !!selectedTherapist;
         if (step === 3) return !!selectedAddress && !!selectedDate;
         if (step === 4) return !!selectedTime;
-        if (step === 5) return appliedVoucher ? true : (!!selectedPayment && !!selectedPaymentType);
+        if (step === 5) {
+            if (appliedVoucher) return true;
+            if (!selectedPaymentType) return false;
+            return selectedPaymentType === 'downpayment' ? !!selectedPayment : true;
+        }
         return false;
     };
 
@@ -284,6 +288,7 @@ export default function Bookings() {
                         location:       `${selectedAddress.label} - ${selectedAddress.address}`,
                         datetime:       selectedTime,
                         payment_method: selectedPayment,
+                        payment_type:   selectedPaymentType,
                         ...(appliedVoucher ? {
                             voucher_code:       appliedVoucher.code,
                             is_voucher_covered: true,
@@ -796,6 +801,24 @@ export default function Bookings() {
                                                                 <span className="font-display font-bold text-lg" style={{ color: '#4ade80' }}>AED 0.00</span>
                                                             </div>
                                                         </>
+                                                    ) : selectedPaymentType === 'full' ? (
+                                                        <>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Total</span>
+                                                                <span className="font-medium text-white">AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm" style={{ color: '#64748b' }}>You Pay Now</span>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>100% · Due now</span>
+                                                                </div>
+                                                                <span className="font-display font-bold text-lg" style={{ color: '#e2b764' }}>AED {fullAmt}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span style={{ color: '#64748b' }}>Remaining</span>
+                                                                <span className="font-medium" style={{ color: '#4ade80' }}>AED 0.00 <span className="text-xs">— Fully Paid</span></span>
+                                                            </div>
+                                                        </>
                                                     ) : (
                                                         <>
                                                             <div className="flex justify-between text-sm">
@@ -930,7 +953,7 @@ export default function Bookings() {
                                         )}
 
                                         {/* ── Session Payment Method ── */}
-                                        {!appliedVoucher && (
+                                        {!appliedVoucher && selectedPaymentType === 'downpayment' && (
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                                             className="rounded-2xl border overflow-hidden"
                                             style={{ borderColor: '#1e2740', background: '#080d1a' }}>

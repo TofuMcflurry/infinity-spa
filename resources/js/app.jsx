@@ -2,9 +2,12 @@ import '../css/app.css';
 import '../css/dashboard.css';
 import './bootstrap';
 
-// Apply saved theme before first render to prevent flash
+// Apply saved theme before first render to prevent flash.
+// The public landing page ('/') always renders dark, regardless of the
+// user's saved preference — see resources/js/Pages/Welcome.jsx.
 (function () {
-    const t = localStorage.getItem('theme') ?? 'dark';
+    const isLanding = window.location.pathname === '/';
+    const t = isLanding ? 'dark' : (localStorage.getItem('theme') ?? 'dark');
     document.documentElement.setAttribute('data-theme', t);
 })();
 import { createInertiaApp } from '@inertiajs/react';

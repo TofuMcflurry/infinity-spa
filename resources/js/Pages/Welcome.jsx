@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { Navbar } from "@/Components/Landing/Navbar";
 import { Hero } from "@/Components/Landing/Hero";
 import { Features } from "@/Components/Landing/Features";
@@ -9,6 +9,23 @@ import { About } from "@/Components/Landing/About";
 import { Footer } from "@/Components/Landing/Footer";
 
 const Index = () => {
+  // The public landing page always renders dark, regardless of the
+  // logged-in theme preference stored in localStorage/data-theme.
+  // Runs before paint (and restores whatever was there on unmount) so
+  // navigating here from a light-mode dashboard never flashes light.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previous = root.getAttribute('data-theme');
+    root.setAttribute('data-theme', 'dark');
+    return () => {
+      if (previous === null) {
+        root.removeAttribute('data-theme');
+      } else {
+        root.setAttribute('data-theme', previous);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     document.title = "Infinity Home Spa — Dubai's Premier Home Spa Experience";
 

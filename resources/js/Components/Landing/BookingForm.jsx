@@ -440,7 +440,7 @@ export const BookingForm = () => {
                                     <button
                                         type="button"
                                         onClick={() => setStep(2)}
-                                        className="btn-gold px-5 py-3 rounded-lg text-sm font-semibold"
+                                        className="btn-gold shrink-0 px-4 sm:px-5 py-3 rounded-lg text-sm font-semibold"
                                     >
                                         Next
                                     </button>
@@ -637,7 +637,7 @@ export const BookingForm = () => {
     return (
         <section
             id="booking"
-            className="relative py-24 px-4"
+            className="relative py-16 px-3 sm:py-24 sm:px-4"
             style={{ backgroundColor: "hsl(var(--background))" }}
         >
             {/* Subtle gold radial glow */}
@@ -653,7 +653,7 @@ export const BookingForm = () => {
                 {/* Two-column card */}
                 <div className="glass-card-strong overflow-hidden grid md:grid-cols-2">
                     {/* Left: Info */}
-                    <div className="p-8 md:p-10 border-b md:border-b-0 md:border-r"
+                    <div className="p-6 sm:p-8 md:p-10 border-b md:border-b-0 md:border-r"
                         style={{ borderColor: "hsl(var(--border))" }}>
                         <LeftPanel
                             selectedDate={selectedDateObj}
@@ -663,7 +663,7 @@ export const BookingForm = () => {
                     </div>
 
                     {/* Right: Steps */}
-                    <div className="p-8 md:p-10 overflow-y-auto max-h-[85vh] custom-scroll">
+                    <div className="p-6 sm:p-8 md:p-10 overflow-y-auto max-h-[85vh] custom-scroll">
                         <style>{scrollbarStyles}</style>
                         {renderStep()}
                     </div>

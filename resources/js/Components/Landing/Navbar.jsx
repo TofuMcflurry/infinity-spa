@@ -26,8 +26,8 @@ export const Navbar = () => {
         scrolled ? "border-b border-border/40 bg-background/90 backdrop-blur-md" : "bg-transparent"
       }`}
     >
-      <div className="container flex h-20 items-center justify-between">
-        <a href="#home" className="font-display text-xl font-semibold text-foreground">
+      <div className="container flex h-16 items-center justify-between sm:h-20">
+        <a href="#home" className="font-display text-lg font-semibold text-foreground sm:text-xl">
           <span className="text-gradient-gold">Infinity</span> Home Spa
         </a>
 
