@@ -8,6 +8,7 @@ import {
     BadgeCheck, AlertTriangle, Filter, ArrowUp, Timer,
     TrendingUp, Activity, ChevronRight, Flame, Archive,
     ChevronLeft, ChevronRight as ChevronRightIcon, Sparkle,
+    Gift, Hourglass,
 } from 'lucide-react';
 
 // ── CSRF + API ────────────────────────────────────────────────────────────────
@@ -56,6 +57,8 @@ const STATUS_STYLES = {
     rejected:        { label: 'Rejected',         color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.25)'   },
 };
 
+// downpayment_status refund/verification workflow states — kept as-is, this
+// map drives the actual verify/refund actions and must reflect the real column.
 const DP_STYLES = {
     pending:     { label: 'Pending',      color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)' },
     submitted:   { label: 'Submitted',    color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)' },
@@ -64,6 +67,27 @@ const DP_STYLES = {
     forfeited:   { label: 'Forfeited',    color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
     refund_sent: { label: 'Refund Sent',  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)' },
 };
+
+// ── "Pay Status" column (All Bookings table) — computed, Stripe-aware ───────
+// Color language: green = paid/complete, amber = pending, red = actual problem.
+// Priority: voucher-covered → Stripe paid → awaiting checkout → legacy label.
+const PAY_STATUS_STYLES = {
+    voucher:          { label: 'Free (Voucher)',  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: Gift },
+    stripe_paid:      { label: 'Paid via Stripe', color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CreditCard },
+    awaiting_payment: { label: 'Awaiting Payment',color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Hourglass },
+    verified:         { label: 'Verified',        color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CheckCircle2 },
+    submitted:        { label: 'Submitted',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Clock },
+    no_proof:         { label: 'No Proof',        color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   icon: AlertCircle },
+};
+
+function getPayStatus(booking) {
+    if (booking.is_voucher_covered) return 'voucher';
+    if (booking.payment_status === 'paid') return 'stripe_paid';
+    if (booking.status === 'pending_payment') return 'awaiting_payment';
+    if (booking.downpayment_status === 'verified') return 'verified';
+    if (booking.downpayment_proof) return 'submitted';
+    return 'no_proof';
+}
 
 function getRemainingMs(submittedAt) {
     if (!submittedAt) return 0;
@@ -116,10 +140,11 @@ function getProofUrl(path) {
 
 function Badge({ cfg }) {
     if (!cfg) return null;
+    const Icon = cfg.icon;
     return (
         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
             style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}>
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.color }} />
+            {Icon ? <Icon size={10} /> : <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.color }} />}
             {cfg.label}
         </span>
     );
@@ -363,11 +388,24 @@ function BookingDrawer({ booking, onClose, onVerify, onRefundSent, verifying, re
                     </Section>
                     <Section title="Payment">
                         <Row icon={Banknote} label="Service Price" value={`AED ${Number(booking.service_price).toFixed(2)}`} accent="#e2b764" />
-                        <Row icon={Banknote} label="Downpayment (20%)" value={`AED ${Number(booking.downpayment_amount).toFixed(2)}`} accent="#f59e0b" />
-                        <Row icon={Banknote} label="Remaining (80%)" value={`AED ${Number(booking.remaining_amount).toFixed(2)}`} accent="#94a3b8" />
+                        {booking.is_voucher_covered ? (
+                            <Row icon={Gift} label="Payment" value={`Redeemed via Voucher${booking.voucher_code ? ` (${booking.voucher_code})` : ''}`} accent="#10b981" />
+                        ) : booking.payment_type === 'full' ? (
+                            <>
+                                <Row icon={Banknote} label="Total Paid" value={`AED ${Number(booking.downpayment_amount ?? booking.service_price).toFixed(2)}`} accent="#10b981" />
+                                <Row icon={Banknote} label="Remaining" value="AED 0.00 — Fully Paid" accent="#10b981" />
+                            </>
+                        ) : (
+                            <>
+                                <Row icon={Banknote} label="Downpayment (20%)" value={`AED ${Number(booking.downpayment_amount).toFixed(2)}`} accent="#f59e0b" />
+                                <Row icon={Banknote} label="Remaining (80%)" value={`AED ${Number(booking.remaining_amount).toFixed(2)}`} accent="#94a3b8" />
+                            </>
+                        )}
                         <div className="flex items-center justify-between py-3">
-                            <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Downpayment Status</p>
-                            <Badge cfg={dpStyle} />
+                            <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Payment Status</p>
+                            <Badge cfg={booking.payment_status === 'paid'
+                                ? { label: 'Paid via Stripe', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)', icon: CreditCard }
+                                : dpStyle} />
                         </div>
                         {booking.downpayment_submitted_at && <Row icon={Clock} label="Submitted At" value={booking.downpayment_submitted_at} />}
                         {booking.downpayment_verified_at && <Row icon={Clock} label="Verified At" value={booking.downpayment_verified_at} accent="#10b981" />}
@@ -608,7 +646,7 @@ function AllBookingsTable({ bookings, loading, onView, currentPage, totalPages, 
                         <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Customer / Service</th>
                         <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Scheduled</th>
                         <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Downpayment</th>
-                        <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>DP Status</th>
+                        <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Pay Status</th>
                         <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Status</th>
                         <th className="px-4 py-3 text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}></th>
                     </tr></thead>
@@ -623,7 +661,7 @@ function AllBookingsTable({ bookings, loading, onView, currentPage, totalPages, 
                                 <td className="px-4 py-3 whitespace-nowrap"><p className="text-sm" style={{ color: 'var(--theme-text-head)' }}>{b.scheduled_start_fmt}</p>
                                 <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.therapist_name}</p></td>
                                 <td className="px-4 py-3 whitespace-nowrap"><span className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span></td>
-                                <td className="px-4 py-3"><Badge cfg={DP_STYLES[b.downpayment_status]} /></td>
+                                <td className="px-4 py-3"><Badge cfg={PAY_STATUS_STYLES[getPayStatus(b)]} /></td>
                                 <td className="px-4 py-3"><Badge cfg={STATUS_STYLES[b.status]} /></td>
                                 <td className="px-4 py-3"><button onClick={() => onView(b)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: 'rgba(226,183,100,0.08)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.2)' }}><Eye size={11} /> View</button></td>
                             </tr>

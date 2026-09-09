@@ -198,7 +198,7 @@ class AdminCustomerController extends Controller
             'name'            => $u->name,
             'email'           => $u->email,
             'phone'           => $u->phone,
-            'avatar'          => $u->avatar,
+            'avatar'          => $this->resolveAvatarUrl($u->avatar),
             'is_blocked'      => (bool) $u->is_blocked,
             'blocked_at'      => $u->blocked_at
                 ? Carbon::parse($u->blocked_at)->timezone('Asia/Dubai')->format('M d, Y')
@@ -212,5 +212,19 @@ class AdminCustomerController extends Controller
             'initials'        => strtoupper(substr($u->name, 0, 1))
                                  . strtoupper(substr(explode(' ', $u->name)[1] ?? '', 0, 1)),
         ];
+    }
+
+    // Uploaded avatars are stored as a relative "avatars/xxx.jpg" path on the
+    // public disk, but Google-OAuth avatars are already an absolute URL —
+    // only the former needs the storage URL prefix.
+    private function resolveAvatarUrl(?string $avatar): ?string
+    {
+        if (!$avatar) {
+            return null;
+        }
+
+        return str_starts_with($avatar, 'http://') || str_starts_with($avatar, 'https://')
+            ? $avatar
+            : asset('storage/' . $avatar);
     }
 }

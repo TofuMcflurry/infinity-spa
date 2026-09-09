@@ -179,6 +179,10 @@ class AdminBookingController extends Controller
             'downpayment_amount'       => $b->downpayment_amount,
             'remaining_amount'         => $b->remaining_amount,
             'downpayment_status'       => $b->downpayment_status,
+            'payment_type'             => $b->payment_type,
+            'payment_status'           => $b->payment_status,
+            'is_voucher_covered'       => $b->is_voucher_covered,
+            'voucher_code'             => $b->voucher_code,
             'downpayment_proof'        => $b->downpayment_proof,
             'downpayment_submitted_at' => $b->downpayment_submitted_at
                 ? Carbon::parse($b->downpayment_submitted_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')

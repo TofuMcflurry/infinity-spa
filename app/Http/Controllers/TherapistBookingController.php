@@ -145,26 +145,6 @@ class TherapistBookingController extends Controller
         return response()->json(['message' => 'Session started! Head on over.', 'booking' => $booking]);
     }
 
-    public function markCompleted(Request $request, Booking $booking)
-    {
-        abort_if($booking->therapist_id !== auth()->user()->therapist->id, 403);
-        abort_if($booking->status !== 'accepted', 422, 'Booking is not in accepted state.');
-
-        $booking->update(['status' => 'completed']);
-
-        broadcast(new BookingStatusUpdated($booking))->toOthers();
-
-        // ── Loyalty: record completion for the customer ────────────────────────
-        if ($booking->customer_id) {
-            \App\Services\LoyaltyService::recordCompletion($booking->customer_id);
-        }
-
-        return response()->json([
-            'message' => 'Booking marked as completed.',
-            'booking' => $booking->fresh(),
-        ]);
-    }
-
     public function arrived(Booking $booking)
     {
         $this->authorizeTherapist($booking);
@@ -188,6 +168,7 @@ class TherapistBookingController extends Controller
         $booking->load('service', 'therapist.user');
 
         if ($booking->customer_id) {
+            \App\Services\LoyaltyService::recordCompletion($booking->customer_id);
             $booking->load('customer');
             $booking->customer->notify(new BookingNotification($booking, 'completed'));
         } else {

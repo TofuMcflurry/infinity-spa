@@ -6,7 +6,7 @@ import {
     XCircle, Loader2, Banknote, Star, AlertCircle, X, Car,
     Eye, Image as ImageIcon,
     Navigation, ClipboardList, Download, RefreshCw, Phone,
-    FileText, CreditCard, Building2, Hourglass,
+    FileText, CreditCard, Building2, Hourglass, Gift,
 } from 'lucide-react';
 
 // ── CSRF + API helper ────────────────────────────────────────────────────────
@@ -74,18 +74,41 @@ const STATUS_CONFIG = {
     },
 };
 
+// ── Payment status badges ────────────────────────────────────────────────────
+// Color language: green = paid/complete, amber = pending, gray = legacy/neutral,
+// red = actual problem (no proof at all).
 const PAYMENT_STATUS_CONFIG = {
-    no_proof: {
-        label: 'No Proof', color: '#ef4444',
-        bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)',
+    // New Stripe-era states — computed, not sourced from downpayment_status
+    voucher: {
+        label: 'Free (Voucher)', color: '#10b981',
+        bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
+        icon: Gift,
+    },
+    stripe_paid: {
+        label: 'Paid via Stripe', color: '#10b981',
+        bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
+        icon: CreditCard,
+    },
+    awaiting_payment: {
+        label: 'Awaiting Payment', color: '#f59e0b',
+        bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)',
+        icon: Hourglass,
+    },
+    // Legacy manual-verification states — restyled to match the badges above
+    verified: {
+        label: 'Verified', color: '#10b981',
+        bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
+        icon: CheckCircle2,
     },
     submitted: {
         label: 'Submitted', color: '#f59e0b',
         bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)',
+        icon: Clock,
     },
-    verified: {
-        label: 'Verified', color: '#10b981',
-        bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
+    no_proof: {
+        label: 'No Proof', color: '#ef4444',
+        bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.25)',
+        icon: AlertCircle,
     },
 };
 
@@ -132,8 +155,13 @@ function bookingCode(id) {
     return `IHS-${String(id).padStart(4, '0')}`;
 }
 
-// ── Compute paymentStatus from downpayment_status field ──────────────────────
+// ── Compute a single payment status per booking ──────────────────────────────
+// Priority: voucher-covered → Stripe paid → awaiting Stripe checkout →
+// legacy manual-verification labels (bookings that predate Stripe).
 function getPaymentStatus(booking) {
+    if (booking.is_voucher_covered) return 'voucher';
+    if (booking.payment_status === 'paid') return 'stripe_paid';
+    if (booking.status === 'pending_payment') return 'awaiting_payment';
     if (booking.downpayment_status === 'verified') return 'verified';
     if (booking.downpayment_proof) return 'submitted';
     return 'no_proof';
@@ -154,17 +182,40 @@ function StatusBadge({ status, small }) {
     );
 }
 
-// ── PaymentBadge ─────────────────────────────────────────────────────────────
-function PaymentBadge({ status }) {
+// ── PaymentBadge — same pill shape/typography as StatusBadge ────────────────
+function PaymentBadge({ status, small }) {
     const cfg = PAYMENT_STATUS_CONFIG[status] ?? PAYMENT_STATUS_CONFIG.no_proof;
+    const Icon = cfg.icon;
     return (
         <span
-            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            className={`inline-flex items-center gap-1 rounded-full font-semibold ${small ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1'}`}
             style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}
         >
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.color }} />
+            <Icon size={small ? 9 : 11} />
             {cfg.label}
         </span>
+    );
+}
+
+// ── InfoPanel — simple banner for the new no-proof-needed payment states ────
+function InfoPanel({ status, title, body }) {
+    const cfg = PAYMENT_STATUS_CONFIG[status];
+    const Icon = cfg.icon;
+    return (
+        <div className="py-4">
+            <div
+                className="w-full px-4 py-3 rounded-xl flex items-center gap-3"
+                style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
+            >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: cfg.bg }}>
+                    <Icon size={18} style={{ color: cfg.color }} />
+                </div>
+                <div>
+                    <p className="text-sm font-bold" style={{ color: cfg.color }}>{title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{body}</p>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -257,7 +308,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
 
-    // ── Fix: use downpayment_status field ────────────────────────────────────
     const paymentStatus = getPaymentStatus(booking);
 
     const section = (title, children) => (
@@ -442,7 +492,25 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {/* ── Proof of Payment ── */}
                     {section('Proof of Payment',
-                        paymentStatus === 'verified' ? (
+                        paymentStatus === 'voucher' ? (
+                            <InfoPanel
+                                status="voucher"
+                                title="Covered by Loyalty Voucher"
+                                body={booking.voucher_code ? `Voucher ${booking.voucher_code} applied — no payment required.` : 'A loyalty voucher covers this session — no payment required.'}
+                            />
+                        ) : paymentStatus === 'stripe_paid' ? (
+                            <InfoPanel
+                                status="stripe_paid"
+                                title="Paid via Stripe"
+                                body="Payment was completed securely online. No manual verification needed."
+                            />
+                        ) : paymentStatus === 'awaiting_payment' ? (
+                            <InfoPanel
+                                status="awaiting_payment"
+                                title="Awaiting Payment"
+                                body="Customer has not completed Stripe checkout yet."
+                            />
+                        ) : paymentStatus === 'verified' ? (
                             // ── Verified state — green banner + read-only image ──
                             <div className="py-4 flex flex-col gap-3">
                                 <div
@@ -609,7 +677,6 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
-    // ── Fix: use downpayment_status field ────────────────────────────────────
     const paymentStatus = getPaymentStatus(booking);
 
     return (
@@ -641,23 +708,32 @@ function TableRow({ booking, onView, index }) {
                 <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{fmtTime(booking.scheduled_start)}</p>
             </td>
             <td className="px-4 py-3 whitespace-nowrap">
-                {booking.downpayment != null ? (
+                {booking.is_voucher_covered ? (
+                    <p className="text-sm font-medium" style={{ color: '#10b981' }}>Free (Voucher)</p>
+                ) : booking.payment_type === 'full' ? (
                     <>
                         <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
-                            AED {Number(booking.downpayment).toFixed(2)}
+                            AED {Number(booking.downpayment_amount ?? booking.service?.price ?? 0).toFixed(2)}
                         </p>
-                        {booking.service?.price && (
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                                / AED {Number(booking.service.price).toFixed(2)}
-                            </p>
-                        )}
+                        <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
+                            Full · {booking.payment_method ?? '—'}
+                        </p>
+                    </>
+                ) : booking.downpayment_amount != null ? (
+                    <>
+                        <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
+                            AED {Number(booking.downpayment_amount).toFixed(2)}
+                        </p>
+                        <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
+                            / AED {Number(booking.service?.price ?? 0).toFixed(2)} · {booking.payment_method ?? '—'}
+                        </p>
                     </>
                 ) : (
                     <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>—</span>
                 )}
             </td>
             <td className="px-4 py-3">
-                <PaymentBadge status={paymentStatus} />
+                <PaymentBadge status={paymentStatus} small />
             </td>
             <td className="px-4 py-3">
                 <StatusBadge status={booking.status} small />
@@ -822,11 +898,13 @@ export default function Bookings() {
         );
     });
 
+    // Stat card colors follow the same language as the badges:
+    // green = paid/completed, amber = pending, blue = active/in-progress, gold = neutral total.
     const stats = [
         { label: 'Total',     value: bookings.length,                                                                    color: '#e2b764' },
         { label: 'Pending',   value: bookings.filter(b => b.status === 'pending').length,                                color: '#f59e0b' },
-        { label: 'Active',    value: bookings.filter(b => ['accepted','en_route','arrived'].includes(b.status)).length,  color: '#10b981' },
-        { label: 'Completed', value: bookings.filter(b => b.status === 'completed').length,                              color: '#3b82f6' },
+        { label: 'Active',    value: bookings.filter(b => ['accepted','en_route','arrived'].includes(b.status)).length,  color: '#3b82f6' },
+        { label: 'Completed', value: bookings.filter(b => b.status === 'completed').length,                              color: '#10b981' },
     ];
 
     return (

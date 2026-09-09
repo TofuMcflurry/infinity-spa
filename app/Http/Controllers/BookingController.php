@@ -231,9 +231,23 @@ class BookingController extends Controller
         $therapist = Therapist::findOrFail($request->therapist_id);
 
         $isVoucherCovered = $request->boolean('is_voucher_covered');
+        $isFullPayment    = $request->input('payment_type', 'downpayment') === 'full';
 
-        $downpaymentAmount = $isVoucherCovered ? 0 : round($variant->price * 0.20, 2);
-        $remainingAmount   = $isVoucherCovered ? 0 : round($variant->price * 0.80, 2);
+        // downpayment_amount + remaining_amount always sums to the full
+        // variant price — reporting (see AdminDashboardController) relies
+        // on that invariant to compute revenue regardless of payment_type.
+        // Full Payment has nothing left to collect on session day, so the
+        // entire price is the "amount due now" and remaining is zero.
+        if ($isVoucherCovered) {
+            $downpaymentAmount = 0;
+            $remainingAmount   = 0;
+        } elseif ($isFullPayment) {
+            $downpaymentAmount = $variant->price;
+            $remainingAmount   = 0;
+        } else {
+            $downpaymentAmount = round($variant->price * 0.20, 2);
+            $remainingAmount   = round($variant->price * 0.80, 2);
+        }
 
         $slotDatetime  = Carbon::parse($request->datetime);
         $travelMinutes = $therapist->getTravelTime($request->zone_name);
@@ -286,6 +300,7 @@ class BookingController extends Controller
             'travel_start'       => $timeBlocks['travel_start'],
             'buffer_end'         => $timeBlocks['buffer_end'],
             'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
+            'payment_type'       => $request->input('payment_type', 'downpayment'),
             // A voucher-covered booking has nothing to pay via Stripe, so it
             // skips 'pending_payment' and is marked paid/accepted immediately —
             // the same end state the Stripe webhook reaches for a paid booking.
@@ -371,6 +386,8 @@ class BookingController extends Controller
                     ->timezone('Asia/Dubai')
                     ->diffInHours(now('Asia/Dubai'), false), 
                 'cancellation_reason' => $b->cancellation_reason, // ← idagdag ito
+                'payment_type'        => $b->payment_type,
+                'payment_status'      => $b->payment_status,
                 'downpayment_amount'  => $b->downpayment_amount,
                 'remaining_amount'    => $b->remaining_amount,
                 'downpayment_status'  => $b->downpayment_status,

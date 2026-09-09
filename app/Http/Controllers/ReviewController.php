@@ -194,7 +194,7 @@ class ReviewController extends Controller
         }
 
         if ($canTherapistRate && $request->therapist_rating) {
-            Review::recomputeTherapistRating($therapistId);
+            Review::recomputeTherapistRating($therapistId, $review->id);
         }
 
         return response()->json([

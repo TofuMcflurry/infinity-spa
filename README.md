@@ -36,8 +36,8 @@ Built as a capstone and portfolio project to demonstrate full-stack development 
 - **Service Browsing** — Browse grouped spa services with real-time availability and bilingual (EN/AR) support
 - **Multi-step Booking Flow** — Step-by-step booking with calendar, time slot selection, and payment
 - **Address Book** — Save multiple addresses with Dubai service zone selection
-- **Online Payments via Stripe** — Customers choose between a 20% downpayment or full payment at checkout, processed securely through Stripe Checkout with instant, webhook-confirmed booking status updates (see below)
-- **Loyalty Rewards & Voucher Redemption** — Every 10 completed bookings unlocks a complimentary 60-minute session, redeemable via a unique voucher code (`IHS-FREE-XXXX`) directly in the booking wizard (see below)
+- **Online Payments via Stripe** — Downpayment or full payment at checkout via Stripe Checkout, with webhook-confirmed status updates (see below)
+- **Loyalty Rewards & Voucher Redemption** — Every 10 completed bookings unlocks a free 60-minute session via a voucher code, redeemable in the booking wizard (see below)
 - **My Bookings Dashboard** — Real-time booking status tracking with WebSocket updates
 - **Review & Rating System** — CSAT ratings for completed bookings
 - **Profile Management** — Avatar upload and profile editing
@@ -53,27 +53,25 @@ Built as a capstone and portfolio project to demonstrate full-stack development 
 - **Dashboard** — Stats overview with charts and recent booking activity
 - **Bookings Manager** — FIFO queue system with dedicated Guest Bookings page and pending badge
 - **Therapist Management** — Approve, deactivate, and manage therapist accounts
+- **CSAT Performance Monitoring** — Automatically flags therapists whose average rating drops below 3.5 stars for coaching review
+- **Customer Management** — Block/unblock accounts and review customer-submitted reports
+- **Trust & Safety Module** — 3-tier violation system (warning → temp block → permanent block) with automatic escalation for repeated policy violations
 - **Payment Visibility** — View Stripe payment status, amount paid, and payment intent reference per booking — automatic confirmation means no manual approval step is required for the payment itself
 - **Legacy Manual Verification** — Manual bank-transfer proof-of-payment review is retained in the codebase as a fallback path for non-Stripe scenarios
 - **Auto-cancel** — Automatically cancels past-due unconfirmed bookings
 - **Service Management** — Full CRUD with parent-variant pricing structure (see below)
+- **Audit Trail** — System-wide event logging (booking actions, payment verification, refunds) for accountability and compliance tracking
 - **Reports Dashboard** — Revenue analytics, booking trends, and therapist performance (see below)
 
 ### 💳 Payment Gateway Integration (Stripe)
-- **Stripe Checkout** — Redirect-based checkout session created per booking, dynamically priced from the `ServiceVariant` — no hardcoded prices on Stripe's side
-- **Flexible Payment Options** — Customer chooses between a 20% downpayment (remainder paid in cash/card on session day) or full payment upfront
-- **Webhook-Confirmed Payments** — A dedicated `/webhooks/stripe` endpoint verifies Stripe's signature and listens for `checkout.session.completed`, confirming payment server-to-server rather than relying on the customer's browser completing a redirect
-- **Idempotent Processing** — Webhook handler safely ignores duplicate event deliveries (checked against `payment_status`), preventing double-processing
-- **Automatic Booking Progression** — On confirmed payment, the booking automatically advances to `accepted` status — no manual admin verification step required in the payment path
-- **Partial Refund Support** — Cancellation logic supports partial refunds via Stripe's Refund API, honoring the same 20%-forfeiture policy used in the downpayment flow
-- **Test Mode Ready** — Fully functional against Stripe's sandbox/test environment for local development and demoing, with a clear migration path to a live webhook endpoint in production
+- **Stripe Checkout** — Redirect-based checkout session per booking, priced from the `ServiceVariant`, confirmed server-to-server via a signed webhook (`checkout.session.completed`) rather than the client redirect
+- **Flexible & Resilient** — 20% downpayment or full payment upfront, idempotent webhook processing, partial refunds on cancellation, and automatic cleanup of abandoned checkouts (session expiry + scheduled sweep)
+
+📄 For a detailed technical write-up of the payment architecture and webhook flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ### 🎁 Loyalty Voucher Redemption
-- **Earn & Redeem** — Customers who complete 10 bookings unlock a complimentary 60-minute session, redeemable via a unique voucher code (e.g. `IHS-FREE-XXXX`)
-- **Applied in the Booking Wizard** — Voucher code is entered directly in the payment step (Step 5), restricted to 60-minute services only, with client-side duration validation performed before the code is ever sent to the server
-- **Fully Comped Bookings** — When a voucher is applied, the booking skips Stripe checkout and session-day payment entirely — no downpayment, no remaining balance, confirmed instantly
-- **Grace-Period Cancellation Policy** — Mirrors the existing paid-booking policy: cancelling more than 24 hours before the session restores the voucher code for future use; cancelling within 24 hours (or a no-show) forfeits it permanently
-- **Clear Booking History Labeling** — Redeemed bookings are marked "Redeemed via Loyalty Voucher" throughout the customer's booking history, with no price or payment fields shown
+- **Earn & Redeem** — Every 10 completed bookings unlocks a free 60-minute session via a unique voucher code (`IHS-FREE-XXXX`), applied in the booking wizard's payment step for a fully comped, instantly confirmed booking
+- **Cancellation Policy** — Same 24-hour grace period as paid bookings: restored if cancelled with enough notice, forfeited otherwise (see [ARCHITECTURE.md](./ARCHITECTURE.md))
 
 ### 📦 Service Management System
 - **Parent-Variant Structure** — One service (e.g. "Couple Massage") with multiple duration/price options (60 min / 90 min / 120 min)
@@ -251,13 +249,10 @@ stripe listen --forward-to localhost:8000/webhooks/stripe
 
 ## 📐 Key Engineering Decisions
 
-- **Service Variant Pattern** — Modeled after industry-standard product/variant architecture (similar to Shopify). A `Service` is the parent; `ServiceVariant` holds duration + price. `bookings` references both `service_id` (for grouping/reports) and `service_variant_id` (for the exact option booked).
-- **Archive over Delete** — No hard deletes on services or variants. `archived_at` soft-archiving preserves all historical booking data and report integrity.
-- **Revenue from `ServiceVariant.price`** — Downpayment columns can be null on cash bookings, so revenue is always sourced from the variant price for accuracy.
-- **Webhook-Based Payment Confirmation** — Rather than confirming payment on the client-side redirect alone (which can be missed if a browser closes mid-flow), payment confirmation is handled server-to-server via a signed Stripe webhook, following the same pattern used by production payment systems. The handler is idempotent, safely ignoring duplicate webhook deliveries.
-- **Payment Flexibility Without Losing the Deposit Model** — Customers can pay a 20% downpayment or the full amount upfront; either way, cancellation/refund logic treats the first 20% as the "at-risk" deposit portion, keeping cancellation policy consistent regardless of which option was chosen.
-- **Consistent Design System** — All three portals share the same `--theme-*` CSS variable system and gold accent (`#e2b764`) for dark/light mode compatibility.
-- **Separated Customer vs. Therapist Scheduling Constraints** — Double-booking prevention distinguishes between two different concerns: a therapist's schedule requires travel time and a rest buffer between sessions, but a customer's own schedule only needs to avoid genuine time overlaps with their own other bookings. Conflating the two originally caused a customer's next available slot to be incorrectly blocked by a *different* therapist's rest buffer. The fix ensures customers can book back-to-back sessions immediately after a prior session ends, while therapist-side travel/rest constraints remain fully enforced.
+- **Webhook-Based Payment Confirmation** — Payment is confirmed server-to-server via a signed Stripe webhook rather than the client-side redirect, which can be missed if a browser closes mid-flow. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the signature verification details.
+- **Idempotent & Race-Safe Webhook Handling** — Duplicate webhook deliveries and races between payment confirmation and abandoned-checkout cancellation are both explicitly guarded against, so a late `completed` event can never resurrect a cancelled booking.
+- **Separated Customer vs. Therapist Scheduling Constraints** — A therapist's schedule needs a travel/rest buffer between sessions; a customer's schedule only needs to avoid overlapping their own bookings. Conflating the two caused a real bug where a customer's slot was blocked by a *different* therapist's buffer — see [ARCHITECTURE.md](./ARCHITECTURE.md) for the fix.
+- **Service Variant Pattern** — Modeled after product/variant architecture (similar to Shopify): a `Service` is the parent, `ServiceVariant` holds duration + price, and bookings reference both for grouping and exact pricing.
 
 ---
 

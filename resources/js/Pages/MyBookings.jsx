@@ -77,13 +77,19 @@ function BookingDetailsModal({ booking, onClose }) {
     const [showProof, setShowProof] = useState(false);
     const bookingRef = `IHS-${String(booking.id).padStart(5, '0')}`;
 
-    const downpaymentStatusConfig = {
-        pending:   { label: 'Awaiting transfer',  color: '#e2b764', bg: 'rgba(226,183,100,0.08)',  border: 'rgba(226,183,100,0.2)'  },
-        submitted: { label: 'Under review',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',   border: 'rgba(96,165,250,0.2)'   },
-        verified:  { label: 'Verified ✅',        color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
-        refunded:  { label: 'Refunded',           color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
-        forfeited: { label: 'Forfeited',          color: '#f87171', bg: 'rgba(248,113,113,0.08)',  border: 'rgba(248,113,113,0.2)'  },
-    }[booking.downpayment_status] ?? { label: booking.downpayment_status, color: '#94a3b8', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
+    // A Stripe-confirmed payment is never "awaiting" anything — that legacy
+    // label set only applies to bookings that went through the old manual
+    // proof-of-transfer flow (downpayment_status still 'pending' by default
+    // on every booking, so payment_status must be checked first).
+    const downpaymentStatusConfig = booking.payment_status === 'paid'
+        ? { label: 'Paid via Stripe ✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' }
+        : {
+            pending:   { label: 'Awaiting transfer',  color: '#e2b764', bg: 'rgba(226,183,100,0.08)',  border: 'rgba(226,183,100,0.2)'  },
+            submitted: { label: 'Under review',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',   border: 'rgba(96,165,250,0.2)'   },
+            verified:  { label: 'Verified ✅',        color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
+            refunded:  { label: 'Refunded',           color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
+            forfeited: { label: 'Forfeited',          color: '#f87171', bg: 'rgba(248,113,113,0.08)',  border: 'rgba(248,113,113,0.2)'  },
+        }[booking.downpayment_status] ?? { label: booking.downpayment_status, color: '#94a3b8', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -200,7 +206,22 @@ function BookingDetailsModal({ booking, onClose }) {
                             </span>
                         </div>
 
-                        {booking.downpayment_amount && (
+                        {booking.payment_type === 'full' ? (
+                            <>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>Total Paid</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>
+                                        AED {Number(booking.price).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>Remaining</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>
+                                        AED 0.00 — Fully Paid
+                                    </span>
+                                </div>
+                            </>
+                        ) : booking.downpayment_amount && (
                             <>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[11px]" style={{ color: '#94a3b8' }}>20% Downpayment</span>
