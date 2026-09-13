@@ -35,12 +35,15 @@ async function apiFetch(url, options = {}) {
     return res.json();
 }
 
+// Step keys must match the real `bookings.status` column values exactly
+// (see the DB check constraint) — 'in_progress' was never a real status,
+// so a completed booking could never match a step and always rendered as 0%.
 const STATUS_STEPS = [
-    { key: 'pending',      label: 'Pending',     icon: Clock        },
-    { key: 'accepted',     label: 'Confirmed',   icon: CheckCircle2 },
-    { key: 'en_route',     label: 'On The Way',  icon: Navigation   },
-    { key: 'arrived',      label: 'Arrived',     icon: MapPin       },
-    { key: 'in_progress',  label: 'Completed',  icon: Sparkles     },
+    { key: 'pending',    label: 'Pending',     icon: Clock        },
+    { key: 'accepted',   label: 'Accepted',    icon: CheckCircle2 },
+    { key: 'en_route',   label: 'On The Way',  icon: Navigation   },
+    { key: 'arrived',    label: 'Arrived',     icon: MapPin       },
+    { key: 'completed',  label: 'Completed',   icon: Sparkles     },
 ];
 
 function StatusTracker({ booking: initialBooking, onCompleted }) {
@@ -55,7 +58,9 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
         prevStatus.current = booking?.status;
     }, [booking?.status]);
 
-    const currentIdx = STATUS_STEPS.findIndex(s => s.key === booking.status);
+    // pending_payment has no dedicated step — it's still "Pending" from the customer's view.
+    const stepStatus = booking.status === 'pending_payment' ? 'pending' : booking.status;
+    const currentIdx = STATUS_STEPS.findIndex(s => s.key === stepStatus);
     const progress   = currentIdx < 0 ? 0 : (currentIdx / (STATUS_STEPS.length - 1)) * 100;
 
     const STATUS_META = {
@@ -63,10 +68,10 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
         accepted:     { label: 'Booking Confirmed',   color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)'  },
         en_route:     { label: 'Therapist On The Way',color: '#e2b764', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.2)' },
         arrived:      { label: 'Therapist Arrived',   color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.2)'  },
-        in_progress:  { label: 'Session In Progress', color: '#a855f7', bg: 'rgba(168,85,247,0.1)',  border: 'rgba(168,85,247,0.2)'  },
+        completed:    { label: 'Session Completed',   color: '#a855f7', bg: 'rgba(168,85,247,0.1)',  border: 'rgba(168,85,247,0.2)'  },
     };
 
-    const meta = STATUS_META[booking.status] ?? STATUS_META.pending;
+    const meta = STATUS_META[stepStatus] ?? STATUS_META.pending;
     const isEnRoute = booking.status === 'en_route';
 
     return (
@@ -182,9 +187,9 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                                                 className="text-xs mt-0.5 sm:mt-1"
                                                 style={{ color: meta.color }}
                                             >
-                                                {step.key === 'en_route'    ? '🚗 Heading your way'  :
-                                                 step.key === 'arrived'     ? '📍 They are here!'    :
-                                                 step.key === 'in_progress' ? '💆 Enjoy your session' :
+                                                {step.key === 'en_route'   ? '🚗 Heading your way'  :
+                                                 step.key === 'arrived'    ? '📍 They are here!'    :
+                                                 step.key === 'completed'  ? '💆 Session complete'   :
                                                  'In progress'}
                                             </motion.p>
                                         )}

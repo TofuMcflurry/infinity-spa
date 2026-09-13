@@ -295,7 +295,9 @@ function RejectConfirmModal({ onConfirm, onClose, loading }) {
 }
 
 // ── Booking Detail Drawer ────────────────────────────────────────────────────
-function BookingModal({ booking, onClose, onAction, actionLoading }) {
+// Exported so other therapist pages (e.g. Dashboard) can reuse the same
+// "view details" drawer instead of building a second one.
+export function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const [showReject, setShowReject] = useState(false);
     const [imgZoom, setImgZoom] = useState(false);
 
@@ -307,6 +309,11 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
+
+    // Price now lives on ServiceVariant, not Service (services.price is a
+    // leftover column, left NULL since the variant refactor). Fall back to
+    // the legacy field only for pre-refactor bookings that never got a variant.
+    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? null;
 
     const paymentStatus = getPaymentStatus(booking);
 
@@ -456,7 +463,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {section('Customer', <>
                         <DetailRow icon={User}     label="Name"  value={booking.customer?.name}  accent="#e2b764" />
-                        <DetailRow icon={Phone}    label="Phone" value={booking.customer?.phone} accent="#3b82f6" />
+                        <DetailRow icon={Phone}    label="Phone" value={booking.customer?.phone || 'Not provided'} accent="#3b82f6" />
                         <DetailRow icon={FileText} label="Email" value={booking.customer?.email} accent="#8b5cf6" />
                     </>)}
 
@@ -477,12 +484,12 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {section('Payment Breakdown', <>
                         <DetailRow icon={Building2}  label="Service"       value={booking.service?.name}  accent="#e2b764" />
-                        <DetailRow icon={Banknote}   label="Service Price" value={booking.service?.price ? `AED ${Number(booking.service.price).toFixed(2)}` : '—'} accent="#10b981" />
+                        <DetailRow icon={Banknote}   label="Service Price" value={servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'} accent="#10b981" />
                         {booking.downpayment != null && (
                             <DetailRow icon={CreditCard} label="Downpayment" value={`AED ${Number(booking.downpayment).toFixed(2)}`} accent="#f59e0b" />
                         )}
-                        {booking.service?.price && booking.downpayment != null && (
-                            <DetailRow icon={Banknote} label="Balance Due" value={`AED ${(Number(booking.service.price) - Number(booking.downpayment)).toFixed(2)}`} accent="#8b5cf6" />
+                        {servicePrice != null && booking.downpayment != null && (
+                            <DetailRow icon={Banknote} label="Balance Due" value={`AED ${(Number(servicePrice) - Number(booking.downpayment)).toFixed(2)}`} accent="#8b5cf6" />
                         )}
                         <div className="py-2.5 flex items-center justify-between">
                             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Payment Status</p>
@@ -678,6 +685,7 @@ function BookingModal({ booking, onClose, onAction, actionLoading }) {
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
     const paymentStatus = getPaymentStatus(booking);
+    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? 0;
 
     return (
         <motion.tr
@@ -713,7 +721,7 @@ function TableRow({ booking, onView, index }) {
                 ) : booking.payment_type === 'full' ? (
                     <>
                         <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
-                            AED {Number(booking.downpayment_amount ?? booking.service?.price ?? 0).toFixed(2)}
+                            AED {Number(booking.downpayment_amount ?? servicePrice).toFixed(2)}
                         </p>
                         <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
                             Full · {booking.payment_method ?? '—'}
@@ -725,7 +733,7 @@ function TableRow({ booking, onView, index }) {
                             AED {Number(booking.downpayment_amount).toFixed(2)}
                         </p>
                         <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
-                            / AED {Number(booking.service?.price ?? 0).toFixed(2)} · {booking.payment_method ?? '—'}
+                            / AED {Number(servicePrice).toFixed(2)} · {booking.payment_method ?? '—'}
                         </p>
                     </>
                 ) : (

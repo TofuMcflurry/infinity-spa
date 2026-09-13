@@ -21,7 +21,7 @@ class TherapistBookingController extends Controller
             ->where('scheduled_start', '<', now())
             ->update(['status' => 'cancelled']);
 
-        $query = Booking::with(['customer', 'service'])
+        $query = Booking::with(['customer', 'service', 'serviceVariant'])
             ->where('therapist_id', $therapist->id)
             ->orderBy('scheduled_start', 'asc');
 
@@ -69,7 +69,7 @@ class TherapistBookingController extends Controller
 
         broadcast(new BookingStatusUpdated($booking));
 
-        $booking->load('customer', 'service', 'therapist.user');
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'accepted'));
 
         return response()->json(['message' => 'Booking accepted!', 'booking' => $booking]);
@@ -81,7 +81,7 @@ class TherapistBookingController extends Controller
         $request->validate(['reason' => 'nullable|string|max:255']);
 
         $booking->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
-        $booking->load('customer', 'service', 'therapist.user');
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
         broadcast(new BookingStatusUpdated($booking));
         $booking->customer->notify(new BookingNotification($booking, 'rejected'));
 
@@ -107,7 +107,7 @@ class TherapistBookingController extends Controller
         ]);
 
         // ✅ Load ONCE, outside the if — para may relations ang broadcast
-        $booking->load('customer', 'service', 'therapist.user');
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
         broadcast(new BookingStatusUpdated($booking));
 
         // ✅ Notify only if may customer
@@ -139,7 +139,7 @@ class TherapistBookingController extends Controller
 
         $booking->update(['status' => 'en_route']);
         broadcast(new BookingStatusUpdated($booking));
-        $booking->load('customer', 'service', 'therapist.user');
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'en_route'));
 
         return response()->json(['message' => 'Session started! Head on over.', 'booking' => $booking]);
@@ -152,7 +152,7 @@ class TherapistBookingController extends Controller
 
         $booking->update(['status' => 'arrived']);
         broadcast(new BookingStatusUpdated($booking));
-        $booking->load('customer', 'service', 'therapist.user');
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
         $booking->customer->notify(new BookingNotification($booking, 'arrived'));
 
         return response()->json(['message' => 'Arrived!', 'booking' => $booking]);
@@ -165,7 +165,7 @@ class TherapistBookingController extends Controller
 
         $booking->update(['status' => 'completed']);
         broadcast(new BookingStatusUpdated($booking));
-        $booking->load('service', 'therapist.user');
+        $booking->load('service', 'serviceVariant', 'therapist.user');
 
         if ($booking->customer_id) {
             \App\Services\LoyaltyService::recordCompletion($booking->customer_id);
