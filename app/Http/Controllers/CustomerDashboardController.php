@@ -37,7 +37,14 @@ class CustomerDashboardController extends Controller
         // ── Upcoming Booking ──────────────────────────────────────────────────
         $upcomingBooking = Booking::where('customer_id', $customerId)
             ->whereIn('status', ['en_route', 'arrived', 'in_progress', 'accepted', 'pending', 'pending_payment'])
-            ->where('scheduled_start', '>=', now())
+            ->where(function ($q) {
+                // en_route/arrived stay eligible even after scheduled_start has
+                // passed — that's the normal case for an active session (the
+                // therapist is en route/arrived at or after the scheduled time).
+                // Every other status keeps the original "still upcoming" bound.
+                $q->where('scheduled_start', '>=', now())
+                  ->orWhereIn('status', ['en_route', 'arrived']);
+            })
             ->with(['service', 'therapist.user'])
             ->orderByRaw("CASE
                 WHEN status = 'en_route'        THEN 1
@@ -188,14 +195,18 @@ class CustomerDashboardController extends Controller
                 'favorite_therapist' => $favoriteTherapist?->therapist?->user?->name ?? null,
             ],
             'upcoming_booking' => $upcomingBooking ? [
-                'id'        => $upcomingBooking->id,
-                'service'   => $upcomingBooking->service->name,
-                'therapist' => $upcomingBooking->therapist->user->name,
-                'datetime'  => Carbon::parse($upcomingBooking->scheduled_start)->timezone('Asia/Dubai')->format('F j, Y · g:i A'),
-                'location'  => $upcomingBooking->location,
-                'zone_name' => $upcomingBooking->zone_name,
-                'status'    => $upcomingBooking->status,
-                'duration'  => $upcomingBooking->service->duration_minutes,
+                'id'              => $upcomingBooking->id,
+                'service'         => $upcomingBooking->service->name,
+                'therapist'       => $upcomingBooking->therapist->user->name,
+                'datetime'        => Carbon::parse($upcomingBooking->scheduled_start)->timezone('Asia/Dubai')->format('F j, Y · g:i A'),
+                // Raw ISO timestamp, additive — lets the frontend reliably
+                // determine "is this scheduled today" (Asia/Dubai calendar
+                // date) without parsing the pre-formatted `datetime` string.
+                'scheduled_start' => $upcomingBooking->scheduled_start->toIso8601String(),
+                'location'        => $upcomingBooking->location,
+                'zone_name'       => $upcomingBooking->zone_name,
+                'status'          => $upcomingBooking->status,
+                'duration'        => $upcomingBooking->service->duration_minutes,
             ] : null,
             'your_usual'      => $yourUsual,
             'top_therapists'  => $topTherapists,

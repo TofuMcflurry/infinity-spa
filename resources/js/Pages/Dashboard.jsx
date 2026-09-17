@@ -6,7 +6,7 @@ import {
     Bell, LogOut, MapPin, Clock, Calendar,
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
-    Loader2, Banknote, Gift, 
+    Loader2, Banknote, Gift, X, Check,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -35,6 +35,15 @@ async function apiFetch(url, options = {}) {
     return res.json();
 }
 
+// Compares a booking's scheduled_start against "now," both by their
+// Asia/Dubai calendar date — matches the timezone convention already used
+// server-side (e.g. CustomerDashboardController, AdminBookingController).
+const dubaiDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit' });
+function isScheduledTodayDubai(isoDateString) {
+    if (!isoDateString) return false;
+    return dubaiDateFmt.format(new Date(isoDateString)) === dubaiDateFmt.format(new Date());
+}
+
 // Step keys must match the real `bookings.status` column values exactly
 // (see the DB check constraint) — 'in_progress' was never a real status,
 // so a completed booking could never match a step and always rendered as 0%.
@@ -49,11 +58,12 @@ const STATUS_STEPS = [
 function StatusTracker({ booking: initialBooking, onCompleted }) {
     const { booking, wsReady } = useBookingStatus(initialBooking);
 
-    // Fire onCompleted when status hits completed
+    // Fire onCompleted when status hits completed — passes the booking along
+    // so the parent can show a brief confirmation without an extra fetch.
     const prevStatus = useRef(booking?.status);
     useEffect(() => {
         if (prevStatus.current !== 'completed' && booking?.status === 'completed') {
-            onCompleted?.();
+            onCompleted?.(booking);
         }
         prevStatus.current = booking?.status;
     }, [booking?.status]);
@@ -73,6 +83,7 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
 
     const meta = STATUS_META[stepStatus] ?? STATUS_META.pending;
     const isEnRoute = booking.status === 'en_route';
+    const isArrived = booking.status === 'arrived';
 
     return (
         <motion.section
@@ -123,9 +134,11 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                     </div>
                 </div>
 
-                {/* ── En Route Hero Banner ── */}
+                {/* ── En Route / Arrived Hero Banner ── */}
+                {/* GPS placeholder only — no map, coordinates, location polling, or
+                    location permissions. Text status only. */}
                 <AnimatePresence>
-                    {isEnRoute && (
+                    {(isEnRoute || isArrived) && (
                         <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
@@ -133,14 +146,26 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                             className="mb-8 overflow-hidden"
                         >
                             <div className="rounded-xl p-4 flex items-center gap-4"
-                                style={{ background: 'rgba(226,183,100,0.08)', border: '1px solid rgba(226,183,100,0.2)' }}>
+                                style={{
+                                    background: isArrived ? 'rgba(59,130,246,0.08)' : 'rgba(226,183,100,0.08)',
+                                    border: `1px solid ${isArrived ? 'rgba(59,130,246,0.2)' : 'rgba(226,183,100,0.2)'}`,
+                                }}>
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
-                                    <Navigation size={20} className="animate-bounce" />
+                                    style={{
+                                        background: isArrived ? 'rgba(59,130,246,0.15)' : 'rgba(226,183,100,0.15)',
+                                        color: isArrived ? '#3b82f6' : '#e2b764',
+                                    }}>
+                                    {isArrived
+                                        ? <MapPin size={20} />
+                                        : <Navigation size={20} className="animate-bounce" />}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold" style={{ color: '#e2b764' }}>Your therapist is on the way!</p>
-                                    <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Get ready — they'll arrive soon.</p>
+                                    <p className="text-sm font-bold" style={{ color: isArrived ? '#3b82f6' : '#e2b764' }}>
+                                        {isArrived ? 'Your therapist has arrived!' : 'Your therapist is on the way!'}
+                                    </p>
+                                    <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
+                                        {isArrived ? 'Enjoy your session.' : "Get ready — they'll arrive soon."}
+                                    </p>
                                 </div>
                             </div>
                         </motion.div>
@@ -200,6 +225,98 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                     </div>
                 </div>
             </div>
+        </motion.section>
+    );
+}
+
+// ── Compact upcoming-session card ──────────────────────────────────────────
+// Used for pending/accepted bookings (today or future-dated) and for any
+// future-dated booking regardless of status — deliberately NOT the live
+// StatusTracker, since only en_route/arrived get the prominent live view.
+function UpcomingSessionCard({ booking, isToday }) {
+    const isPendingLike = booking.status === 'pending' || booking.status === 'pending_payment';
+    const isAccepted    = booking.status === 'accepted';
+
+    const meta = isPendingLike
+        ? { label: 'Pending Confirmation', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' }
+        : { label: 'Booking Confirmed',    color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)'  };
+
+    return (
+        <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border p-6 md:p-7"
+            style={{ borderColor: '#1e2740', background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}
+        >
+            <div className="flex items-center justify-between gap-3 mb-4">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase"
+                    style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.color }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: meta.color }} />
+                    {meta.label}
+                </span>
+                <button onClick={() => router.visit(route('my.bookings'))}
+                    className="text-xs flex items-center gap-1 transition-colors flex-shrink-0" style={{ color: '#e2b764' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                >
+                    View in My Bookings <ChevronRight size={12} />
+                </button>
+            </div>
+
+            <h3 className="text-xl font-display font-semibold text-white mb-2">{booking.service}</h3>
+            <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm" style={{ color: '#94a3b8' }}>
+                <span className="flex items-center gap-2"><User size={14} /> {booking.therapist}</span>
+                <span className="flex items-center gap-2"><Clock size={14} /> {booking.datetime}</span>
+            </div>
+
+            {/* Only shown for an accepted booking scheduled today — not a live
+                tracker, just sets expectations for what happens next. */}
+            {isToday && isAccepted && (
+                <p className="mt-4 text-xs flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                    style={{ background: 'rgba(226,183,100,0.06)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.15)' }}>
+                    <Navigation size={12} /> Track therapist when en route.
+                </p>
+            )}
+        </motion.section>
+    );
+}
+
+// ── Brief, dismissible "session completed" confirmation ───────────────────
+// Inline (not a modal/overlay) so it never blocks navigation or traps the
+// customer — auto-dismisses after ~4s, or immediately on manual dismiss.
+function SessionCompletedConfirmation({ booking, onDismiss }) {
+    useEffect(() => {
+        const timeout = setTimeout(() => onDismiss?.(), 4000);
+        return () => clearTimeout(timeout);
+    }, [onDismiss]);
+
+    return (
+        <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="relative overflow-hidden rounded-2xl p-6 flex items-center gap-4"
+            style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)', border: '1px solid rgba(168,85,247,0.3)' }}
+        >
+            <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #a855f7, #c084fc)', boxShadow: '0 0 24px rgba(168,85,247,0.3)' }}>
+                <Check size={22} style={{ color: '#0b1120', strokeWidth: 3 }} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#a855f7' }}>Session Completed!</p>
+                <p className="text-sm" style={{ color: '#cbd5e1' }}>
+                    {booking?.service ? `Your ${booking.service} session is done — it's` : 'Your session is done — it\'s'} now in your booking history.
+                </p>
+            </div>
+            <button onClick={() => onDismiss?.()}
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                aria-label="Dismiss"
+            >
+                <X size={14} />
+            </button>
         </motion.section>
     );
 }
@@ -574,6 +691,7 @@ export default function Dashboard() {
     const [showNotifications,  setShowNotifications]  = useState(false);
     const [notifications,      setNotifications]      = useState([]);
     const [unreadCount,        setUnreadCount]        = useState(0);
+    const [justCompletedBooking, setJustCompletedBooking] = useState(null);
 
     const fetchNotifications = useCallback(() => {
         apiFetch('/api/notifications')
@@ -625,6 +743,27 @@ export default function Dashboard() {
     }, []);
 
     const handleLogout = () => router.post(route('logout'));
+
+    // Booking just transitioned to completed — show the brief confirmation
+    // first, refresh the underlying data now (so it's already caught up by
+    // the time the confirmation dismisses), and defer the pending-review
+    // check until dismissal so the two don't compete for attention at once.
+    const handleUpcomingCompleted = useCallback((completedBooking) => {
+        setJustCompletedBooking(completedBooking ?? data?.upcoming_booking ?? null);
+        apiFetch('/api/dashboard-data').then(setData).catch(console.error);
+    }, [data?.upcoming_booking]);
+
+    const handleCompletedDismiss = useCallback(() => {
+        setJustCompletedBooking(null);
+        apiFetch('/api/reviews/pending')
+            .then(reviews => {
+                if (reviews.length > 0) {
+                    setPendingReview(reviews[0]);
+                    setShowReviewModal(true);
+                }
+            })
+            .catch(console.error);
+    }, []);
 
     const user     = props.auth?.user;
     const initials = userProfile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -767,22 +906,48 @@ export default function Dashboard() {
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
 
-                    {upcoming && (
-                        <StatusTracker
-                            booking={upcoming}
-                            onCompleted={() => {
-                                // Refresh dashboard data + trigger review modal
-                                apiFetch('/api/dashboard-data').then(setData);
-                                apiFetch('/api/reviews/pending')
-                                    .then(reviews => {
-                                        if (reviews.length > 0) {
-                                            setPendingReview(reviews[0]);
-                                            setShowReviewModal(true);
-                                        }
-                                    });
-                            }}
-                        />
-                    )}
+                    {/* ── Upcoming session area ──────────────────────────────────────
+                        Exactly one of these renders at a time — never stacked —
+                        to avoid duplicate/conflicting booking status displays:
+                          1. Brief "Session Completed!" confirmation (transient)
+                          2. Live StatusTracker — only for en_route / arrived
+                          3. Compact UpcomingSessionCard — pending/accepted today,
+                             or any future-dated booking (never a live tracker)
+                          4. Nothing upcoming — existing prompt/usual-booking flow
+                             below, plus a link into My Bookings' Upcoming tab */}
+                    <AnimatePresence mode="wait">
+                        {justCompletedBooking ? (
+                            <SessionCompletedConfirmation
+                                key="completed"
+                                booking={justCompletedBooking}
+                                onDismiss={handleCompletedDismiss}
+                            />
+                        ) : upcoming && ['en_route', 'arrived'].includes(upcoming.status) ? (
+                            <StatusTracker
+                                key="tracker"
+                                booking={upcoming}
+                                onCompleted={handleUpcomingCompleted}
+                            />
+                        ) : upcoming ? (
+                            <UpcomingSessionCard
+                                key="compact"
+                                booking={upcoming}
+                                isToday={isScheduledTodayDubai(upcoming.scheduled_start)}
+                            />
+                        ) : (
+                            <motion.div key="none" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                className="flex items-center justify-between gap-3 flex-wrap">
+                                <p className="text-sm" style={{ color: '#94a3b8' }}>No upcoming sessions scheduled.</p>
+                                <button onClick={() => router.visit(route('my.bookings'))}
+                                    className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
+                                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                                    onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                                >
+                                    View Upcoming Bookings <ChevronRight size={14} />
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
                         <div className="lg:col-span-2 space-y-12">
