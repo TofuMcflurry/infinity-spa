@@ -519,7 +519,7 @@ export default function TherapistLayout({ children }) {
     const firstName = user?.name?.split(' ')[0] ?? 'Therapist';
 
     return (
-        <div className="flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
+        <div className="therapist-theme flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
 
             {/* Desktop sidebar */}
             <TherapistSidebar user={user} />

@@ -373,3 +373,54 @@
   backdrop-filter: none;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }
+
+/* ── Therapist Dashboard — light mode palette override ─────────────────────
+   Scoped to .therapist-theme (root wrapper in TherapistLayout.jsx) so this
+   does not affect Admin/Customer light mode or any dark mode appearance. */
+[data-theme="light"] .therapist-theme {
+  --background: 40 31% 94%;
+  --foreground: 200 19% 18%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 200 19% 18%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 200 19% 18%;
+
+  --primary: 151 18% 39%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 140 14% 92%;
+  --secondary-foreground: 200 19% 18%;
+
+  --muted: 40 20% 90%;
+  --muted-foreground: 220 9% 46%;
+
+  --accent: 40 49% 57%;
+  --accent-foreground: 200 19% 18%;
+
+  --border: 40 8% 86%;
+  --input: 40 8% 86%;
+  --ring: 151 18% 39%;
+
+  --theme-bg:           #F5F2EC;
+  --theme-card:         #FFFFFF;
+  --theme-card-hover:   #FAF7F1;
+  --theme-border:       #E3DED4;
+  --theme-text:         #263238;
+  --theme-text-head:    #263238;
+  --theme-text-2:       #6B7280;
+  --theme-text-muted:   #6B7280;
+  --theme-header-bg:    rgba(245,242,236,0.92);
+  --theme-btn-bg:       #F0EBE0;
+  --theme-input-bg:     #FFFFFF;
+  --theme-notif-bg:     #FFFFFF;
+  --theme-sidebar-bg:   rgba(255,255,255,0.95);
+  --theme-skeleton:     #F0EBE0;
+  --theme-divider:      rgba(38,50,56,0.06);
+}
+
+[data-theme="light"] .therapist-theme .glass-card-strong {
+  background: #FFFFFF;
+  border-color: #E3DED4;
+}

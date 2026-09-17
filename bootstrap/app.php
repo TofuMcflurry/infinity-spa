@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Nothing scheduled this until now, so past-due pending/accepted
         // bookings were never actually auto-cancelled in practice.
         $schedule->command('bookings:auto-cancel-past-due')->everyTenMinutes();
+
+        // Flags en_route/arrived bookings stuck past their expected window
+        // for admin review — purely additive metadata, never touches status.
+        $schedule->command('bookings:flag-stale-active-sessions')->everyFifteenMinutes();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

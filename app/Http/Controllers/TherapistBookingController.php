@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\SendGuestConversionEmail;
 use App\Models\Booking;
 use Illuminate\Http\Request;
 use App\Notifications\BookingNotification;
@@ -163,17 +162,7 @@ class TherapistBookingController extends Controller
         $this->authorizeTherapist($booking);
         abort_if($booking->status !== 'arrived', 422, 'Therapist must have arrived first.');
 
-        $booking->update(['status' => 'completed']);
-        broadcast(new BookingStatusUpdated($booking));
-        $booking->load('service', 'serviceVariant', 'therapist.user');
-
-        if ($booking->customer_id) {
-            \App\Services\LoyaltyService::recordCompletion($booking->customer_id);
-            $booking->load('customer');
-            $booking->customer->notify(new BookingNotification($booking, 'completed'));
-        } else {
-            SendGuestConversionEmail::dispatch($booking)->delay(now()->addDay());
-        }
+        \App\Services\BookingCompletionService::complete($booking);
 
         return response()->json(['message' => 'Booking marked as completed!', 'booking' => $booking]);
     }

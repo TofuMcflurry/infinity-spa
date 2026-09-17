@@ -64,11 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/profile-data',                 [CustomerProfileController::class, 'show'])->name('api.profile');
         Route::post('/profile-update',              [CustomerProfileController::class, 'update'])->name('api.profile.update');
         Route::post('/profile-avatar',              [CustomerProfileController::class, 'uploadAvatar'])->name('api.profile.avatar');
-        Route::get('/downpayment/bank-details',     [DownpaymentController::class, 'getBankDetails'])->name('api.downpayment.bank');
-        Route::post('/downpayment/upload-proof',    [DownpaymentController::class, 'uploadProof'])->name('api.downpayment.upload');
         Route::post('/downpayment/cancel',          [DownpaymentController::class, 'cancel'])->name('api.downpayment.cancel');
-        Route::get('/downpayment/status',           [DownpaymentController::class, 'status'])->name('api.downpayment.status');
-        Route::post('/downpayment/verify',          [DownpaymentController::class, 'verify'])->name('api.downpayment.verify');
         Route::get('/notifications',                [NotificationController::class, 'index'])->name('api.notifications');
         Route::get('/notifications/unread-count',   [NotificationController::class, 'unreadCount'])->name('api.notifications.count');
         Route::post('/notifications/read-all',      [NotificationController::class, 'markAllRead'])->name('api.notifications.read-all');
@@ -187,12 +183,16 @@ Route::middleware(['auth', 'admin'])
         // ── Bookings API Routes ───────────────────────────────────────────────
         Route::prefix('api/bookings')->name('api.bookings.')->group(function () {
             Route::get('/',                 [App\Http\Controllers\Admin\AdminBookingController::class, 'allBookings'])->name('all');
-            Route::get('/verification',     [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingVerification'])->name('verification');
             Route::get('/pending-refunds',  [App\Http\Controllers\Admin\AdminBookingController::class, 'pendingRefunds'])->name('pending-refunds');
             Route::get('/cancelled-history',[App\Http\Controllers\Admin\AdminBookingController::class, 'cancelledHistory'])->name('cancelled-history');
             Route::get('/stats',            [App\Http\Controllers\Admin\AdminBookingController::class, 'stats'])->name('stats');
-            Route::post('/verify',          [App\Http\Controllers\Admin\AdminBookingController::class, 'verifyDownpayment'])->name('verify');
             Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
+
+            // ── Stale Active Session review ──────────────────────────────────
+            Route::get('/stale',                    [App\Http\Controllers\Admin\AdminBookingController::class, 'staleBookings'])->name('stale');
+            Route::post('/stale/{booking}/complete', [App\Http\Controllers\Admin\AdminBookingController::class, 'resolveStaleComplete'])->name('stale.complete');
+            Route::post('/stale/{booking}/no-show',  [App\Http\Controllers\Admin\AdminBookingController::class, 'resolveStaleNoShow'])->name('stale.no-show');
+            Route::post('/stale/{booking}/cancel',   [App\Http\Controllers\Admin\AdminBookingController::class, 'resolveStaleCancel'])->name('stale.cancel');
         });
 
         // ── Services ──────────────────────────────────────────────────────────

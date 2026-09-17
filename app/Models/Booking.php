@@ -45,6 +45,10 @@ class Booking extends Model
         'payment_status',
         'voucher_code',
         'is_voucher_covered',
+        'flagged_at',
+        'flag_reason',
+        'resolved_at',
+        'resolved_by',
     ];
 
     protected $casts = [
@@ -55,11 +59,19 @@ class Booking extends Model
         'downpayment_submitted_at' => 'datetime',
         'downpayment_verified_at'  => 'datetime',
         'cancelled_at'             => 'datetime',
+        'flagged_at'               => 'datetime',
+        'resolved_at'              => 'datetime',
         'downpayment_amount'       => 'decimal:2',
         'remaining_amount'         => 'decimal:2',
         'paid_amount'              => 'decimal:2',
         'is_voucher_covered'       => 'boolean',
     ];
+
+    // Admin who resolved a stale-active-session flag
+    public function resolvedBy()
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
 
     // Booking belongs to a Customer (User)
     public function customer()

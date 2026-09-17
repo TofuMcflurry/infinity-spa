@@ -1,14 +1,14 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, X, Loader2, CheckCircle2, XCircle, AlertCircle,
     Eye, Download, RefreshCw, ShieldCheck, Banknote, Clock,
     Calendar, MapPin, User, CreditCard, RotateCcw, Receipt,
-    BadgeCheck, AlertTriangle, Filter, ArrowUp, Timer,
-    TrendingUp, Activity, ChevronRight, Flame, Archive,
+    Filter, Timer,
+    TrendingUp, Activity, ChevronRight, Archive,
     ChevronLeft, ChevronRight as ChevronRightIcon, Sparkle,
-    Gift, Hourglass,
+    Gift, Hourglass, Siren, UserX, Ban,
 } from 'lucide-react';
 
 // ── CSRF + API ────────────────────────────────────────────────────────────────
@@ -34,17 +34,44 @@ async function apiFetch(url, options = {}) {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DP_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 const ITEMS_PER_PAGE = 50;
 
 // Views
 const VIEWS = [
-    { key: 'activeQueue',   label: 'Active Queue',    icon: Flame,        color: '#ef4444' },
-    { key: 'expiredQueue',  label: 'Expired',         icon: AlertTriangle,color: '#64748b' },
-    { key: 'all',           label: 'All Bookings',    icon: Archive,      color: '#e2b764' },
-    { key: 'refunds',       label: 'Pending Refunds', icon: RotateCcw,    color: '#10b981' },
-    { key: 'cancelled',     label: 'Cancelled',       icon: XCircle,      color: '#94a3b8' },
+    { key: 'needsAttention',  label: 'Needs Attention', icon: Siren,        color: '#ef4444' },
+    { key: 'all',             label: 'All Bookings',    icon: Archive,      color: '#e2b764' },
+    { key: 'refunds',         label: 'Pending Refunds', icon: RotateCcw,    color: '#10b981' },
+    { key: 'cancelled',       label: 'Cancelled',       icon: XCircle,      color: '#94a3b8' },
 ];
+
+// flag_reason → display label + which timestamp anchors the "overdue" clock
+const FLAG_REASON_STYLES = {
+    stale_en_route: { label: 'Stuck En Route', anchor: 'scheduled_start' },
+    stale_arrived:  { label: 'Stuck Arrived',  anchor: 'scheduled_end'   },
+};
+
+function fmtOverdue(referenceIso) {
+    if (!referenceIso) return '—';
+    const diffMs = Date.now() - new Date(referenceIso).getTime();
+    if (diffMs <= 0) return '—';
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m overdue` : `${m}m overdue`;
+}
+
+// Small warning indicator shown wherever a flagged-but-unresolved booking
+// appears outside the dedicated "Needs Attention" tab.
+function StaleFlagBadge({ booking }) {
+    if (!booking?.is_stale_unresolved) return null;
+    return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-1.5"
+            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#ef4444' }}
+            title={FLAG_REASON_STYLES[booking.flag_reason]?.label ?? 'Needs attention'}>
+            <Siren size={9} /> Needs Attention
+        </span>
+    );
+}
 
 const STATUS_STYLES = {
     pending_payment: { label: 'Awaiting Payment', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',  border: 'rgba(148,163,184,0.25)' },
@@ -89,47 +116,10 @@ function getPayStatus(booking) {
     return 'no_proof';
 }
 
-function getRemainingMs(submittedAt) {
-    if (!submittedAt) return 0;
-    const elapsed = Date.now() - new Date(submittedAt).getTime();
-    return DP_WINDOW_MS - elapsed;
-}
-
 function isRecent(createdAt, hours = 24) {
     if (!createdAt) return false;
     const diff = Date.now() - new Date(createdAt).getTime();
     return diff < hours * 60 * 60 * 1000;
-}
-
-function getUrgency(remainingMs) {
-    if (remainingMs <= 0)               return 'expired';
-    if (remainingMs < 5 * 60 * 1000)   return 'critical';
-    if (remainingMs < 10 * 60 * 1000)  return 'warning';
-    return 'ok';
-}
-
-const URGENCY_STYLES = {
-    ok:       { row: 'rgba(16,185,129,0.03)',   border: 'rgba(16,185,129,0.2)', timer: '#10b981', label: 'OK' },
-    warning:  { row: 'rgba(245,158,11,0.06)',   border: 'rgba(245,158,11,0.35)', timer: '#f59e0b', label: 'Urgent' },
-    critical: { row: 'rgba(239,68,68,0.07)',    border: 'rgba(239,68,68,0.4)',   timer: '#ef4444', label: 'Critical' },
-    expired:  { row: 'rgba(148,163,184,0.04)',  border: 'rgba(148,163,184,0.2)', timer: '#64748b', label: 'Expired' },
-};
-
-function fmtTimer(ms) {
-    if (ms <= 0) return 'EXPIRED';
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function fmtAgo(submittedAt) {
-    if (!submittedAt) return '—';
-    const diffMs = Date.now() - new Date(submittedAt).getTime();
-    const m = Math.floor(diffMs / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    return `${h}h ${m % 60}m ago`;
 }
 
 function getProofUrl(path) {
@@ -173,52 +163,6 @@ function StatCard({ label, value, color, icon: Icon, loading, sub }) {
     );
 }
 
-// ── Live countdown cell ───────────────────────────────────────────────────────
-function CountdownCell({ submittedAt, onExpire }) {
-    const [remaining, setRemaining] = useState(() => getRemainingMs(submittedAt));
-    const expiredFired = useRef(false);
-
-    useEffect(() => {
-        const tick = () => {
-            const r = getRemainingMs(submittedAt);
-            setRemaining(r);
-            if (r <= 0 && !expiredFired.current) {
-                expiredFired.current = true;
-                onExpire?.();
-            }
-        };
-        tick();
-        const id = setInterval(tick, 1000);
-        return () => clearInterval(id);
-    }, [submittedAt]);
-
-    const urgency = getUrgency(remaining);
-    const style = URGENCY_STYLES[urgency];
-    const pct = Math.max(0, Math.min(100, (remaining / DP_WINDOW_MS) * 100));
-
-    if (urgency === 'expired') {
-        return (
-            <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-mono font-bold line-through"
-                    style={{ color: '#64748b' }}>EXPIRED</span>
-            </div>
-        );
-    }
-
-    return (
-        <div className="flex flex-col gap-1 min-w-[72px]">
-            <span className="text-sm font-mono font-bold tabular-nums"
-                style={{ color: style.timer }}>
-                {fmtTimer(remaining)}
-            </span>
-            <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--theme-border)', width: 64 }}>
-                <div className="h-full rounded-full transition-all"
-                    style={{ width: `${pct}%`, background: style.timer, transition: 'width 1s linear' }} />
-            </div>
-        </div>
-    );
-}
-
 // ── Proof Lightbox ────────────────────────────────────────────────────────────
 function ProofLightbox({ url, onClose }) {
     return (
@@ -242,7 +186,7 @@ function ProofLightbox({ url, onClose }) {
 }
 
 // ── Booking Detail Drawer ─────────────────────────────────────────────────────
-function BookingDrawer({ booking, onClose, onVerify, onRefundSent, verifying, refunding }) {
+function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
     const [imgZoom, setImgZoom] = useState(false);
     const [refInput, setRefInput] = useState('');
     const [showRefund, setShowRefund] = useState(false);
@@ -250,8 +194,6 @@ function BookingDrawer({ booking, onClose, onVerify, onRefundSent, verifying, re
     const proofUrl = getProofUrl(booking.downpayment_proof);
     const dpStyle = DP_STYLES[booking.downpayment_status] ?? DP_STYLES.pending;
     const stStyle = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
-    const remainingMs = booking.downpayment_submitted_at ? getRemainingMs(booking.downpayment_submitted_at) : null;
-    const isExpired = remainingMs !== null && remainingMs <= 0;
 
     const Row = ({ icon: Icon, label, value, accent }) => (
         <div className="flex items-start gap-3 py-3 border-b last:border-0"
@@ -298,6 +240,7 @@ function BookingDrawer({ booking, onClose, onVerify, onRefundSent, verifying, re
                     </div>
                     <div className="flex items-center gap-2">
                         <Badge cfg={stStyle} />
+                        <StaleFlagBadge booking={booking} />
                         <button onClick={onClose}
                             className="w-8 h-8 rounded-xl flex items-center justify-center"
                             style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
@@ -306,33 +249,6 @@ function BookingDrawer({ booking, onClose, onVerify, onRefundSent, verifying, re
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-5">
-                    {booking.downpayment_status === 'submitted' && (
-                        <div className="mb-5 p-4 rounded-xl"
-                            style={{ background: isExpired ? 'rgba(148,163,184,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${isExpired ? 'rgba(148,163,184,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    {isExpired ? <AlertTriangle size={14} style={{ color: '#94a3b8' }} /> : <AlertCircle size={14} style={{ color: '#f59e0b' }} />}
-                                    <p className="text-sm font-semibold" style={{ color: isExpired ? '#94a3b8' : '#f59e0b' }}>
-                                        {isExpired ? 'Verification window expired' : 'Proof submitted — needs verification'}
-                                    </p>
-                                </div>
-                                {!isExpired && remainingMs !== null && <CountdownCell submittedAt={booking.downpayment_submitted_at} />}
-                            </div>
-                            {isExpired ? (
-                                <div className="flex items-center gap-2 text-xs py-2 px-3 rounded-lg"
-                                    style={{ background: 'rgba(148,163,184,0.1)', color: '#64748b' }}>
-                                    <AlertTriangle size={12} /> Window closed — verify manually or escalate
-                                </div>
-                            ) : (
-                                <button onClick={() => onVerify(booking.id)} disabled={verifying}
-                                    className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                                    style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#10b981' }}>
-                                    {verifying ? <Loader2 size={14} className="animate-spin" /> : <BadgeCheck size={14} />}
-                                    {verifying ? 'Verifying...' : 'Verify Downpayment'}
-                                </button>
-                            )}
-                        </div>
-                    )}
                     {booking.cancellation_type === 'refunded' && booking.downpayment_status === 'refunded' && (
                         <div className="mb-5 p-4 rounded-xl"
                             style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.25)' }}>
@@ -458,118 +374,103 @@ function Toast({ toast }) {
     );
 }
 
-// ── Active Queue Component (FIFO, live countdown) ───────────────────────────
-function ActiveQueue({ bookings, onVerify, onView, verifyingId }) {
-    const sorted = useMemo(() => {
-        return [...bookings].sort((a, b) => 
-            new Date(a.downpayment_submitted_at) - new Date(b.downpayment_submitted_at)
-        );
-    }, [bookings]);
+// ── Needs Attention Queue (stale active-session review) ─────────────────────
+function NeedsAttentionQueue({ bookings, onComplete, onNoShow, onCancel, resolvingId, onView }) {
+    const [cancelOpenFor, setCancelOpenFor] = useState(null);
+    const [cancelReason, setCancelReason] = useState('');
 
-    if (!sorted.length) return (
+    if (!bookings.length) return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
                 <CheckCircle2 size={22} style={{ color: '#10b981' }} />
             </div>
-            <div className="text-center"><p className="font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>Queue is clear</p>
-            <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>All active verifications completed.</p></div>
+            <div className="text-center"><p className="font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>Nothing needs attention</p>
+            <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>No active sessions are stuck past their expected window.</p></div>
         </div>
     );
 
     return (
         <div>
-            <div className="flex items-center gap-3 px-5 py-3 border-b flex-wrap" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
-                <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--theme-text-muted)' }}>
-                    <ArrowUp size={12} style={{ color: '#f59e0b' }} />
-                    <span style={{ color: 'var(--theme-text-2)' }}>FIFO order</span> · oldest first · 30-min window
-                </div>
-                <div className="ml-auto text-xs" style={{ color: 'var(--theme-text-muted)' }}>{sorted.length} active</div>
-            </div>
-            <div className="grid gap-3 px-5 py-2.5 text-[10px] uppercase tracking-widest font-bold border-b"
-                style={{ gridTemplateColumns: '24px 1fr 90px 100px 90px 90px 80px', borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)', background: 'var(--theme-bg)' }}>
-                <span>#</span><span>Customer / Service</span><span>Ref</span><span>Amount</span><span>Submitted</span><span>Expires in</span><span></span>
+            <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: 'var(--theme-border)', background: 'rgba(239,68,68,0.03)' }}>
+                <Siren size={12} style={{ color: '#ef4444' }} />
+                <span className="text-xs" style={{ color: '#ef4444' }}>Stuck in an active session status well past the expected window. Review and resolve each.</span>
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
-                {sorted.map((b, idx) => {
-                    const remaining = getRemainingMs(b.downpayment_submitted_at);
-                    const urgency = getUrgency(remaining);
-                    const ustyle = URGENCY_STYLES[urgency];
-                    const isVerifying = verifyingId === b.id;
+                {bookings.map(b => {
+                    const isResolving = resolvingId === b.id;
+                    const reasonMeta = FLAG_REASON_STYLES[b.flag_reason] ?? { label: b.flag_reason, anchor: 'scheduled_end' };
+                    const overdueRef = b[reasonMeta.anchor];
+                    const cancelOpen = cancelOpenFor === b.id;
+
                     return (
-                        <motion.div key={b.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                            className="grid gap-3 px-5 py-3.5 items-center transition-colors"
-                            style={{ gridTemplateColumns: '24px 1fr 90px 100px 90px 90px 80px', background: ustyle.row, borderLeft: `3px solid ${ustyle.border}` }}>
-                            <div className="text-[11px] font-bold text-center" style={{ color: idx === 0 ? '#f59e0b' : 'var(--theme-text-muted)' }}>{idx + 1}</div>
-                            <div><p className="text-sm font-semibold leading-tight" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name}</p>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.service_name}</p></div>
-                            <span className="font-mono text-xs" style={{ color: '#e2b764' }}>{b.ref}</span>
-                            <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span>
-                            <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{fmtAgo(b.downpayment_submitted_at)}</span>
-                            <CountdownCell submittedAt={b.downpayment_submitted_at} />
-                            <div className="flex items-center gap-1.5">
-                                <button onClick={() => onVerify(b.id)} disabled={isVerifying}
-                                    className="text-[11px] px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all disabled:opacity-50"
-                                    style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>
-                                    {isVerifying ? <Loader2 size={10} className="animate-spin" /> : <BadgeCheck size={10} />}
-                                    {isVerifying ? '...' : 'Verify'}
-                                </button>
-                                <button onClick={() => onView(b)} className="w-7 h-7 rounded-lg flex items-center justify-center"
-                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
-                                    <Eye size={11} />
-                                </button>
+                        <div key={b.id} className="px-5 py-4" style={{ background: 'rgba(239,68,68,0.02)' }}>
+                            <div className="flex flex-wrap items-center gap-3 justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-bold" style={{ color: '#e2b764' }}>{b.ref}</span>
+                                        <Badge cfg={STATUS_STYLES[b.status]} />
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                            {reasonMeta.label}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm font-semibold mt-1" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name} · {b.therapist_name}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.service_name} · Scheduled end {b.scheduled_end_fmt ?? '—'}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-sm font-bold" style={{ color: '#ef4444' }}>{fmtOverdue(overdueRef)}</p>
+                                    <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>flagged {b.flagged_at_fmt}</p>
+                                </div>
                             </div>
-                        </motion.div>
+
+                            {!cancelOpen ? (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    <button onClick={() => onComplete(b.id)} disabled={isResolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 transition-all"
+                                        style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                        {isResolving ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />} Mark Completed
+                                    </button>
+                                    <button onClick={() => onNoShow(b.id)} disabled={isResolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 transition-all"
+                                        style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+                                        {isResolving ? <Loader2 size={11} className="animate-spin" /> : <UserX size={11} />} Mark No-show
+                                    </button>
+                                    <button onClick={() => { setCancelOpenFor(b.id); setCancelReason(''); }} disabled={isResolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 transition-all"
+                                        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                                        <Ban size={11} /> Cancel
+                                    </button>
+                                    <button onClick={() => onView(b)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto"
+                                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
+                                        <Eye size={11} /> View
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="mt-3 space-y-2">
+                                    <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)}
+                                        placeholder="Reason for cancelling..." rows={2}
+                                        className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                                        style={{ background: 'var(--theme-input-bg, #141d33)', border: '1px solid var(--theme-border)', color: 'var(--theme-text)' }} />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setCancelOpenFor(null); setCancelReason(''); }}
+                                            className="px-3 py-2 rounded-xl text-xs font-medium"
+                                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
+                                            Back
+                                        </button>
+                                        <button onClick={() => { onCancel(b.id, cancelReason); setCancelOpenFor(null); }}
+                                            disabled={!cancelReason.trim() || isResolving}
+                                            className="flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
+                                            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                                            {isResolving ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                                            Confirm Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     );
                 })}
-            </div>
-        </div>
-    );
-}
-
-// ── Expired Queue Component ─────────────────────────────────────────────────
-function ExpiredQueue({ bookings, onView }) {
-    const sorted = useMemo(() => {
-        return [...bookings].sort((a, b) => 
-            new Date(b.downpayment_submitted_at) - new Date(a.downpayment_submitted_at)
-        );
-    }, [bookings]);
-
-    if (!sorted.length) return (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.15)' }}>
-                <Archive size={22} style={{ color: '#64748b' }} />
-            </div>
-            <div className="text-center"><p className="font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>No expired bookings</p>
-            <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>All verifications completed within window.</p></div>
-        </div>
-    );
-
-    return (
-        <div>
-            <div className="flex items-center gap-3 px-5 py-3 border-b" style={{ borderColor: 'var(--theme-border)', background: 'rgba(148,163,184,0.03)' }}>
-                <AlertTriangle size={12} style={{ color: '#64748b' }} />
-                <span className="text-xs" style={{ color: '#64748b' }}>These bookings exceeded the 30-minute verification window. Manual review required.</span>
-            </div>
-            <div className="grid gap-3 px-5 py-2.5 text-[10px] uppercase tracking-widest font-bold border-b"
-                style={{ gridTemplateColumns: '1fr 90px 100px 90px 90px 80px', borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)', background: 'var(--theme-bg)' }}>
-                <span>Customer / Service</span><span>Ref</span><span>Amount</span><span>Submitted</span><span>Expired</span><span></span>
-            </div>
-            <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
-                {sorted.map((b) => (
-                    <div key={b.id} className="grid gap-3 px-5 py-3.5 items-center opacity-70"
-                        style={{ gridTemplateColumns: '1fr 90px 100px 90px 90px 80px', background: 'rgba(148,163,184,0.02)' }}>
-                        <div><p className="text-sm font-semibold leading-tight" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.service_name}</p></div>
-                        <span className="font-mono text-xs" style={{ color: '#e2b764', opacity: 0.6 }}>{b.ref}</span>
-                        <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span>
-                        <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{fmtAgo(b.downpayment_submitted_at)}</span>
-                        <span className="text-xs font-mono" style={{ color: '#64748b' }}>EXPIRED</span>
-                        <button onClick={() => onView(b)} className="text-[11px] px-2.5 py-1.5 rounded-lg font-medium flex items-center gap-1"
-                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
-                            <Eye size={10} /> Review
-                        </button>
-                    </div>
-                ))}
             </div>
         </div>
     );
@@ -662,7 +563,7 @@ function AllBookingsTable({ bookings, loading, onView, currentPage, totalPages, 
                                 <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.therapist_name}</p></td>
                                 <td className="px-4 py-3 whitespace-nowrap"><span className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span></td>
                                 <td className="px-4 py-3"><Badge cfg={PAY_STATUS_STYLES[getPayStatus(b)]} /></td>
-                                <td className="px-4 py-3"><Badge cfg={STATUS_STYLES[b.status]} /></td>
+                                <td className="px-4 py-3"><div className="flex items-center flex-wrap"><Badge cfg={STATUS_STYLES[b.status]} /><StaleFlagBadge booking={b} /></div></td>
                                 <td className="px-4 py-3"><button onClick={() => onView(b)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" style={{ background: 'rgba(226,183,100,0.08)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.2)' }}><Eye size={11} /> View</button></td>
                             </tr>
                         ))}
@@ -735,18 +636,18 @@ function GenericTableView({ bookings, loading, onView, viewKey, search, onClearS
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function BookingsManager() {
-    const [activeView, setActiveView] = useState('activeQueue');
+    const [activeView, setActiveView] = useState('needsAttention');
     const [allBookings, setAllBookings] = useState([]);
-    const [verifyQueue, setVerifyQueue] = useState([]);
     const [refundQueue, setRefundQueue] = useState([]);
     const [cancelledHist, setCancelledHist] = useState([]);
+    const [staleQueue, setStaleQueue] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState(null);
-    const [verifyingId, setVerifyingId] = useState(null);
     const [refunding, setRefunding] = useState(false);
+    const [resolvingId, setResolvingId] = useState(null);
     const [toast, setToast] = useState(null);
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -761,16 +662,16 @@ export default function BookingsManager() {
     const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
-            const [all, verify, refunds, cancelled] = await Promise.all([
+            const [all, refunds, cancelled, stale] = await Promise.all([
                 apiFetch('/admin/api/bookings'),
-                apiFetch('/admin/api/bookings/verification'),
                 apiFetch('/admin/api/bookings/pending-refunds'),
                 apiFetch('/admin/api/bookings/cancelled-history'),
+                apiFetch('/admin/api/bookings/stale'),
             ]);
             setAllBookings(all);
-            setVerifyQueue(verify);
             setRefundQueue(refunds);
             setCancelledHist(cancelled);
+            setStaleQueue(stale);
             // Calculate total pages for client-side pagination
             setTotalPages(Math.ceil(all.length / itemsPerPage));
         } catch {
@@ -804,28 +705,65 @@ export default function BookingsManager() {
     const patchBooking = (id, patch) => {
         const p = prev => prev.map(b => b.id === id ? { ...b, ...patch } : b);
         setAllBookings(p);
-        setVerifyQueue(prev => prev.filter(b => b.id !== id));
         setRefundQueue(p);
         setCancelledHist(p);
         setSelected(prev => prev?.id === id ? { ...prev, ...patch } : prev);
     };
 
-    const handleVerify = async (bookingId) => {
-        setVerifyingId(bookingId);
+    // A resolution action always sets resolved_at, so the booking should
+    // disappear from the Needs Attention queue regardless of which action
+    // it took (unlike patchBooking's other queues, this one only ever removes).
+    const resolveStaleLocally = (id, patch) => {
+        patchBooking(id, patch);
+        setStaleQueue(prev => prev.filter(b => b.id !== id));
+    };
+
+    const handleResolveComplete = async (bookingId) => {
+        setResolvingId(bookingId);
         try {
-            const data = await apiFetch('/admin/api/bookings/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ booking_id: bookingId }),
-            });
-            patchBooking(bookingId, data.booking);
-            showToast('Downpayment verified! ✅');
+            const data = await apiFetch(`/admin/api/bookings/stale/${bookingId}/complete`, { method: 'POST' });
+            resolveStaleLocally(bookingId, data.booking);
+            showToast('Booking marked completed ✅');
             fetchStats();
         } catch (e) {
             showToast(e.message, 'error');
             fetchAll();
         } finally {
-            setVerifyingId(null);
+            setResolvingId(null);
+        }
+    };
+
+    const handleResolveNoShow = async (bookingId) => {
+        setResolvingId(bookingId);
+        try {
+            const data = await apiFetch(`/admin/api/bookings/stale/${bookingId}/no-show`, { method: 'POST' });
+            resolveStaleLocally(bookingId, data.booking);
+            showToast('Booking marked as no-show ✅');
+            fetchStats();
+        } catch (e) {
+            showToast(e.message, 'error');
+            fetchAll();
+        } finally {
+            setResolvingId(null);
+        }
+    };
+
+    const handleResolveCancel = async (bookingId, reason) => {
+        setResolvingId(bookingId);
+        try {
+            const data = await apiFetch(`/admin/api/bookings/stale/${bookingId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason }),
+            });
+            resolveStaleLocally(bookingId, data.booking);
+            showToast('Booking cancelled ✅');
+            fetchStats();
+        } catch (e) {
+            showToast(e.message, 'error');
+            fetchAll();
+        } finally {
+            setResolvingId(null);
         }
     };
 
@@ -847,15 +785,6 @@ export default function BookingsManager() {
         }
     };
 
-    // Split verification queue into active and expired
-    const activeQueue = useMemo(() => {
-        return verifyQueue.filter(b => getRemainingMs(b.downpayment_submitted_at) > 0);
-    }, [verifyQueue]);
-
-    const expiredQueue = useMemo(() => {
-        return verifyQueue.filter(b => getRemainingMs(b.downpayment_submitted_at) <= 0);
-    }, [verifyQueue]);
-
     // Paginated all bookings
     const paginatedAllBookings = useMemo(() => {
         const start = (currentPage - 1) * itemsPerPage;
@@ -876,8 +805,7 @@ export default function BookingsManager() {
     }, [activeView, refundQueue, cancelledHist, search]);
 
     const badgeCounts = {
-        activeQueue: activeQueue.length,
-        expiredQueue: expiredQueue.length,
+        needsAttention: staleQueue.length,
         refunds: refundQueue.length,
     };
 
@@ -885,11 +813,10 @@ export default function BookingsManager() {
         <AdminLayout title="Bookings Manager">
             <div className="space-y-5">
                 {/* Stats */}
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                     {[
                         { label: 'Total', value: stats?.total_bookings, color: '#e2b764', icon: Receipt, sub: 'all time' },
-                        { label: 'Active Queue', value: activeQueue.length, color: '#ef4444', icon: Flame, sub: `${activeQueue.filter(b => getRemainingMs(b.downpayment_submitted_at) < 5 * 60 * 1000).length} critical` },
-                        { label: 'Expired', value: expiredQueue.length, color: '#64748b', icon: AlertTriangle, sub: 'needs review' },
+                        { label: 'Needs Attention', value: staleQueue.length, color: '#ef4444', icon: Siren, sub: 'stale sessions' },
                         { label: 'Refund Queue', value: stats?.pending_refunds, color: '#3b82f6', icon: RotateCcw, sub: 'to process' },
                         { label: 'Completed Today', value: stats?.completed_today, color: '#10b981', icon: CheckCircle2, sub: 'done' },
                         { label: 'Revenue Today', value: stats?.revenue_today ? `AED ${Number(stats.revenue_today).toLocaleString()}` : 'AED 0', color: '#e2b764', icon: TrendingUp, sub: 'collected' },
@@ -930,11 +857,15 @@ export default function BookingsManager() {
                     </div>
 
                     {/* View Content */}
-                    {activeView === 'activeQueue' && (
-                        <ActiveQueue bookings={activeQueue} onVerify={handleVerify} onView={setSelected} verifyingId={verifyingId} />
-                    )}
-                    {activeView === 'expiredQueue' && (
-                        <ExpiredQueue bookings={expiredQueue} onView={setSelected} />
+                    {activeView === 'needsAttention' && (
+                        <NeedsAttentionQueue
+                            bookings={staleQueue}
+                            onComplete={handleResolveComplete}
+                            onNoShow={handleResolveNoShow}
+                            onCancel={handleResolveCancel}
+                            resolvingId={resolvingId}
+                            onView={setSelected}
+                        />
                     )}
                     {activeView === 'all' && (
                         <>
@@ -968,7 +899,7 @@ export default function BookingsManager() {
                 </div>
             </div>
 
-            <AnimatePresence>{selected && <BookingDrawer booking={selected} onClose={() => setSelected(null)} onVerify={handleVerify} onRefundSent={handleRefundSent} verifying={verifyingId === selected?.id} refunding={refunding} />}</AnimatePresence>
+            <AnimatePresence>{selected && <BookingDrawer booking={selected} onClose={() => setSelected(null)} onRefundSent={handleRefundSent} refunding={refunding} />}</AnimatePresence>
             <AnimatePresence>{toast && <Toast toast={toast} />}</AnimatePresence>
         </AdminLayout>
     );

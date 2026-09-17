@@ -9,7 +9,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('services', function (Blueprint $table) {
-            $table->string('image')->nullable()->after('description');
             // Soft "archive" instead of hard delete — keeps history/report integrity intact.
             $table->timestamp('archived_at')->nullable()->after('is_active');
         });
@@ -30,7 +29,7 @@ return new class extends Migration
         });
 
         Schema::table('services', function (Blueprint $table) {
-            $table->dropColumn(['image', 'archived_at']);
+            $table->dropColumn('archived_at');
         });
     }
 };
