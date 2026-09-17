@@ -380,14 +380,26 @@ export default function Dashboard() {
                                                 style={{ borderColor: 'var(--theme-border)' }}>
                                                 <time className="pt-0.5 font-mono text-xs" style={{ color: meta.color }}>{fmtTime(booking.scheduled_start)}</time>
                                                 <span className={`mt-1.5 h-2 w-2 rounded-full ${meta.pulse ? 'animate-pulse' : ''}`} style={{ background: meta.color }} />
-                                                <div>
-                                                    <div className="text-xs" style={{ color: meta.color }}>
-                                                        {booking.status === 'completed' && <CheckCircle2 className="mr-1 inline h-3 w-3" />}
-                                                        {meta.label}
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs" style={{ color: meta.color }}>
+                                                            {booking.status === 'completed' && <CheckCircle2 className="mr-1 inline h-3 w-3" />}
+                                                            {meta.label}
+                                                        </div>
+                                                        <p className="mt-0.5 text-sm" style={{ color: 'var(--theme-text-head)' }}>
+                                                            {booking.customer?.name ?? '—'} — {booking.service?.name ?? '—'}
+                                                        </p>
                                                     </div>
-                                                    <p className="mt-0.5 text-sm" style={{ color: 'var(--theme-text-head)' }}>
-                                                        {booking.customer?.name ?? '—'} — {booking.service?.name ?? '—'}
-                                                    </p>
+                                                    {booking.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => setSelectedBooking(booking)}
+                                                            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold hover:opacity-80 transition-opacity"
+                                                            style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}
+                                                        >
+                                                            <Eye size={11} />
+                                                            Review request
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </li>
                                         );

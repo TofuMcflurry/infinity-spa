@@ -155,6 +155,15 @@ function bookingCode(id) {
     return `IHS-${String(id).padStart(4, '0')}`;
 }
 
+// Minutes between two timestamps — used for Duration/Buffer, both of which
+// are computed once at booking creation (Booking::computeTimeBlocks) and
+// stored as plain timestamps, not a minutes column.
+function diffMinutes(startStr, endStr) {
+    if (!startStr || !endStr) return null;
+    const diff = (new Date(endStr) - new Date(startStr)) / 60000;
+    return Number.isFinite(diff) ? Math.round(diff) : null;
+}
+
 // ── Compute a single payment status per booking ──────────────────────────────
 // Priority: voucher-covered → Stripe paid → awaiting Stripe checkout →
 // legacy manual-verification labels (bookings that predate Stripe).
@@ -317,6 +326,14 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
     const paymentStatus = getPaymentStatus(booking);
 
+    // Duration and buffer are both derived from stored timestamps rather
+    // than a "minutes" column — see diffMinutes(). Buffer is reliable: every
+    // booking is created via Booking::computeTimeBlocks() with a fixed
+    // 30-minute default that's never overridden, so scheduled_end→buffer_end
+    // is a true reflection of what was actually stored, not an estimate.
+    const durationMinutes = booking.service_variant?.duration_minutes ?? booking.service?.duration_minutes ?? null;
+    const bufferMinutes   = diffMinutes(booking.scheduled_end, booking.buffer_end);
+
     const section = (title, children) => (
         <div className="mb-5">
             <p className="text-[10px] uppercase tracking-widest font-bold mb-3 px-1" style={{ color: '#e2b764' }}>
@@ -468,11 +485,17 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                     </>)}
 
                     {section('Schedule', <>
-                        <DetailRow icon={Calendar} label="Date" value={fmtDate(booking.scheduled_start)} accent="#3b82f6" />
-                        <DetailRow icon={Clock}    label="Time" value={`${fmtTime(booking.scheduled_start)}${booking.scheduled_end ? ` – ${fmtTime(booking.scheduled_end)}` : ''}`} accent="#8b5cf6" />
-                        {booking.travel_time_minutes && (
-                            <DetailRow icon={Car} label="Est. Travel Time" value={`${booking.travel_time_minutes} min`} accent="#f59e0b" />
-                        )}
+                        <DetailRow icon={Calendar}    label="Date"     value={fmtDate(booking.scheduled_start)} accent="#3b82f6" />
+                        <DetailRow icon={Clock}        label="Time"     value={`${fmtTime(booking.scheduled_start)}${booking.scheduled_end ? ` – ${fmtTime(booking.scheduled_end)}` : ''}`} accent="#8b5cf6" />
+                        <DetailRow icon={Clock}        label="Duration" value={durationMinutes ? `${durationMinutes} min` : '—'} accent="#e2b764" />
+                        <DetailRow icon={Hourglass}    label="Buffer After Session" value={bufferMinutes != null ? `${bufferMinutes} min` : '—'} accent="#8b5cf6" />
+                        {/* Travel time can't be shown as a number here — travel_start reflects
+                            whatever Therapist::getTravelTime() computed at booking creation, but
+                            there's no stored flag distinguishing the therapist's configured zone
+                            time from the silent 30-min fallback, and even the therapist's current
+                            zone list can't prove what was used historically (zones can change).
+                            Flag it instead of guessing. */}
+                        <DetailRow icon={AlertCircle} label="Travel Time" value="Not shown — can't confirm this matches your configured zone time" accent="#94a3b8" />
                     </>)}
 
                     {section('Location', <>
@@ -483,14 +506,44 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                     </>)}
 
                     {section('Payment Breakdown', <>
-                        <DetailRow icon={Building2}  label="Service"       value={booking.service?.name}  accent="#e2b764" />
-                        <DetailRow icon={Banknote}   label="Service Price" value={servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'} accent="#10b981" />
-                        {booking.downpayment != null && (
-                            <DetailRow icon={CreditCard} label="Downpayment" value={`AED ${Number(booking.downpayment).toFixed(2)}`} accent="#f59e0b" />
-                        )}
-                        {servicePrice != null && booking.downpayment != null && (
-                            <DetailRow icon={Banknote} label="Balance Due" value={`AED ${(Number(servicePrice) - Number(booking.downpayment)).toFixed(2)}`} accent="#8b5cf6" />
-                        )}
+                        <DetailRow icon={Building2}   label="Service"       value={booking.service?.name}  accent="#e2b764" />
+                        <DetailRow icon={Banknote}     label="Service Price" value={servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'} accent="#10b981" />
+                        {/* payment_method is a label, not the actual collection path — every
+                            non-voucher booking is charged through Stripe regardless of what
+                            was picked at booking time, so say so rather than imply cash means
+                            pay-on-arrival. */}
+                        <DetailRow
+                            icon={CreditCard}
+                            label="Payment Method"
+                            value={booking.is_voucher_covered
+                                ? 'Voucher — no charge'
+                                : `${booking.payment_method === 'cash' ? 'Cash' : 'Cashless'} — charged via Stripe`}
+                            accent="#3b82f6"
+                        />
+                        <DetailRow
+                            icon={ClipboardList}
+                            label="Payment Type"
+                            value={booking.payment_type === 'full' ? 'Full payment' : 'Deposit (partial payment)'}
+                            accent="#8b5cf6"
+                        />
+                        <DetailRow
+                            icon={CheckCircle2}
+                            label="Paid Amount"
+                            value={booking.is_voucher_covered
+                                ? 'AED 0.00 — covered by voucher'
+                                : booking.paid_amount != null
+                                    ? `AED ${Number(booking.paid_amount).toFixed(2)}`
+                                    : 'Not yet paid'}
+                            accent="#10b981"
+                        />
+                        <DetailRow
+                            icon={Banknote}
+                            label="Remaining Balance"
+                            value={Number(booking.remaining_amount ?? 0) > 0
+                                ? `AED ${Number(booking.remaining_amount).toFixed(2)}`
+                                : 'None — fully paid'}
+                            accent="#f59e0b"
+                        />
                         <div className="py-2.5 flex items-center justify-between">
                             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Payment Status</p>
                             <PaymentBadge status={paymentStatus} />

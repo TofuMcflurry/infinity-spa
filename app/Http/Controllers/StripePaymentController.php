@@ -119,12 +119,19 @@ class StripePaymentController extends Controller
                 return response()->json(['status' => 'ok']);
             }
 
-            $booking->update([
+            // Payment confirmation is not therapist approval. Only advance
+            // 'pending_payment' -> 'pending' (awaiting the therapist's
+            // decision) — if the therapist already accepted/rejected this
+            // booking while payment was still in flight, don't clobber that.
+            $statusUpdate = $booking->status === 'pending_payment'
+                ? ['status' => 'pending']
+                : [];
+
+            $booking->update(array_merge([
                 'payment_status'            => 'paid',
                 'paid_amount'               => $session->amount_total / 100,
                 'stripe_payment_intent_id'  => $session->payment_intent,
-                'status'                    => 'accepted',
-            ]);
+            ], $statusUpdate));
 
             Log::info('Stripe webhook: payment confirmed', [
                 'booking_id'   => $booking->id,

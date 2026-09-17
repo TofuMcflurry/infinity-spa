@@ -302,9 +302,10 @@ class BookingController extends Controller
             'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
             'payment_type'       => $request->input('payment_type', 'downpayment'),
             // A voucher-covered booking has nothing to pay via Stripe, so it
-            // skips 'pending_payment' and is marked paid/accepted immediately —
+            // skips 'pending_payment' and is marked paid immediately — but
+            // still awaits therapist approval like any other paid booking,
             // the same end state the Stripe webhook reaches for a paid booking.
-            'status'             => $isVoucherCovered ? 'accepted' : 'pending_payment',
+            'status'             => $isVoucherCovered ? 'pending' : 'pending_payment',
             'downpayment_amount' => $downpaymentAmount,
             'remaining_amount'   => $remainingAmount,
             'downpayment_status' => 'pending',

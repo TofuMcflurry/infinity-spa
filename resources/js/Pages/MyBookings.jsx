@@ -55,9 +55,9 @@ const CANCEL_REASONS = [
 // ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
     const config = {
-        accepted:        { label: 'Upcoming',         bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.3)',  color: '#10b981' },
-        pending:         { label: 'Pending',          bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
-        pending_payment: { label: 'Awaiting Payment', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
+        accepted:        { label: 'Confirmed',          bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.3)',  color: '#10b981' },
+        pending:         { label: 'Awaiting Therapist', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
+        pending_payment: { label: 'Awaiting Payment',   bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
         completed:       { label: 'Completed',        bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.3)',  color: '#60a5fa' },
         rejected:        { label: 'Rejected',         bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: '#f87171' },
         cancelled:       { label: 'Cancelled',        bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: '#f87171' },
@@ -468,8 +468,11 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
                 </div>
             </div>
 
-            {/* Downpayment status bar */}
-            {tab === 'pending' && !booking.is_voucher_covered && booking.downpayment_status && (
+            {/* Downpayment status bar — only relevant while payment itself is
+                still outstanding. Once payment_status is 'paid' (Stripe or
+                voucher), this booking is awaiting therapist confirmation, not
+                money, so the bar below takes over instead. */}
+            {tab === 'pending' && !booking.is_voucher_covered && booking.payment_status !== 'paid' && booking.downpayment_status && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
                     style={{
                         background: booking.downpayment_status === 'verified'
@@ -497,6 +500,15 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
                             AED {booking.downpayment_amount}
                         </span>
                     )}
+                </div>
+            )}
+
+            {/* Payment settled (Stripe or voucher), just waiting on the
+                therapist to accept/reject. */}
+            {tab === 'pending' && booking.status === 'pending' && (booking.payment_status === 'paid' || booking.is_voucher_covered) && (
+                <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
+                    style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)' }}>
+                    <span style={{ color: '#60a5fa' }}>⏳ Awaiting therapist confirmation</span>
                 </div>
             )}
 
