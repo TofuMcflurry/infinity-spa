@@ -1,17 +1,17 @@
 import TherapistLayout from '@/Layouts/TherapistLayout';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePage } from '@inertiajs/react';
+import { usePage, Link } from '@inertiajs/react';
 import {
     Calendar, ClipboardList, Star, Banknote,
     MapPin, Phone, Eye, Clock3, ChevronRight,
     CircleDollarSign, CheckCircle2, AlertCircle,
-    Sparkles, Loader2, PlayCircle,
+    Sparkles, Loader2, PlayCircle, XCircle, CalendarClock,
 } from 'lucide-react';
-import { isToday, fmtDate, fmtTime, fmtDateTime } from '@/lib/utils';
+import { isToday, fmtDate, fmtTime, fmtDateTime, DUBAI_TZ } from '@/lib/utils';
 
 import { Button } from '@/Components/ui/button';
-import { BookingModal } from '@/Pages/Therapist/Bookings';
+import { BookingModal, BookingReviewModal } from '@/Pages/Therapist/Bookings';
 
 // ── CSRF + API helper — same pattern as Dashboard.jsx / Bookings.jsx ───────────
 function getCsrf() {
@@ -61,8 +61,24 @@ function timelineMeta(status) {
         case 'arrived':             return { label: 'Now',      color: '#e2b764', pulse: true  };
         case 'accepted':            return { label: 'Upcoming', color: 'var(--theme-text-muted)', pulse: false };
         case 'pending':             return { label: 'Pending',  color: '#f59e0b', pulse: false };
+        case 'pending_payment':     return { label: 'Awaiting Payment', color: '#f59e0b', pulse: false };
         default:                    return { label: status,     color: 'var(--theme-text-muted)', pulse: false };
     }
+}
+
+// "Today" / "Tomorrow" / "Sep 24" — used by Pending Approval and Upcoming
+// Bookings, both of which span multiple future dates unlike Today's Timeline.
+function relativeDayLabel(dateStr) {
+    if (!dateStr) return '—';
+    if (isToday(dateStr)) return 'Today';
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDubai = new Intl.DateTimeFormat('en-CA', { timeZone: DUBAI_TZ }).format(tomorrow);
+    const targetDubai = new Intl.DateTimeFormat('en-CA', { timeZone: DUBAI_TZ }).format(new Date(dateStr));
+    if (targetDubai === tomorrowDubai) return 'Tomorrow';
+
+    return new Date(dateStr).toLocaleDateString('en-US', { timeZone: DUBAI_TZ, month: 'short', day: 'numeric' });
 }
 
 // Active Session card's primary CTA — swaps by real status so the therapist
@@ -118,7 +134,9 @@ export default function Dashboard() {
 
     const fetchBookings = useCallback(() => {
         setLoading(true);
-        apiFetch('/therapist/api/bookings?status=pending,accepted,en_route,arrived&per_page=100')
+        // pending_payment is still therapist-actionable (accept/reject) — see
+        // Bookings.jsx TAB_STATUSES.pending — so it belongs in this fetch too.
+        apiFetch('/therapist/api/bookings?status=pending,pending_payment,accepted,en_route,arrived&per_page=100')
             .then(data => setBookings(data.data || []))
             .catch(console.error)
             .finally(() => setLoading(false));
@@ -223,15 +241,30 @@ export default function Dashboard() {
     const anyActiveBooking = bookings.find(b => ['en_route', 'arrived'].includes(b.status)) ?? null;
     const hasActiveSession = !!anyActiveBooking;
 
-    const upcomingBookings = bookings
+    const todaysAccepted = bookings
         .filter(b => b.status === 'accepted' && isToday(b.scheduled_start))
         .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
 
-    const nextAccepted = upcomingBookings[0] ?? null;
+    const nextAccepted = todaysAccepted[0] ?? null;
 
     const todaysTimeline = bookings
         .filter(b => isToday(b.scheduled_start))
         .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+
+    // ── Pending Approval — anything still awaiting a therapist decision,
+    // regardless of date. Earliest-scheduled first so a same-day request
+    // never gets buried under one scheduled weeks out.
+    const pendingApproval = bookings
+        .filter(b => ['pending', 'pending_payment'].includes(b.status))
+        .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+    const pendingPreview = pendingApproval.slice(0, 5);
+
+    // ── Upcoming Bookings — confirmed sessions after today. Today's own
+    // accepted bookings live in Today's Timeline instead, not here.
+    const upcomingBookings = bookings
+        .filter(b => b.status === 'accepted' && !isToday(b.scheduled_start))
+        .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+    const upcomingPreview = upcomingBookings.slice(0, 5);
 
     // Booking the Active Session card (and Quick Actions' Contact/View details) act on —
     // widened from just en_route/arrived to also cover an accepted-but-not-started booking,
@@ -358,6 +391,97 @@ export default function Dashboard() {
                             )}
                         </section>
 
+                        {/* ── Pending Approval — highest-priority section besides Active Session.
+                            "Action required, not an error" styling: gold left rail + amber badges,
+                            same color language as STATUS_CONFIG.pending in Bookings.jsx, never red. ── */}
+                        <section className="relative overflow-hidden rounded-lg border p-5 sm:p-6"
+                            style={{ borderColor: 'rgba(245,158,11,0.35)', background: 'var(--theme-card)' }}>
+                            <div className="absolute inset-y-0 left-0 w-1" style={{ background: '#f59e0b' }} />
+
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <ClipboardList size={18} style={{ color: '#f59e0b' }} />
+                                    <h2 className="font-display text-2xl" style={{ color: 'var(--theme-text-head)' }}>Pending Approval</h2>
+                                    {pendingApproval.length > 0 && (
+                                        <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                            style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                                            {pendingApproval.length}
+                                        </span>
+                                    )}
+                                </div>
+                                {pendingApproval.length > pendingPreview.length && (
+                                    <Link href="/therapist/bookings?tab=pending"
+                                        className="flex-shrink-0 flex items-center gap-0.5 text-xs font-semibold hover:opacity-80 transition-opacity"
+                                        style={{ color: '#f59e0b' }}>
+                                        View All Pending <ChevronRight size={14} />
+                                    </Link>
+                                )}
+                            </div>
+
+                            {loading ? (
+                                <div className="space-y-2">
+                                    {[0, 1].map(i => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />)}
+                                </div>
+                            ) : pendingPreview.length === 0 ? (
+                                <p className="py-6 text-center text-sm" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Nothing waiting on you — you're all caught up
+                                </p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {pendingPreview.map(booking => {
+                                        const duration = booking.service_variant?.duration_minutes ?? booking.service?.duration_minutes ?? null;
+                                        const zone = getZone(booking);
+                                        const isAccepting = actionLoading === `${booking.id}-accept`;
+                                        return (
+                                            <li key={booking.id} className="flex items-center gap-3 rounded-xl border p-3"
+                                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
+                                                <div className="flex-shrink-0 w-16 text-center">
+                                                    <p className="font-mono text-[10px] uppercase" style={{ color: 'var(--theme-text-muted)' }}>
+                                                        {relativeDayLabel(booking.scheduled_start)}
+                                                    </p>
+                                                    <p className="font-mono text-xs font-semibold" style={{ color: '#f59e0b' }}>
+                                                        {fmtTime(booking.scheduled_start)}
+                                                    </p>
+                                                </div>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--theme-text-head)' }}>
+                                                        {booking.service?.name ?? '—'}
+                                                    </p>
+                                                    <p className="mt-0.5 text-xs truncate" style={{ color: 'var(--theme-text-muted)' }}>
+                                                        {booking.customer?.name ?? 'Client'}
+                                                        {duration ? ` · ${duration} min` : ''}
+                                                        {zone ? ` · ${zone}` : ''}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex-shrink-0 flex items-center gap-1.5">
+                                                    <button
+                                                        onClick={() => handleAction(booking.id, 'accept')}
+                                                        disabled={!!actionLoading}
+                                                        title="Accept booking"
+                                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                                        style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', opacity: actionLoading && !isAccepting ? 0.5 : 1 }}
+                                                    >
+                                                        {isAccepting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedBooking(booking)}
+                                                        disabled={!!actionLoading}
+                                                        title="Review or decline"
+                                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                                        style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-muted)', opacity: actionLoading && !isAccepting ? 0.5 : 1 }}
+                                                    >
+                                                        <XCircle size={14} />
+                                                    </button>
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                        </section>
+
                         {/* ── Today's Timeline — built client-side from fetched bookings ── */}
                         <section className="rounded-lg border p-5 backdrop-blur-xl sm:p-6"
                             style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
@@ -390,7 +514,7 @@ export default function Dashboard() {
                                                             {booking.customer?.name ?? '—'} — {booking.service?.name ?? '—'}
                                                         </p>
                                                     </div>
-                                                    {booking.status === 'pending' && (
+                                                    {['pending', 'pending_payment'].includes(booking.status) && (
                                                         <button
                                                             onClick={() => setSelectedBooking(booking)}
                                                             className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold hover:opacity-80 transition-opacity"
@@ -405,6 +529,67 @@ export default function Dashboard() {
                                         );
                                     })}
                                 </ol>
+                            )}
+                        </section>
+
+                        {/* ── Upcoming Bookings — confirmed sessions after today. A preview
+                            list only, not a calendar — Schedule page is the full source. ── */}
+                        <section className="rounded-lg border p-5 backdrop-blur-xl sm:p-6"
+                            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <CalendarClock size={18} style={{ color: 'var(--theme-text-muted)' }} />
+                                    <h2 className="font-display text-2xl" style={{ color: 'var(--theme-text-head)' }}>Upcoming Bookings</h2>
+                                </div>
+                                <Link href="/therapist/schedule"
+                                    className="flex-shrink-0 flex items-center gap-0.5 text-xs font-semibold hover:opacity-80 transition-opacity"
+                                    style={{ color: '#e2b764' }}>
+                                    View Full Schedule <ChevronRight size={14} />
+                                </Link>
+                            </div>
+
+                            {loading ? (
+                                <div className="space-y-2">
+                                    {[0, 1].map(i => <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: 'var(--theme-skeleton)' }} />)}
+                                </div>
+                            ) : upcomingPreview.length === 0 ? (
+                                <p className="py-6 text-center text-sm" style={{ color: 'var(--theme-text-muted)' }}>No upcoming bookings yet</p>
+                            ) : (
+                                <ul>
+                                    {upcomingPreview.map(booking => {
+                                        const duration = booking.service_variant?.duration_minutes ?? booking.service?.duration_minutes ?? null;
+                                        const zone = getZone(booking);
+                                        return (
+                                            <li key={booking.id}>
+                                                <button
+                                                    onClick={() => setSelectedBooking(booking)}
+                                                    className="w-full flex items-center gap-3 border-b py-3 last:border-0 text-left hover:opacity-80 transition-opacity"
+                                                    style={{ borderColor: 'var(--theme-border)' }}
+                                                >
+                                                    <div className="flex-shrink-0 w-16">
+                                                        <p className="font-mono text-[10px] uppercase" style={{ color: 'var(--theme-text-muted)' }}>
+                                                            {relativeDayLabel(booking.scheduled_start)}
+                                                        </p>
+                                                        <p className="font-mono text-xs" style={{ color: 'var(--theme-text-head)' }}>
+                                                            {fmtTime(booking.scheduled_start)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm truncate" style={{ color: 'var(--theme-text-head)' }}>
+                                                            {booking.service?.name ?? '—'}
+                                                        </p>
+                                                        <p className="mt-0.5 text-xs truncate" style={{ color: 'var(--theme-text-muted)' }}>
+                                                            {booking.customer?.name ?? '—'}
+                                                            {duration ? ` · ${duration} min` : ''}
+                                                            {zone ? ` · ${zone}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <ChevronRight size={15} className="flex-shrink-0" style={{ color: 'var(--theme-text-muted)' }} />
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
                             )}
                         </section>
                     </div>
@@ -492,15 +677,28 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* ── Booking detail drawer — reused from Bookings.jsx, not rebuilt ── */}
+            {/* ── Booking detail modal — reused from Bookings.jsx, not rebuilt.
+                A pending/pending_payment booking (reachable from Pending Approval
+                or Today's Timeline's "Review request") gets the compact centered
+                review modal; every other status keeps the full side-drawer with
+                "View details" ── */}
             <AnimatePresence>
                 {selectedBooking && (
-                    <BookingModal
-                        booking={selectedBooking}
-                        onClose={() => setSelectedBooking(null)}
-                        onAction={handleAction}
-                        actionLoading={actionLoading}
-                    />
+                    ['pending', 'pending_payment'].includes(selectedBooking.status) ? (
+                        <BookingReviewModal
+                            booking={selectedBooking}
+                            onClose={() => setSelectedBooking(null)}
+                            onAction={handleAction}
+                            actionLoading={actionLoading}
+                        />
+                    ) : (
+                        <BookingModal
+                            booking={selectedBooking}
+                            onClose={() => setSelectedBooking(null)}
+                            onAction={handleAction}
+                            actionLoading={actionLoading}
+                        />
+                    )
                 )}
             </AnimatePresence>
 

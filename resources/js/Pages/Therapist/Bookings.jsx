@@ -735,6 +735,133 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
     );
 }
 
+// ── New Booking Request Modal ───────────────────────────────────────────────
+// Compact centered modal (not a drawer) for reviewing a single pending
+// request — used by the Today's Timeline "Review request" action. Exported
+// alongside BookingModal so other therapist pages can reuse it. Reuses the
+// same onAction handlers and RejectConfirmModal as the full drawer above —
+// no new business logic here.
+export function BookingReviewModal({ booking, onClose, onAction, actionLoading }) {
+    const [showReject, setShowReject] = useState(false);
+
+    useEffect(() => {
+        const handle = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handle);
+        return () => window.removeEventListener('keydown', handle);
+    }, [onClose]);
+
+    const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
+    const anyLoading = !!actionLoading;
+
+    // Same price/duration derivation as BookingModal — see its comment above.
+    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? null;
+    const durationMinutes = booking.service_variant?.duration_minutes ?? booking.service?.duration_minutes ?? null;
+
+    const field = (label, value) => (
+        <div className="flex items-start justify-between gap-4 py-2.5 border-b last:border-0" style={{ borderColor: 'var(--theme-border)' }}>
+            <p className="text-[10px] uppercase tracking-wider font-semibold flex-shrink-0 pt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{label}</p>
+            <p className="text-sm font-medium text-right leading-snug" style={{ color: 'var(--theme-text-head)' }}>{value}</p>
+        </div>
+    );
+
+    return (
+        <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        >
+            <motion.div
+                className="absolute inset-0"
+                style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+                onClick={onClose}
+            />
+
+            <motion.div
+                className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl border"
+                style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
+                initial={{ scale: 0.94, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.94, opacity: 0, y: 12 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+            >
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center z-10"
+                    style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+                >
+                    <X size={15} style={{ color: 'var(--theme-text-muted)' }} />
+                </button>
+
+                {/* Header */}
+                <div className="px-6 pt-7 pb-5 text-center border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                    <h2 className="font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
+                        {booking.customer?.name ?? 'Client'}
+                    </h2>
+                    <p
+                        className="mt-2 inline-block text-[10px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-full"
+                        style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}
+                    >
+                        New booking request
+                    </p>
+                    <p className="mt-3 text-sm" style={{ color: 'var(--theme-text-2)' }}>
+                        {booking.service?.name ?? '—'}
+                    </p>
+                </div>
+
+                {/* Details */}
+                <div className="px-6 py-4">
+                    {field('Date', fmtDate(booking.scheduled_start))}
+                    {field('Time', `${fmtTime(booking.scheduled_start)}${booking.scheduled_end ? ` – ${fmtTime(booking.scheduled_end)}` : ''}${durationMinutes ? ` (${durationMinutes} min)` : ''}`)}
+                    {field('Location', booking.location ?? '—')}
+                    {booking.location_notes && field('Client notes', booking.location_notes)}
+                    {field('Session value', (
+                        <span style={{ color: '#e2b764', fontWeight: 700 }}>
+                            {servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'}
+                        </span>
+                    ))}
+                </div>
+
+                {/* Actions */}
+                <div className="px-6 pb-6 pt-2 flex gap-3">
+                    <button
+                        onClick={() => setShowReject(true)}
+                        disabled={anyLoading}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all"
+                        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', opacity: anyLoading ? 0.5 : 1 }}
+                    >
+                        <XCircle size={14} /> Decline
+                    </button>
+                    <button
+                        onClick={() => onAction(booking.id, 'accept')}
+                        disabled={anyLoading}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all"
+                        style={{
+                            background: isLoading('accept') ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)',
+                            color: '#10b981', border: '1px solid rgba(16,185,129,0.3)',
+                            opacity: anyLoading && !isLoading('accept') ? 0.5 : 1,
+                        }}
+                    >
+                        {isLoading('accept') ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                        {isLoading('accept') ? 'Accepting…' : 'Accept'}
+                    </button>
+                </div>
+            </motion.div>
+
+            <AnimatePresence>
+                {showReject && (
+                    <RejectConfirmModal
+                        onClose={() => setShowReject(false)}
+                        onConfirm={(reason) => {
+                            setShowReject(false);
+                            onAction(booking.id, 'reject', { reason });
+                        }}
+                        loading={isLoading('reject')}
+                    />
+                )}
+            </AnimatePresence>
+        </motion.div>
+    );
+}
+
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
     const paymentStatus = getPaymentStatus(booking);
@@ -861,7 +988,12 @@ function SkeletonRow() {
 export default function Bookings() {
     const [bookings, setBookings]               = useState([]);
     const [loading, setLoading]                 = useState(true);
-    const [activeTab, setActiveTab]             = useState('all');
+    // Deep-link support: Dashboard's "View All Pending →" links here with
+    // ?tab=pending so the therapist lands on the filtered view, not "All".
+    const [activeTab, setActiveTab]             = useState(() => {
+        const tab = new URLSearchParams(window.location.search).get('tab');
+        return TAB_STATUSES[tab] ? tab : 'all';
+    });
     const [search, setSearch]                   = useState('');
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [actionLoading, setActionLoading]     = useState(null);

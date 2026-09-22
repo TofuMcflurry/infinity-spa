@@ -37,13 +37,21 @@ class TherapistBookingController extends Controller
     public function stats()
     {
         $therapist = auth()->user()->therapist;
-        $today     = now()->toDateString();
 
-        $allBookings = Booking::where('therapist_id', $therapist->id)->get();
+        $todayCount = Booking::where('therapist_id', $therapist->id)
+            ->whereDate('scheduled_start', now()->toDateString())
+            ->count();
 
-        $todayCount     = $allBookings->filter(fn($b) => $b->scheduled_start->toDateString() === $today)->count();
-        $pendingCount   = $allBookings->where('status', 'pending')->count();
-        $completedCount = $allBookings->where('status', 'completed')->count();
+        // 'pending_payment' is still therapist-actionable (see Bookings.jsx TAB_STATUSES),
+        // so it counts as "pending" here too — keeps this KPI consistent with the
+        // Pending Approval section below it.
+        $pendingCount = Booking::where('therapist_id', $therapist->id)
+            ->whereIn('status', ['pending', 'pending_payment'])
+            ->count();
+
+        $completedCount = Booking::where('therapist_id', $therapist->id)
+            ->where('status', 'completed')
+            ->count();
 
         $weekEarnings = Booking::where('therapist_id', $therapist->id)
             ->where('status', 'completed')

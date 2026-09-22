@@ -192,7 +192,6 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
     const [showRefund, setShowRefund] = useState(false);
 
     const proofUrl = getProofUrl(booking.downpayment_proof);
-    const dpStyle = DP_STYLES[booking.downpayment_status] ?? DP_STYLES.pending;
     const stStyle = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
 
     const Row = ({ icon: Icon, label, value, accent }) => (
@@ -319,9 +318,7 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
                         )}
                         <div className="flex items-center justify-between py-3">
                             <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Payment Status</p>
-                            <Badge cfg={booking.payment_status === 'paid'
-                                ? { label: 'Paid via Stripe', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)', icon: CreditCard }
-                                : dpStyle} />
+                            <Badge cfg={PAY_STATUS_STYLES[getPayStatus(booking)]} />
                         </div>
                         {booking.downpayment_submitted_at && <Row icon={Clock} label="Submitted At" value={booking.downpayment_submitted_at} />}
                         {booking.downpayment_verified_at && <Row icon={Clock} label="Verified At" value={booking.downpayment_verified_at} accent="#10b981" />}

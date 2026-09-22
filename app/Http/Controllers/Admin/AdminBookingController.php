@@ -29,7 +29,7 @@ class AdminBookingController extends Controller
 
     public function allBookings()
     {
-        $bookings = Booking::with(['service', 'therapist.user', 'customer', 'resolvedBy'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->orderByDesc('created_at')
             ->get()
             ->map(fn($b) => $this->formatBooking($b));
@@ -39,7 +39,7 @@ class AdminBookingController extends Controller
 
     public function pendingRefunds()
     {
-        $bookings = Booking::with(['service', 'therapist.user', 'customer', 'resolvedBy'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->where('status', 'cancelled')
             ->where('cancellation_type', 'refunded')
             ->where('downpayment_status', 'refunded')
@@ -81,14 +81,14 @@ class AdminBookingController extends Controller
 
         return response()->json([
             'message' => 'Refund marked as sent.',
-            'booking' => $this->formatBooking($booking->fresh(['service', 'therapist.user', 'customer'])),
+            'booking' => $this->formatBooking($booking->fresh(['service', 'serviceVariant', 'therapist.user', 'customer'])),
         ]);
     }
 
     // ── Stale Active Session review ──────────────────────────────────────────
     public function staleBookings()
     {
-        $bookings = Booking::with(['service', 'therapist.user', 'customer', 'resolvedBy'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->whereNotNull('flagged_at')
             ->whereNull('resolved_at')
             ->orderBy('flagged_at')
@@ -112,7 +112,7 @@ class AdminBookingController extends Controller
 
             return response()->json([
                 'message' => 'Booking marked completed and resolved.',
-                'booking' => $this->formatBooking($locked->fresh(['service', 'therapist.user', 'customer', 'resolvedBy'])),
+                'booking' => $this->formatBooking($locked->fresh(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])),
             ]);
         });
     }
@@ -135,7 +135,7 @@ class AdminBookingController extends Controller
 
             return response()->json([
                 'message' => 'Booking marked as no-show and resolved.',
-                'booking' => $this->formatBooking($locked->fresh(['service', 'therapist.user', 'customer', 'resolvedBy'])),
+                'booking' => $this->formatBooking($locked->fresh(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])),
             ]);
         });
     }
@@ -156,7 +156,7 @@ class AdminBookingController extends Controller
 
             return response()->json([
                 'message' => 'Booking cancelled and resolved.',
-                'booking' => $this->formatBooking($locked->fresh(['service', 'therapist.user', 'customer', 'resolvedBy'])),
+                'booking' => $this->formatBooking($locked->fresh(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])),
             ]);
         });
     }
@@ -194,7 +194,7 @@ class AdminBookingController extends Controller
 
     public function cancelledHistory()
     {
-        $bookings = Booking::with(['service', 'therapist.user', 'customer', 'resolvedBy'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->where('status', 'cancelled')
             ->whereNotNull('cancellation_type')
             ->orderByDesc('cancelled_at')
@@ -238,7 +238,9 @@ class AdminBookingController extends Controller
             'customer_phone'           => $b->customer?->phone,
             'therapist_name'           => $b->therapist?->user?->name,
             'service_name'             => $b->service?->name,
-            'service_price'            => $b->service?->price,
+            // service.price is a legacy pre-variant-refactor column, null on any
+            // variant-based booking — serviceVariant.price is the real source.
+            'service_price'            => $b->serviceVariant?->price ?? $b->service?->price,
             'status'                   => $b->status,
             'payment_method'           => $b->payment_method,
             'location'                 => $b->location,
