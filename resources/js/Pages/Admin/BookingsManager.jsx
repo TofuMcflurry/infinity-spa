@@ -46,6 +46,7 @@ const VIEWS = [
 
 // flag_reason → display label + which timestamp anchors the "overdue" clock
 const FLAG_REASON_STYLES = {
+    stale_accepted: { label: 'Missed Start',   anchor: 'scheduled_start' },
     stale_en_route: { label: 'Stuck En Route', anchor: 'scheduled_start' },
     stale_arrived:  { label: 'Stuck Arrived',  anchor: 'scheduled_end'   },
 };
@@ -349,6 +350,7 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
                                 {booking.cancellation_type === 'refunded' && '✅ Eligible for refund — cancelled before 24hrs'}
                                 {booking.cancellation_type === 'forfeited' && '❌ Forfeited — cancelled within 24hrs'}
                                 {booking.cancellation_type === 'no_show' && '❌ Forfeited — no show'}
+                                {booking.cancellation_type === 'expired' && '⏱️ Expired — no therapist response before appointment time'}
                             </p>
                             {booking.cancellation_reason && <p className="text-xs" style={{ color: '#94a3b8' }}>Reason: {booking.cancellation_reason}</p>}
                         </div>

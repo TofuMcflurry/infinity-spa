@@ -342,6 +342,7 @@ function BookingDetailsModal({ booking, onClose }) {
                                 {booking.cancellation_type === 'refunded'  && '✅ Refunded — cancelled before 24hrs'}
                                 {booking.cancellation_type === 'forfeited' && '❌ Forfeited — cancelled within 24hrs'}
                                 {booking.cancellation_type === 'no_show'   && '❌ Forfeited — no show'}
+                                {booking.cancellation_type === 'expired'   && '⏱️ Expired — no therapist response before your appointment time'}
                             </p>
                             {booking.cancelled_at && (
                                 <p className="text-[11px]" style={{ color: '#94a3b8' }}>

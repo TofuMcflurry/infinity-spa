@@ -15,10 +15,11 @@ class TherapistBookingController extends Controller
         $perPage   = $request->query('per_page', 15);
         $status    = $request->query('status');
 
-        Booking::where('therapist_id', $therapist->id)
-            ->whereIn('status', ['pending', 'accepted'])
-            ->where('scheduled_start', '<', now())
-            ->update(['status' => 'cancelled']);
+        // Past-due pending/accepted bookings are handled centrally by the
+        // scheduled bookings:auto-cancel-past-due / bookings:flag-stale-active-sessions
+        // commands (App\Console\Commands) — this used to duplicate that sweep
+        // inline (and inconsistently, without setting cancellation_type/cancelled_at,
+        // while also wrongly treating 'accepted' the same as 'pending').
 
         $query = Booking::with(['customer', 'service', 'serviceVariant'])
             ->where('therapist_id', $therapist->id)

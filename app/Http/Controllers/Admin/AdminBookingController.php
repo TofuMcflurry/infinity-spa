@@ -176,7 +176,7 @@ class AdminBookingController extends Controller
             'This booking is not an open stale flag.'
         );
         abort_if(
-            !in_array($locked->status, ['en_route', 'arrived']),
+            !in_array($locked->status, ['accepted', 'en_route', 'arrived']),
             422,
             'Booking is no longer in an active session state.'
         );

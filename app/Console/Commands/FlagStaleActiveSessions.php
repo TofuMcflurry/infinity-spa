@@ -12,10 +12,19 @@ use Illuminate\Support\Facades\Notification;
 class FlagStaleActiveSessions extends Command
 {
     protected $signature = 'bookings:flag-stale-active-sessions';
-    protected $description = 'Flag en_route/arrived bookings stuck past their expected window for admin review';
+    protected $description = 'Flag accepted/en_route/arrived bookings stuck past their expected window for admin review';
 
     private const EN_ROUTE_STALE_AFTER_MINUTES = 60;
     private const ARRIVED_STALE_AFTER_HOURS    = 2;
+
+    // An accepted booking the therapist confirmed but never started (never
+    // went en_route) even after the appointment time has passed. Same grace
+    // window as the en_route check below, and the same reasoning: this is
+    // not a "never responded" failure (that's AutoCancelPastDueBookings'
+    // job for still-pending bookings) — the therapist already committed to
+    // it, so it needs a human to decide completed/no-show/cancelled rather
+    // than being auto-cancelled the same way an unanswered request would be.
+    private const ACCEPTED_STALE_AFTER_MINUTES = 60;
 
     public function handle(): int
     {
@@ -25,7 +34,11 @@ class FlagStaleActiveSessions extends Command
         $admins  = null; // lazy-loaded only if we actually flag something
 
         foreach ($candidates as $booking) {
-            $reason = $booking->status === 'en_route' ? 'stale_en_route' : 'stale_arrived';
+            $reason = match ($booking->status) {
+                'accepted' => 'stale_accepted',
+                'en_route' => 'stale_en_route',
+                default    => 'stale_arrived',
+            };
 
             // Atomic claim: re-applies the exact same status+threshold criteria
             // (not just "flagged_at IS NULL") scoped to this one row, so the
@@ -78,6 +91,9 @@ class FlagStaleActiveSessions extends Command
             ->whereNull('flagged_at')
             ->where(function ($q) {
                 $q->where(function ($q2) {
+                    $q2->where('status', 'accepted')
+                       ->where('scheduled_start', '<', now()->subMinutes(self::ACCEPTED_STALE_AFTER_MINUTES));
+                })->orWhere(function ($q2) {
                     $q2->where('status', 'en_route')
                        ->where('scheduled_start', '<', now()->subMinutes(self::EN_ROUTE_STALE_AFTER_MINUTES));
                 })->orWhere(function ($q2) {

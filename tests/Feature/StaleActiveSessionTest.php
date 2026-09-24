@@ -84,6 +84,52 @@ class StaleActiveSessionTest extends TestCase
         $this->assertSame('en_route', $booking->status, 'Flagging must not change the booking status.');
     }
 
+    public function test_accepted_booking_past_due_and_never_started_is_flagged(): void
+    {
+        // Therapist confirmed it but never tapped "Start Session" even after
+        // the scheduled time passed — must be surfaced for admin review the
+        // same way a stuck en_route/arrived session is, not silently
+        // auto-cancelled like an unanswered pending request.
+        $booking = $this->makeBooking([
+            'status'          => 'accepted',
+            'scheduled_start' => now()->subMinutes(90),
+            'scheduled_end'   => now()->subMinutes(30),
+        ]);
+
+        $this->artisan('bookings:flag-stale-active-sessions')->assertSuccessful();
+
+        $booking->refresh();
+        $this->assertNotNull($booking->flagged_at);
+        $this->assertSame('stale_accepted', $booking->flag_reason);
+        $this->assertSame('accepted', $booking->status, 'Flagging must not change the booking status.');
+    }
+
+    public function test_accepted_booking_within_grace_window_is_not_flagged(): void
+    {
+        $booking = $this->makeBooking([
+            'status'          => 'accepted',
+            'scheduled_start' => now()->subMinutes(10),
+            'scheduled_end'   => now()->addMinutes(50),
+        ]);
+
+        $this->artisan('bookings:flag-stale-active-sessions')->assertSuccessful();
+
+        $this->assertNull($booking->refresh()->flagged_at);
+    }
+
+    public function test_accepted_booking_with_future_scheduled_start_is_not_flagged(): void
+    {
+        $booking = $this->makeBooking([
+            'status'          => 'accepted',
+            'scheduled_start' => now()->addDay(),
+            'scheduled_end'   => now()->addDay()->addHour(),
+        ]);
+
+        $this->artisan('bookings:flag-stale-active-sessions')->assertSuccessful();
+
+        $this->assertNull($booking->refresh()->flagged_at);
+    }
+
     public function test_arrived_booking_past_2_hours_is_flagged(): void
     {
         $booking = $this->makeBooking([
@@ -182,6 +228,45 @@ class StaleActiveSessionTest extends TestCase
             'flagged_at'      => now(),
             'flag_reason'     => 'stale_arrived',
         ]);
+    }
+
+    private function flaggedAcceptedBooking(): Booking
+    {
+        return $this->makeBooking([
+            'status'          => 'accepted',
+            'scheduled_start' => now()->subHours(4),
+            'scheduled_end'   => now()->subHours(3),
+            'flagged_at'      => now(),
+            'flag_reason'     => 'stale_accepted',
+        ]);
+    }
+
+    public function test_admin_can_resolve_a_stale_accepted_booking_as_no_show(): void
+    {
+        $booking = $this->flaggedAcceptedBooking();
+
+        $response = $this->actingAs($this->admin)
+            ->postJson("/admin/api/bookings/stale/{$booking->id}/no-show");
+
+        $response->assertOk();
+        $booking->refresh();
+        $this->assertSame('cancelled', $booking->status);
+        $this->assertSame('no_show', $booking->cancellation_type);
+        $this->assertNotNull($booking->resolved_at);
+    }
+
+    public function test_admin_can_resolve_a_stale_accepted_booking_as_completed(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([\App\Events\BookingStatusUpdated::class]);
+        $booking = $this->flaggedAcceptedBooking();
+
+        $response = $this->actingAs($this->admin)
+            ->postJson("/admin/api/bookings/stale/{$booking->id}/complete");
+
+        $response->assertOk();
+        $booking->refresh();
+        $this->assertSame('completed', $booking->status);
+        $this->assertNotNull($booking->resolved_at);
     }
 
     public function test_admin_can_mark_a_stale_booking_completed_via_the_real_completion_flow(): void
