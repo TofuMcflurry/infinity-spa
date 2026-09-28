@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerDashboardController;
 use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\GuestBookingController;
 use App\Http\Controllers\StripePaymentController;
 use Illuminate\Foundation\Application;
@@ -41,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/therapists',   fn() => Inertia::render('Therapists'))->name('therapists');
         Route::get('/my-profile',   fn() => Inertia::render('Profile'))->name('my.profile');
         Route::get('/services',     fn() => Inertia::render('Services'))->name('services');
+        Route::get('/wishlist',     fn() => Inertia::render('Wishlist'))->name('wishlist');
     });
 
     Route::prefix('api')->group(function () {
@@ -61,6 +63,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
         Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])->name('api.addresses.destroy');
         Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])->name('api.addresses.default');
+        Route::get('/wishlist',                     [WishlistController::class, 'index'])->name('api.wishlist');
+        Route::post('/wishlist',                    [WishlistController::class, 'store'])->name('api.wishlist.store');
+        Route::delete('/wishlist/{wishlist}',       [WishlistController::class, 'destroy'])->name('api.wishlist.destroy');
         Route::get('/profile-data',                 [CustomerProfileController::class, 'show'])->name('api.profile');
         Route::post('/profile-update',              [CustomerProfileController::class, 'update'])->name('api.profile.update');
         Route::post('/profile-avatar',              [CustomerProfileController::class, 'uploadAvatar'])->name('api.profile.avatar');

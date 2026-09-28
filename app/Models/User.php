@@ -105,6 +105,11 @@ class User extends Authenticatable
                     ->where('is_default', true);
     }
 
+    public function wishlist()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
+
     /**
      * Check if user is a Google user
      */

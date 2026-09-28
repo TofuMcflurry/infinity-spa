@@ -6,7 +6,7 @@ import {
     Bell, LogOut, MapPin, Clock, Calendar,
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
-    Loader2, Banknote, Gift, X, Check,
+    Loader2, Banknote, Gift, X, Check, Heart,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -650,6 +650,116 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
     );
 }
 
+// ── Compact wishlist preview row — mirrors RecentActivityItem's border-b
+// last:border-0 pattern for the divider between rows. Navigates to the
+// full Wishlist page; never books directly from the dashboard. ────────────
+function WishlistPreviewItem({ item }) {
+    const service = item.service;
+    const name = service?.name ?? 'Service';
+    const activeVariants = (service?.variants ?? []).filter(v => v.is_active);
+    const isUnavailable = !service || !service.is_active || !!service.archived_at || activeVariants.length === 0;
+    const minPrice = activeVariants.length ? Math.min(...activeVariants.map(v => Number(v.price))) : null;
+    const imageUrl = service?.image ? `/storage/${service.image}` : null;
+
+    return (
+        <button
+            onClick={() => router.visit(route('wishlist'))}
+            className="w-full flex items-center gap-3 py-3 text-left transition-colors border-b last:border-0"
+            style={{ borderColor: '#1e2740' }}
+        >
+            <div className="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative"
+                style={{ background: '#141d33' }}>
+                {imageUrl ? (
+                    <img src={imageUrl} alt={name} className="w-full h-full object-cover" style={{ opacity: isUnavailable ? 0.45 : 1 }} />
+                ) : (
+                    <Heart size={16} style={{ color: '#1e2740' }} />
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{name}</p>
+                {isUnavailable ? (
+                    <p className="text-xs" style={{ color: '#f87171' }}>Currently unavailable</p>
+                ) : (
+                    <p className="text-xs" style={{ color: '#94a3b8' }}>
+                        From AED {minPrice.toLocaleString()}
+                    </p>
+                )}
+            </div>
+            <ChevronRight size={14} style={{ color: '#64748b', flexShrink: 0 }} />
+        </button>
+    );
+}
+
+// ── My Wishlist dashboard summary — compact preview only, not a second
+// Wishlist page. Loads /api/wishlist independently so a failure here never
+// blocks the rest of the dashboard (see Dashboard()'s own useEffect). ─────
+function WishlistWidget({ items, loading, error }) {
+    const preview = items.slice(0, 3);
+    const count = items.length;
+
+    return (
+        <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
+            <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                    <Heart size={16} style={{ color: '#e2b764' }} fill="#e2b764" />
+                    <h3 className="font-display font-semibold text-white">My Wishlist</h3>
+                </div>
+                {!loading && !error && count > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
+                        {count} saved
+                    </span>
+                )}
+            </div>
+            <p className="text-xs mb-4" style={{ color: '#64748b' }}>Your saved services for later.</p>
+
+            {loading ? (
+                <div className="space-y-3">
+                    {[0, 1, 2].map(i => (
+                        <div key={i} className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-lg animate-pulse flex-shrink-0" style={{ background: '#141d33' }} />
+                            <div className="flex-1 space-y-1.5">
+                                <div className="h-3 rounded animate-pulse" style={{ background: '#141d33', width: '70%' }} />
+                                <div className="h-2.5 rounded animate-pulse" style={{ background: '#141d33', width: '40%' }} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : error ? (
+                <p className="text-xs py-4 text-center" style={{ color: '#64748b' }}>
+                    Couldn't load your wishlist right now.
+                </p>
+            ) : count === 0 ? (
+                <div className="py-4 text-center">
+                    <Heart size={24} className="mx-auto mb-2" style={{ color: '#1e2740' }} />
+                    <p className="text-xs mb-4 leading-relaxed" style={{ color: '#64748b' }}>
+                        No saved services yet.<br />Save your favorite treatments for later.
+                    </p>
+                    <button onClick={() => router.visit(route('services'))}
+                        className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                        style={{ background: '#e2b764', color: '#0b1120' }}>
+                        Browse Services
+                    </button>
+                </div>
+            ) : (
+                <>
+                    <div>
+                        {preview.map(item => <WishlistPreviewItem key={item.id} item={item} />)}
+                    </div>
+                    <button onClick={() => router.visit(route('wishlist'))}
+                        className="w-full mt-3 pt-3 border-t text-sm flex items-center justify-center gap-1 transition-colors"
+                        style={{ borderColor: '#1e2740', color: '#e2b764' }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                    >
+                        View Wishlist <ChevronRight size={14} />
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
+
 function AutoPreferencesWidget({ prefs }) {
     return (
         <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
@@ -692,6 +802,9 @@ export default function Dashboard() {
     const [notifications,      setNotifications]      = useState([]);
     const [unreadCount,        setUnreadCount]        = useState(0);
     const [justCompletedBooking, setJustCompletedBooking] = useState(null);
+    const [wishlistItems,      setWishlistItems]      = useState([]);
+    const [wishlistLoading,    setWishlistLoading]    = useState(true);
+    const [wishlistError,      setWishlistError]      = useState(false);
 
     const fetchNotifications = useCallback(() => {
         apiFetch('/api/notifications')
@@ -718,6 +831,13 @@ export default function Dashboard() {
             .catch(console.error);
 
         fetchNotifications();
+
+        // Independent of dashboard-data — a wishlist failure never blocks
+        // the rest of the page. Already ordered newest-first by the API.
+        apiFetch('/api/wishlist')
+            .then(setWishlistItems)
+            .catch(() => setWishlistError(true))
+            .finally(() => setWishlistLoading(false));
     }, []);
 
     useEffect(() => {
@@ -1031,6 +1151,7 @@ export default function Dashboard() {
                                         .catch(console.error);
                                 }}
                             />
+                            <WishlistWidget items={wishlistItems} loading={wishlistLoading} error={wishlistError} />
                             <AutoPreferencesWidget prefs={prefs} />
                         </div>
                     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History, Users, LogOut } from 'lucide-react';
+import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History, Users, LogOut, Heart } from 'lucide-react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -118,6 +118,27 @@ function CustomerSidebar() {
                     <Sparkles size={18} className="flex-shrink-0" />
                     <span className="flex-1">{t.nav.services}</span>
                     {isActive('/services') && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                    )}
+                </Link>
+
+                {/* Wishlist */}
+                <Link
+                    href="/wishlist"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors"
+                    style={{
+                        background: isActive('/wishlist') ? 'var(--theme-btn-bg)' : 'transparent',
+                        color: isActive('/wishlist') ? 'var(--theme-text-head)' : 'var(--theme-text-2)',
+                        fontWeight: isActive('/wishlist') ? 500 : 400,
+                    }}
+                    onMouseEnter={e => { if (!isActive('/wishlist')) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                    onMouseLeave={e => { if (!isActive('/wishlist')) e.currentTarget.style.background = 'transparent'; }}
+                >
+                    <Heart size={18} className="flex-shrink-0" />
+                    <span className="flex-1">Wishlist</span>
+                    {isActive('/wishlist') && (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
                             <polyline points="9 18 15 12 9 6" />
                         </svg>
