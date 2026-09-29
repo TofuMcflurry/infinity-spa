@@ -6,6 +6,7 @@ use App\Models\Booking;
 use Illuminate\Http\Request;
 use App\Notifications\BookingNotification;
 use App\Events\BookingStatusUpdated;
+use Illuminate\Support\Facades\DB;
 
 class TherapistBookingController extends Controller
 {
@@ -69,18 +70,36 @@ class TherapistBookingController extends Controller
         ]);
     }
 
+    // Row-locks the booking and re-checks it's still awaiting the therapist's
+    // decision before accepting — guards against a double-click, a retried
+    // request, or two overlapping requests each re-sending the "accepted"
+    // notification/email for the same booking. A second, concurrent request
+    // blocks on the lock until the first commits, then sees the fresh
+    // 'accepted' status and aborts here — before either notification fires.
     public function accept(Booking $booking)
     {
         $this->authorizeTherapist($booking);
 
-        $booking->update(['status' => 'accepted']);
+        $locked = DB::transaction(function () use ($booking) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        broadcast(new BookingStatusUpdated($booking));
+            abort_if(
+                !in_array($locked->status, ['pending', 'pending_payment']),
+                422,
+                'This booking can no longer be accepted.'
+            );
 
-        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
-        $booking->customer->notify(new BookingNotification($booking, 'accepted'));
+            $locked->update(['status' => 'accepted']);
 
-        return response()->json(['message' => 'Booking accepted!', 'booking' => $booking]);
+            return $locked;
+        });
+
+        broadcast(new BookingStatusUpdated($locked));
+
+        $locked->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        $locked->customer->notify(new BookingNotification($locked, 'accepted'));
+
+        return response()->json(['message' => 'Booking accepted!', 'booking' => $locked]);
     }
 
     public function reject(Request $request, Booking $booking)
@@ -133,24 +152,39 @@ class TherapistBookingController extends Controller
     {
         $this->authorizeTherapist($booking);
 
-        abort_if(
-            $booking->status !== 'accepted',
-            422,
-            'Only accepted bookings can be started.'
-        );
+        $therapistId = auth()->user()->therapist->id;
 
-        $hasActive = Booking::where('therapist_id', auth()->user()->therapist->id)
-            ->whereIn('status', ['en_route', 'arrived'])
-            ->exists();
+        // Row-lock the booking so two concurrent start requests can't both
+        // read status === 'accepted' and both transition it. The second
+        // request blocks on the lock until the first's transaction commits,
+        // then re-reads the now-'en_route' row and aborts here — only the
+        // request that actually performs the transition reaches the
+        // notify() call below.
+        $locked = DB::transaction(function () use ($booking, $therapistId) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        abort_if($hasActive, 422, 'You already have an active session in progress.');
+            abort_if(
+                $locked->status !== 'accepted',
+                422,
+                'Only accepted bookings can be started.'
+            );
 
-        $booking->update(['status' => 'en_route']);
-        broadcast(new BookingStatusUpdated($booking));
-        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
-        $booking->customer->notify(new BookingNotification($booking, 'en_route'));
+            $hasActive = Booking::where('therapist_id', $therapistId)
+                ->whereIn('status', ['en_route', 'arrived'])
+                ->exists();
 
-        return response()->json(['message' => 'Session started! Head on over.', 'booking' => $booking]);
+            abort_if($hasActive, 422, 'You already have an active session in progress.');
+
+            $locked->update(['status' => 'en_route']);
+
+            return $locked;
+        });
+
+        broadcast(new BookingStatusUpdated($locked));
+        $locked->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        $locked->customer->notify(new BookingNotification($locked, 'en_route'));
+
+        return response()->json(['message' => 'Session started! Head on over.', 'booking' => $locked]);
     }
 
     public function arrived(Booking $booking)

@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Home, CalendarDays, User, Calendar, TrendingUp,
     Crown, LogOut, Menu, X, ChevronRight,
-    Bell, CheckCheck,
+    Bell, CheckCheck, CheckCircle2, XCircle,
+    Navigation, MapPin, Star, Check, CalendarPlus,
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
 
@@ -54,6 +55,42 @@ async function apiFetch(url, options = {}) {
 }
 
 // ── Notification bell ─────────────────────────────────────────────────────────
+// Icon/color per notification type — reuses the exact `icon`/`color` fields
+// already sent by BookingNotification (see app/Notifications/BookingNotification.php)
+// and the same brand hex values already used for status badges elsewhere
+// (Admin/BookingsManager.jsx's DP_STYLES/PAY_STATUS_STYLES).
+const NOTIF_ICONS = {
+    'calendar-plus': CalendarPlus,
+    'check-circle':  CheckCircle2,
+    'x-circle':      XCircle,
+    navigation:      Navigation,
+    'map-pin':       MapPin,
+    star:            Star,
+    check:           Check,
+    bell:            Bell,
+};
+const NOTIF_COLORS = {
+    green: '#10b981',
+    red:   '#f87171',
+    blue:  '#3b82f6',
+    gold:  '#e2b764',
+    gray:  '#94a3b8',
+};
+
+function NotifIcon({ icon, color }) {
+    const Icon = NOTIF_ICONS[icon] ?? Bell;
+    const hex  = NOTIF_COLORS[color] ?? NOTIF_COLORS.gray;
+
+    return (
+        <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: `${hex}1a`, color: hex }}
+        >
+            <Icon size={13} />
+        </div>
+    );
+}
+
 function NotificationBell() {
     const [open, setOpen]               = useState(false);
     const [notifications, setNotifs]    = useState([]);
@@ -80,6 +117,14 @@ function NotificationBell() {
             setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch {}
+    };
+
+    const handleNotifClick = async (n) => {
+        if (!n.read) {
+            await markRead(n.id);
+        }
+        setOpen(false);
+        router.visit(n.url ?? '/therapist/bookings');
     };
 
     const markAllRead = async () => {
@@ -165,7 +210,7 @@ function NotificationBell() {
                                     notifications.map(n => (
                                         <button
                                             key={n.id}
-                                            onClick={() => { markRead(n.id); setOpen(false); }}
+                                            onClick={() => handleNotifClick(n)}
                                             className="w-full text-left px-4 py-3 transition-colors border-b last:border-b-0"
                                             style={{
                                                 borderColor: 'var(--theme-border)',
@@ -174,13 +219,16 @@ function NotificationBell() {
                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-divider)'}
                                             onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(226,183,100,0.04)'}
                                         >
-                                            <div className="flex items-start gap-3">
-                                                {!n.read && (
-                                                    <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
-                                                )}
-                                                <div className={`flex-1 min-w-0 ${n.read ? 'pl-4' : ''}`}>
-                                                    <p className="text-xs font-semibold leading-snug" style={{ color: 'var(--theme-text-head)' }}>{n.title}</p>
-                                                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>{n.message}</p>
+                                            <div className="flex items-start gap-2.5">
+                                                <NotifIcon icon={n.icon} color={n.color} />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start gap-1.5">
+                                                        {!n.read && (
+                                                            <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
+                                                        )}
+                                                        <p className="text-xs font-semibold leading-snug break-words" style={{ color: 'var(--theme-text-head)' }}>{n.title}</p>
+                                                    </div>
+                                                    <p className="text-xs mt-0.5 leading-relaxed break-words" style={{ color: 'var(--theme-text-2)' }}>{n.message}</p>
                                                     <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{timeAgo(n.created_at)}</p>
                                                 </div>
                                             </div>

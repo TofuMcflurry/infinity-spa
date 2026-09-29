@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
+use App\Notifications\BookingNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -315,9 +316,16 @@ class BookingController extends Controller
             'is_voucher_covered' => $isVoucherCovered,
         ]);
 
+        // Booking::create() above is a single, already-committed insert — the
+        // row exists by the time we reach here, so it's safe to notify now.
+        // Only the assigned therapist is notified; the customer is never
+        // notified for their own booking-created action.
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        $booking->therapist->user->notify(new BookingNotification($booking, 'booking_pending'));
+
         return response()->json([
             'message' => 'Booking submitted!',
-            'booking' => $booking->load('service', 'serviceVariant', 'therapist.user'),
+            'booking' => $booking,
         ], 201);
     }
 

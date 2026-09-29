@@ -7,6 +7,7 @@ import {
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
     Loader2, Banknote, Gift, X, Check, Heart,
+    XCircle,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -788,6 +789,41 @@ function AutoPreferencesWidget({ prefs }) {
     );
 }
 
+// ── Notification icon/color ─────────────────────────────────────────────────
+// Reuses the exact `icon`/`color` fields already sent by BookingNotification
+// (see app/Notifications/BookingNotification.php) and the same brand hex
+// values already used for status badges elsewhere in the app.
+const NOTIF_ICONS = {
+    'check-circle': CheckCircle2,
+    'x-circle':     XCircle,
+    navigation:     Navigation,
+    'map-pin':      MapPin,
+    star:           Star,
+    check:          Check,
+    bell:           Bell,
+};
+const NOTIF_COLORS = {
+    green: '#10b981',
+    red:   '#f87171',
+    blue:  '#3b82f6',
+    gold:  '#e2b764',
+    gray:  '#94a3b8',
+};
+
+function NotifIcon({ icon, color }) {
+    const Icon = NOTIF_ICONS[icon] ?? Bell;
+    const hex  = NOTIF_COLORS[color] ?? NOTIF_COLORS.gray;
+
+    return (
+        <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: `${hex}1a`, color: hex }}
+        >
+            <Icon size={13} />
+        </div>
+    );
+}
+
 export default function Dashboard() {
     const { t } = useLanguage();
     const { props } = usePage();
@@ -994,12 +1030,15 @@ export default function Dashboard() {
                                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-card-hover)'}
                                                                 onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : 'rgba(226,183,100,0.04)'}
                                                             >
-                                                                {!notif.read && (
-                                                                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
-                                                                )}
-                                                                <div className={`flex-1 min-w-0 ${notif.read ? 'pl-3.5' : ''}`}>
-                                                                    <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--theme-text-head)' }}>{notif.title}</p>
-                                                                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>{notif.message}</p>
+                                                                <NotifIcon icon={notif.icon} color={notif.color} />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-start gap-1.5">
+                                                                        {!notif.read && (
+                                                                            <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
+                                                                        )}
+                                                                        <p className="text-xs font-semibold mb-0.5 break-words" style={{ color: 'var(--theme-text-head)' }}>{notif.title}</p>
+                                                                    </div>
+                                                                    <p className="text-[11px] leading-relaxed break-words" style={{ color: 'var(--theme-text-2)' }}>{notif.message}</p>
                                                                     <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{notif.created_at}</p>
                                                                 </div>
                                                             </button>
