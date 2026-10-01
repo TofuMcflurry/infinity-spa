@@ -192,6 +192,8 @@ Route::middleware(['auth', 'admin'])
             Route::get('/cancelled-history',[App\Http\Controllers\Admin\AdminBookingController::class, 'cancelledHistory'])->name('cancelled-history');
             Route::get('/stats',            [App\Http\Controllers\Admin\AdminBookingController::class, 'stats'])->name('stats');
             Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
+            Route::post('/{booking}/reschedule', [App\Http\Controllers\Admin\AdminBookingController::class, 'reschedule'])->name('reschedule');
+            Route::get('/{booking}/reschedule-availability', [App\Http\Controllers\Admin\AdminBookingController::class, 'rescheduleAvailability'])->name('reschedule-availability');
 
             // ── Stale Active Session review ──────────────────────────────────
             Route::get('/stale',                    [App\Http\Controllers\Admin\AdminBookingController::class, 'staleBookings'])->name('stale');

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Booking;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -13,7 +14,12 @@ class BookingNotification extends Notification
 
     public function __construct(
         public Booking $booking,
-        public string  $type,  // accepted|rejected|cancelled|en_route|arrived|completed|booking_pending|customer_cancelled|payment_succeeded|payment_failed
+        public string  $type,  // accepted|rejected|cancelled|en_route|arrived|completed|booking_pending|customer_cancelled|payment_succeeded|payment_failed|rescheduled
+        // Only used by 'rescheduled' — the booking's scheduled_start BEFORE
+        // the admin's change, captured by the caller before it mutated the
+        // model, so the notification can show old -> new. Null for every
+        // other type.
+        public ?Carbon $previousScheduledStart = null,
     ) {}
 
     // In-app-only types: the therapist's "new request" alert and the
@@ -106,6 +112,12 @@ class BookingNotification extends Notification
                 'icon'    => 'star',
                 'color'   => 'gold',
             ],
+            'rescheduled'           => [
+                'title'   => 'Booking Rescheduled',
+                'message' => "Your {$serviceName} booking has been rescheduled to {$sessionLabel}.",
+                'icon'    => 'calendar',
+                'color'   => 'blue',
+            ],
         ];
 
         $msg = $messages[$this->type] ?? [
@@ -123,9 +135,14 @@ class BookingNotification extends Notification
             'message'    => $msg['message'],
             'icon'       => $msg['icon'],
             'color'      => $msg['color'],
-            'url'        => $this->type === 'booking_pending'
-                ? '/therapist/bookings?tab=pending'
-                : '/my-bookings',
+            // 'rescheduled' is the only type sent to both a customer and a
+            // therapist, so — unlike every other type here — its destination
+            // depends on who's receiving it, not just the notification type.
+            'url'        => match (true) {
+                $this->type === 'booking_pending' => '/therapist/bookings?tab=pending',
+                $this->type === 'rescheduled' && ($notifiable->role ?? null) === 'therapist' => '/therapist/bookings',
+                default => '/my-bookings',
+            },
         ];
     }
 
@@ -161,6 +178,7 @@ class BookingNotification extends Notification
             'payment_succeeded'    => "✅ Payment Successful — {$bookingRef}",
             'payment_failed'       => "❌ Payment Failed — {$bookingRef}",
             'cancelled'            => "Your Infinity Home Spa booking has been cancelled",
+            'rescheduled'          => "📅 Booking Rescheduled — {$bookingRef}",
         ];
 
         $mail = (new MailMessage)
@@ -168,8 +186,16 @@ class BookingNotification extends Notification
             ->greeting("Hello, {$notifiable->name}!")
             ->line("**Booking Reference:** {$bookingRef}")
             ->line("**Service:** {$serviceName}")
-            ->line("**Therapist:** {$therapistName}")
-            ->line("**Date:** {$date} at {$time}");
+            ->line("**Therapist:** {$therapistName}");
+
+        // 'rescheduled' shows the old time alongside the new one for
+        // clarity; every other type keeps the single "Date" line as before.
+        if ($this->type === 'rescheduled' && $this->previousScheduledStart) {
+            $mail->line('**Previous Schedule:** ' . $this->previousScheduledStart->timezone('Asia/Dubai')->format('l, d F Y \a\t g:i A'));
+            $mail->line("**New Schedule:** {$date} at {$time}");
+        } else {
+            $mail->line("**Date:** {$date} at {$time}");
+        }
 
         match ($this->type) {
             'accepted' => $mail
@@ -211,6 +237,15 @@ class BookingNotification extends Notification
                 ->line('❌ Unfortunately, your payment **could not be completed**.')
                 ->line('Please try booking again or use a different payment method.')
                 ->action('Book Again', url('/book-session')),
+
+            // Sent to both the customer and the therapist — the action link
+            // routes to whichever booking view is relevant to the recipient.
+            'rescheduled' => $mail
+                ->line('📅 This booking\'s schedule was **changed by our team**.')
+                ->line('If you have any questions about this change, please contact us.')
+                ->action('View Booking', url(
+                    $notifiable->role === 'therapist' ? '/therapist/bookings' : '/my-bookings'
+                )),
 
             default => $mail->action('View Booking', url('/my-bookings')),
         };

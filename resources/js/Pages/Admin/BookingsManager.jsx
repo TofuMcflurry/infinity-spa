@@ -9,6 +9,7 @@ import {
     TrendingUp, Activity, ChevronRight, Archive,
     ChevronLeft, ChevronRight as ChevronRightIcon, Sparkle,
     Gift, Hourglass, Siren, UserX, Ban,
+    CalendarClock, ArrowRight, AlertTriangle,
 } from 'lucide-react';
 
 // ── CSRF + API ────────────────────────────────────────────────────────────────
@@ -35,6 +36,13 @@ async function apiFetch(url, options = {}) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ITEMS_PER_PAGE = 50;
+
+// Statuses the backend actually allows to be rescheduled
+// (BookingRescheduleService::RESCHEDULABLE_STATUSES) — mirrored here only to
+// decide whether to show the "Reschedule" action at all. The backend is the
+// real authority: it re-checks this itself on every request regardless of
+// what this list says.
+const RESCHEDULABLE_STATUSES = ['pending', 'accepted'];
 
 // Views
 const VIEWS = [
@@ -117,10 +125,21 @@ function getPayStatus(booking) {
     return 'no_proof';
 }
 
-function isRecent(createdAt, hours = 24) {
-    if (!createdAt) return false;
-    const diff = Date.now() - new Date(createdAt).getTime();
-    return diff < hours * 60 * 60 * 1000;
+// created_at_iso is a genuine ISO-8601 instant (with explicit offset) from
+// the backend — unlike the human-formatted created_at string, it's safe to
+// diff against the browser's own Date.now(), since both sides then refer
+// to the same absolute moment regardless of the admin's own timezone.
+function fmtWaitingSince(iso) {
+    if (!iso) return '—';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    if (diffMs < 60000) return 'just now';
+    const totalMin = Math.floor(diffMs / 60000);
+    const d = Math.floor(totalMin / 1440);
+    const h = Math.floor((totalMin % 1440) / 60);
+    const m = totalMin % 60;
+    if (d > 0) return `${d}d ${h}h waiting`;
+    if (h > 0) return `${h}h ${m}m waiting`;
+    return `${m}m waiting`;
 }
 
 function getProofUrl(path) {
@@ -186,11 +205,386 @@ function ProofLightbox({ url, onClose }) {
     );
 }
 
+// ── Reschedule helpers ──────────────────────────────────────────────────────
+// Splits a backend-formatted "M d, Y g:i A" string (already rendered
+// server-side in Asia/Dubai, e.g. formatBooking()'s scheduled_start_fmt)
+// into its date and time portions via plain string matching — never via
+// Date parsing, so the browser's own timezone never enters the picture.
+function splitScheduleFmt(fmtStr) {
+    if (!fmtStr) return { date: '—', time: '—' };
+    const m = fmtStr.match(/^(.*?)\s(\d{1,2}:\d{2}\s?[AP]M)$/i);
+    if (!m) return { date: fmtStr, time: '' };
+    return { date: m[1].trim(), time: m[2] };
+}
+
+// Builds a Date purely from explicit numeric components (never from string
+// parsing of an ISO timestamp) so the browser's own timezone never enters
+// the picture — reading it back later with the same local
+// getters/formatters round-trips to exactly what was typed, regardless of
+// what timezone the browser happens to be set to. This is only ever used
+// to preview the session's end time (start + the service's own unchanging
+// duration) — never to decide availability, which stays server-side.
+function buildWallClockDate(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return null;
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const [h, mi] = timeStr.split(':').map(Number);
+    if (!y || !mo || !d || Number.isNaN(h) || Number.isNaN(mi)) return null;
+    return new Date(y, mo - 1, d, h, mi);
+}
+
+function fmtWallClockDate(dt) {
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtWallClockTime(dt) {
+    return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+// Zero-padded Y-M-D from LOCAL date parts only (never toISOString, which
+// converts through UTC and can silently shift the calendar date) — the
+// same wall-clock-safe principle as buildWallClockDate above.
+function toDateStr(d) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// The next 7 calendar days starting today, built from explicit local date
+// parts (never string-parsed) so there's no timezone ambiguity in which
+// dates get offered.
+function nextSevenDays() {
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
+}
+
+// Module-scope (not defined inside RescheduleModal) so it keeps a stable
+// component identity across re-renders — defining it inside the modal
+// recreated this as a brand-new function on every keystroke in the Reason
+// textarea (each setReason call re-renders RescheduleModal), which made
+// React remount the <Field> subtree, including the <textarea>, and drop
+// focus after every single character.
+function Field({ label, children }) {
+    return (
+        <div>
+            <p className="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: 'var(--theme-text-muted)' }}>{label}</p>
+            {children}
+        </div>
+    );
+}
+
+// ── Admin Reschedule Modal ────────────────────────────────────────────────────
+// Only ever collects the new date/time + an optional reason. Everything
+// else — therapist, service, duration, travel time, buffer, day-off/shift/
+// unavailable-slot checks, and the actual conflict decision — is computed
+// and validated server-side by BookingRescheduleService. This UI never
+// re-implements any of that: the only thing it computes locally is the new
+// *session end* preview, using the booking's own already-known, unchanging
+// duration — purely cosmetic, not sent to the backend, not a validation
+// source. On failure it surfaces the backend's own message verbatim.
+function RescheduleModal({ booking, onClose, onSuccess }) {
+    // date -> time -> confirm, matching the approved flow. Nothing here
+    // decides availability — every date/time choice offered to the admin
+    // comes straight from BookingRescheduleService::previewAvailability()
+    // via GET .../reschedule-availability, and the only mutation is the
+    // existing POST .../reschedule call, unchanged.
+    const [step, setStep] = useState('date'); // 'date' | 'time' | 'confirm'
+    const [dayOffWeekday, setDayOffWeekday] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(''); // 'YYYY-MM-DD'
+    const [slots, setSlots] = useState([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState(null); // { time: 'HH:mm', label, available }
+    const [reason, setReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    const durationMinutes = (booking.scheduled_start && booking.scheduled_end)
+        ? Math.round((new Date(booking.scheduled_end) - new Date(booking.scheduled_start)) / 60000)
+        : null;
+
+    const currentStart = splitScheduleFmt(booking.scheduled_start_fmt);
+    const currentEnd   = splitScheduleFmt(booking.scheduled_end_fmt);
+
+    // Only ever built from a slot the backend itself already marked
+    // available — this is a display computation (start + the service's own
+    // unchanging duration), never a second availability decision.
+    const newStartDt = selectedSlot ? buildWallClockDate(selectedDate, selectedSlot.time) : null;
+    const newEndDt = (newStartDt && durationMinutes != null)
+        ? new Date(newStartDt.getTime() + durationMinutes * 60000)
+        : null;
+
+    const closeUnlessBusy = () => { if (!submitting) onClose(); };
+
+    // Fetched once on open — just the therapist's day-off weekday, to grey
+    // it out in the date strip. Still only a read of a stored fact, not a
+    // client-side rule; the backend re-confirms it per-date regardless.
+    useEffect(() => {
+        let cancelled = false;
+        apiFetch(`/admin/api/bookings/${booking.id}/reschedule-availability`)
+            .then(data => { if (!cancelled) setDayOffWeekday(data.day_off_weekday); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [booking.id]);
+
+    const fetchSlotsFor = async (dateStr) => {
+        setLoadingSlots(true);
+        setSlots([]);
+        setSelectedSlot(null);
+        try {
+            const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule-availability?date=${dateStr}`);
+            setSlots(data.is_day_off ? [] : (data.slots ?? []));
+        } catch {
+            setSlots([]);
+        } finally {
+            setLoadingSlots(false);
+        }
+    };
+
+    const handlePickDate = (d) => {
+        const dateStr = toDateStr(d);
+        setSelectedDate(dateStr);
+        setError('');
+        setStep('time');
+        fetchSlotsFor(dateStr);
+    };
+
+    const handleSubmit = async () => {
+        if (submitting || !selectedSlot) return; // belt-and-braces against a double click slipping through
+        setSubmitting(true);
+        setError('');
+        try {
+            const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scheduled_start: `${selectedDate} ${selectedSlot.time}:00`,
+                    ...(reason.trim() ? { reason: reason.trim() } : {}),
+                }),
+            });
+            onSuccess(data.booking);
+        } catch (e) {
+            // Show the backend's own message verbatim — it's the precise,
+            // authoritative reason (day off, shift, conflict, unavailable
+            // slot, non-reschedulable state, etc.), never re-derived here.
+            // Selections are left exactly as they were so the admin can
+            // simply pick a different time or date without starting over.
+            setError(e.message || 'Could not reschedule this booking.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm outline-none';
+    const inputStyle = { background: 'var(--theme-input-bg, #141d33)', border: '1px solid var(--theme-border)', color: 'var(--theme-text)' };
+
+    const ErrorBanner = () => error ? (
+        <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+            <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+        </div>
+    ) : null;
+
+    const stepTitle = { date: 'Select New Date', time: 'Select Available Time', confirm: 'Confirm Reschedule' }[step];
+
+    const reasonFmt = reason.trim();
+
+    return (
+        <motion.div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }} onClick={closeUnlessBusy} />
+            <motion.div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl"
+                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}>
+
+                <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div className="flex items-center gap-2">
+                        <CalendarClock size={16} style={{ color: '#e2b764' }} />
+                        <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>{stepTitle}</h3>
+                    </div>
+                    <button onClick={closeUnlessBusy} disabled={submitting}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-40"
+                        style={{ background: 'var(--theme-btn-bg)' }}>
+                        <X size={13} style={{ color: 'var(--theme-text-muted)' }} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    {/* Current Schedule — always visible, never mutated until the request actually succeeds */}
+                    <div className="rounded-xl p-3.5" style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}>
+                        <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: 'var(--theme-text-muted)' }}>Current Schedule</p>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
+                            {currentStart.date} · {currentStart.time} – {currentEnd.time}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                            <span className="flex items-center gap-1"><User size={11} /> {booking.therapist_name ?? '—'}</span>
+                            <span className="flex items-center gap-1"><Clock size={11} /> {durationMinutes ? `${durationMinutes} min` : '—'}</span>
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>{booking.service_name}</p>
+                    </div>
+
+                    {/* ── Step 1: date ────────────────────────────────────────────────── */}
+                    {step === 'date' && (
+                        <>
+                            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>New Date</p>
+                            <div className="grid grid-cols-4 gap-2">
+                                {nextSevenDays().map(d => {
+                                    const dateStr  = toDateStr(d);
+                                    const weekday  = d.toLocaleDateString('en-US', { weekday: 'long' });
+                                    const isDayOff = dayOffWeekday != null && weekday === dayOffWeekday;
+                                    return (
+                                        <button key={dateStr} disabled={isDayOff} onClick={() => handlePickDate(d)}
+                                            className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:cursor-not-allowed"
+                                            style={{
+                                                background: isDayOff ? 'rgba(148,163,184,0.05)' : 'var(--theme-btn-bg)',
+                                                border: `1px solid ${isDayOff ? 'rgba(148,163,184,0.15)' : 'var(--theme-border)'}`,
+                                                color: isDayOff ? 'var(--theme-text-muted)' : 'var(--theme-text-head)',
+                                                opacity: isDayOff ? 0.55 : 1,
+                                            }}>
+                                            <span className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
+                                                {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                                            </span>
+                                            <span className="text-base font-bold leading-none">{d.getDate()}</span>
+                                            {isDayOff && <span className="text-[8px] font-bold mt-0.5" style={{ color: '#f87171' }}>Day Off</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+                                Greyed days are the therapist's regular day off.
+                            </p>
+                            <ErrorBanner />
+                        </>
+                    )}
+
+                    {/* ── Step 2: time ────────────────────────────────────────────────── */}
+                    {step === 'time' && (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Available Times — {fmtWallClockDate(buildWallClockDate(selectedDate, '00:00'))}
+                                </p>
+                                <button onClick={() => { setError(''); setStep('date'); }} className="text-[11px] font-semibold" style={{ color: '#e2b764' }}>
+                                    Change date
+                                </button>
+                            </div>
+
+                            {loadingSlots ? (
+                                <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin" style={{ color: '#e2b764' }} /></div>
+                            ) : slots.length === 0 ? (
+                                <div className="text-center py-6">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>No available times for this date.</p>
+                                    <button onClick={() => { setError(''); setStep('date'); }}
+                                        className="text-xs font-bold mt-2" style={{ color: '#e2b764' }}>
+                                        Choose another date
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {slots.map(s => {
+                                        const isSelected = selectedSlot?.time === s.time;
+                                        return (
+                                            <button key={s.time} disabled={!s.available} onClick={() => setSelectedSlot(s)}
+                                                className="py-2 rounded-lg text-xs font-semibold transition-all disabled:cursor-not-allowed"
+                                                style={{
+                                                    background: isSelected ? 'rgba(226,183,100,0.18)' : s.available ? 'var(--theme-btn-bg)' : 'rgba(148,163,184,0.05)',
+                                                    border: `1px solid ${isSelected ? 'rgba(226,183,100,0.5)' : s.available ? 'var(--theme-border)' : 'rgba(148,163,184,0.15)'}`,
+                                                    color: isSelected ? '#e2b764' : s.available ? 'var(--theme-text-2)' : 'var(--theme-text-muted)',
+                                                    opacity: s.available ? 1 : 0.45,
+                                                }}>
+                                                {s.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {selectedSlot && (
+                                <div className="rounded-xl p-3 space-y-1" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                                    <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> Therapist available</p>
+                                    {durationMinutes != null && (
+                                        <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> {durationMinutes}-minute service</p>
+                                    )}
+                                    <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> Travel + buffer accounted for</p>
+                                </div>
+                            )}
+
+                            <ErrorBanner />
+
+                            <button onClick={() => { setError(''); setStep('confirm'); }} disabled={!selectedSlot}
+                                className="w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
+                                style={{ background: 'rgba(226,183,100,0.15)', border: '1px solid rgba(226,183,100,0.35)', color: '#e2b764' }}>
+                                Continue to Review
+                            </button>
+                        </>
+                    )}
+
+                    {/* ── Step 3: confirm ─────────────────────────────────────────────── */}
+                    {step === 'confirm' && newStartDt && newEndDt && (
+                        <>
+                            <div className="rounded-xl p-3.5 space-y-3" style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.3)' }}>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Current</p>
+                                    <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>{currentStart.date} · {currentStart.time} – {currentEnd.time}</p>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <ArrowRight size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#e2b764' }} />
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: '#e2b764' }}>New</p>
+                                        <p className="text-sm font-bold" style={{ color: 'var(--theme-text-head)' }}>
+                                            {fmtWallClockDate(newStartDt)} · {fmtWallClockTime(newStartDt)} – {fmtWallClockTime(newEndDt)}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="pt-2 border-t space-y-1" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                                        <span className="font-semibold" style={{ color: 'var(--theme-text-2)' }}>Therapist:</span> {booking.therapist_name ?? '—'}
+                                    </p>
+                                    {reasonFmt && (
+                                        <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                                            <span className="font-semibold" style={{ color: 'var(--theme-text-2)' }}>Reason:</span> {reasonFmt}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="pt-2 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <p className="text-xs flex items-center gap-1.5 font-semibold" style={{ color: '#10b981' }}>
+                                        <CheckCircle2 size={12} /> Available — confirmed by the server
+                                    </p>
+                                </div>
+                            </div>
+
+                            <Field label="Reason (optional)">
+                                <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)}
+                                    placeholder="Why is this booking being rescheduled?" className={inputCls} style={inputStyle} />
+                            </Field>
+
+                            <ErrorBanner />
+
+                            <div className="flex gap-2">
+                                <button onClick={() => setStep('time')} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                                    style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
+                                    Back
+                                </button>
+                                <button onClick={handleSubmit} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                                    style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#10b981' }}>
+                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                    Confirm Reschedule
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
 // ── Booking Detail Drawer ─────────────────────────────────────────────────────
-function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
+function BookingDrawer({ booking, onClose, onRefundSent, refunding, onRescheduled }) {
     const [imgZoom, setImgZoom] = useState(false);
     const [refInput, setRefInput] = useState('');
     const [showRefund, setShowRefund] = useState(false);
+    const [showReschedule, setShowReschedule] = useState(false);
 
     const proofUrl = getProofUrl(booking.downpayment_proof);
     const stStyle = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
@@ -302,6 +696,13 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
                         <Row icon={User} label="Therapist" value={booking.therapist_name} accent="#f59e0b" />
                         <Row icon={CreditCard} label="Payment Method" value={booking.payment_method} accent="#8b5cf6" />
                     </Section>
+                    {RESCHEDULABLE_STATUSES.includes(booking.status) && (
+                        <button onClick={() => setShowReschedule(true)}
+                            className="w-full mb-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                            style={{ background: 'rgba(226,183,100,0.1)', border: '1px solid rgba(226,183,100,0.3)', color: '#e2b764' }}>
+                            <CalendarClock size={14} /> Reschedule Booking
+                        </button>
+                    )}
                     <Section title="Payment">
                         <Row icon={Banknote} label="Service Price" value={`AED ${Number(booking.service_price).toFixed(2)}`} accent="#e2b764" />
                         {booking.is_voucher_covered ? (
@@ -358,6 +759,15 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding }) {
                 </div>
             </motion.div>
             <AnimatePresence>{imgZoom && <ProofLightbox url={proofUrl} onClose={() => setImgZoom(false)} />}</AnimatePresence>
+            <AnimatePresence>
+                {showReschedule && (
+                    <RescheduleModal
+                        booking={booking}
+                        onClose={() => setShowReschedule(false)}
+                        onSuccess={(updated) => { onRescheduled(booking.id, updated); setShowReschedule(false); }}
+                    />
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }
@@ -510,12 +920,66 @@ function Pagination({ currentPage, totalPages, onPageChange, itemsPerPage, onIte
 }
 
 // ── Latest Bookings Section (pinned, recent 24hrs) ──────────────────────────
-function LatestBookingsSection({ bookings, onView }) {
-    const recentBookings = useMemo(() => {
-        return bookings.filter(b => isRecent(b.created_at, 24)).slice(0, 10);
-    }, [bookings]);
+// ── Pending Bookings — pinned atop All Bookings ─────────────────────────────
+// Surfaces new booking requests before they get buried in the full history.
+// The therapist, not the admin, is responsible for accepting/rejecting a
+// pending booking (see TherapistBookingController::accept/reject) — this
+// section is review-only, so there is no Approve action here.
+function PendingBookingsSection({ bookings, onView }) {
+    // allBookings already arrives newest-created-first
+    // (AdminBookingController::allBookings() -> orderByDesc('created_at')),
+    // so filtering preserves that order without any extra client-side sort.
+    const pending = useMemo(() => bookings.filter(b => b.status === 'pending'), [bookings]);
 
-    if (!recentBookings.length) return null;
+    return (
+        <div className="border-b" style={{ borderColor: 'var(--theme-border)' }}>
+            <div className="flex items-center gap-2 px-5 py-3"
+                style={{ background: 'rgba(226,183,100,0.06)', borderBottom: pending.length ? '1px solid rgba(226,183,100,0.15)' : 'none' }}>
+                <Hourglass size={13} style={{ color: '#e2b764' }} />
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#e2b764' }}>New Bookings</span>
+                {pending.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(226,183,100,0.2)', color: '#e2b764' }}>
+                        {pending.length}
+                    </span>
+                )}
+            </div>
+
+            {pending.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-1.5">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>No new bookings</p>
+                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>New booking requests will appear here when they need your attention.</p>
+                </div>
+            ) : (
+                <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
+                    {pending.map(b => (
+                        <div key={b.id} className="flex items-center gap-3 px-5 py-3 flex-wrap md:flex-nowrap"
+                            style={{ borderLeft: '3px solid #e2b764' }}>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-xs font-bold" style={{ color: '#e2b764' }}>{b.ref}</span>
+                                    <Badge cfg={STATUS_STYLES.pending} />
+                                </div>
+                                <p className="text-sm font-semibold mt-1 truncate" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name} · {b.service_name}</p>
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Awaiting therapist acceptance — {b.therapist_name ?? 'Unassigned'}
+                                </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                                <p className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--theme-text-head)' }}>{b.scheduled_start_fmt}</p>
+                                <p className="text-[11px] font-semibold mt-0.5 whitespace-nowrap" style={{ color: '#e2b764' }}>{fmtWaitingSince(b.created_at_iso)}</p>
+                            </div>
+                            <Badge cfg={PAY_STATUS_STYLES[getPayStatus(b)]} />
+                            <button onClick={() => onView(b)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
+                                style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.25)' }}>
+                                <Eye size={11} /> View
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
 // ── All Bookings Table with Pagination ──────────────────────────────────────
@@ -784,6 +1248,16 @@ export default function BookingsManager() {
         }
     };
 
+    // RescheduleModal already performed the POST and only calls this once
+    // the backend confirmed success — this just fans the already-updated
+    // booking (the backend's own formatBooking() payload) out to local
+    // state, the same way every other admin action here does.
+    const handleRescheduled = (bookingId, updatedBooking) => {
+        patchBooking(bookingId, updatedBooking);
+        showToast('Booking rescheduled ✅');
+        fetchStats();
+    };
+
     // Paginated all bookings
     const paginatedAllBookings = useMemo(() => {
         const start = (currentPage - 1) * itemsPerPage;
@@ -868,7 +1342,7 @@ export default function BookingsManager() {
                     )}
                     {activeView === 'all' && (
                         <>
-                            <LatestBookingsSection bookings={allBookings} onView={setSelected} />
+                            <PendingBookingsSection bookings={allBookings} onView={setSelected} />
                             <AllBookingsTable
                                 bookings={paginatedAllBookings}
                                 loading={loading}
@@ -898,7 +1372,7 @@ export default function BookingsManager() {
                 </div>
             </div>
 
-            <AnimatePresence>{selected && <BookingDrawer booking={selected} onClose={() => setSelected(null)} onRefundSent={handleRefundSent} refunding={refunding} />}</AnimatePresence>
+            <AnimatePresence>{selected && <BookingDrawer booking={selected} onClose={() => setSelected(null)} onRefundSent={handleRefundSent} refunding={refunding} onRescheduled={handleRescheduled} />}</AnimatePresence>
             <AnimatePresence>{toast && <Toast toast={toast} />}</AnimatePresence>
         </AdminLayout>
     );

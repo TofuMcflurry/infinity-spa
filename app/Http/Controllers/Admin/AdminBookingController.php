@@ -13,12 +13,15 @@ use Inertia\Inertia;
 use App\Events\Audit\BookingAccepted;
 use App\Events\Audit\BookingRejected;
 use App\Events\Audit\BookingCancelled;
+use App\Events\Audit\BookingRescheduled;
 use App\Events\Audit\RefundSent;
 use App\Events\Audit\StaleBookingResolved;
 
 // Services — same code paths the therapist/customer flows already use
 use App\Services\BookingCompletionService;
 use App\Services\BookingCancellationService;
+use App\Services\BookingRescheduleService;
+use App\Notifications\BookingNotification;
 
 class AdminBookingController extends Controller
 {
@@ -83,6 +86,79 @@ class AdminBookingController extends Controller
             'message' => 'Refund marked as sent.',
             'booking' => $this->formatBooking($booking->fresh(['service', 'serviceVariant', 'therapist.user', 'customer'])),
         ]);
+    }
+
+    // ── Admin Reschedule ───────────────────────────────────────────────────
+    // Client may only send the new start time and an optional reason —
+    // therapist_id/service_id/duration/travel time are never accepted from
+    // the client; they're derived server-side from the booking's own
+    // existing relations via BookingRescheduleService.
+    public function reschedule(Request $request, Booking $booking)
+    {
+        $request->validate([
+            'scheduled_start' => 'required|date|after:now',
+            'reason'          => 'nullable|string|max:500',
+        ]);
+
+        $newStart = Carbon::parse($request->scheduled_start);
+
+        // DB::transaction() only returns when the closure completes without
+        // throwing — i.e. only after a successful commit. Any validation or
+        // conflict failure inside BookingRescheduleService::reschedule()
+        // throws, the transaction rolls back, and the exception propagates
+        // straight out of this statement — so nothing below it (including
+        // the notify() calls) ever runs for a failed reschedule.
+        [$updated, $previousStart] = DB::transaction(function () use ($request, $booking, $newStart) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
+
+            $previousStart = $locked->scheduled_start;
+            $previousEnd   = $locked->scheduled_end;
+
+            $updated = BookingRescheduleService::reschedule($locked, $newStart, $request->reason);
+
+            BookingRescheduled::dispatch(
+                $updated->id,
+                $previousStart?->toDateTimeString(),
+                $previousEnd?->toDateTimeString(),
+                $updated->scheduled_start->toDateTimeString(),
+                $updated->scheduled_end->toDateTimeString(),
+                $request->reason,
+                $request,
+            );
+
+            return [$updated, $previousStart];
+        });
+
+        // ── Post-commit notifications ────────────────────────────────────────
+        // Exactly one notify() call per recipient — each fans out to both
+        // the database and mail channels via BookingNotification's own via().
+        $updated->load('customer', 'service', 'serviceVariant', 'therapist.user');
+
+        if ($updated->customer) {
+            $updated->customer->notify(new BookingNotification($updated, 'rescheduled', $previousStart));
+        }
+        $updated->therapist->user->notify(new BookingNotification($updated, 'rescheduled', $previousStart));
+
+        return response()->json([
+            'message' => 'Booking rescheduled.',
+            'booking' => $this->formatBooking(
+                $updated->fresh(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
+            ),
+        ]);
+    }
+
+    // Read-only — drives the reschedule UI's date/time pickers. Never
+    // mutates, never locks, never dispatches audit/notification events.
+    // Reuses BookingRescheduleService::previewAvailability() so the UI
+    // can only ever offer a time the POST /reschedule endpoint above
+    // would actually accept.
+    public function rescheduleAvailability(Request $request, Booking $booking)
+    {
+        $request->validate(['date' => 'nullable|date']);
+
+        return response()->json(
+            BookingRescheduleService::previewAvailability($booking, $request->date)
+        );
     }
 
     // ── Stale Active Session review ──────────────────────────────────────────
@@ -277,6 +353,11 @@ class AdminBookingController extends Controller
                 ? Carbon::parse($b->refund_sent_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
                 : null,
             'created_at'               => Carbon::parse($b->created_at)->timezone('Asia/Dubai')->format('M d, Y g:i A'),
+            // A genuine ISO-8601 instant (unlike the human-formatted field
+            // above) — the "New Bookings" panel diffs this against the
+            // browser's own clock to show waiting time, which only gives a
+            // correct result when the timestamp carries its own offset.
+            'created_at_iso'           => $b->created_at?->toIso8601String(),
             // ── Stale Active Session flag ──────────────────────────────────────
             'flagged_at'               => $b->flagged_at,
             'flagged_at_fmt'           => $b->flagged_at

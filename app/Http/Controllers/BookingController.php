@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
 use App\Notifications\BookingNotification;
+use App\Services\TherapistAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -152,7 +153,7 @@ class BookingController extends Controller
             }
 
             if ($therapistId) {
-                $slotResult = $this->getTherapistSlotStatus(
+                $slotResult = TherapistAvailabilityService::getTherapistSlotStatus(
                     $therapistId,
                     $slotDateTime,
                     $variant->duration_minutes,
@@ -180,7 +181,7 @@ class BookingController extends Controller
                     }
                 }
             } else {
-                $isAvail    = $this->hasAvailableTherapist(
+                $isAvail    = TherapistAvailabilityService::hasAvailableTherapist(
                     $slotDateTime,
                     $variant->duration_minutes,
                     $zoneName,
@@ -279,7 +280,7 @@ class BookingController extends Controller
         }
 
         // ── Therapist conflict check ──────────────────────────────────────────
-        if ($this->hasConflict(
+        if (TherapistAvailabilityService::hasConflict(
             $therapist->id,
             $timeBlocks['travel_start'],
             $timeBlocks['buffer_end']
@@ -419,94 +420,6 @@ class BookingController extends Controller
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
-
-    private function getTherapistSlotStatus(
-        int    $therapistId,
-        Carbon $slotDatetime,
-        int    $duration,
-        string $zoneName
-    ): array {
-        $therapist     = Therapist::with('zones')->findOrFail($therapistId);
-        $travelMinutes = $therapist->getTravelTime($zoneName);
-
-        $thisBlocks = Booking::computeTimeBlocks(
-            $slotDatetime->toDateTimeString(),
-            $duration,
-            $travelMinutes
-        );
-
-        $activeBookings = Booking::where('therapist_id', $therapistId)
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->get(['travel_start', 'scheduled_start', 'scheduled_end', 'buffer_end']);
-
-        foreach ($activeBookings as $booking) {
-            $existingTravelStart = Carbon::parse($booking->travel_start);
-            $existingBufferEnd   = Carbon::parse($booking->buffer_end);
-            $existingStart       = Carbon::parse($booking->scheduled_start);
-            $existingEnd         = Carbon::parse($booking->scheduled_end);
-
-            $overlaps = $thisBlocks['travel_start']->lte($existingBufferEnd)
-                && $thisBlocks['buffer_end']->gte($existingTravelStart);
-
-            if (!$overlaps) continue;
-
-            if ($slotDatetime->gte($existingStart) && $slotDatetime->lt($existingEnd)) {
-                return ['available' => false, 'reason' => 'booked'];
-            }
-
-            if ($slotDatetime->lt($existingStart)) {
-                return ['available' => false, 'reason' => 'travel'];
-            }
-
-            return ['available' => false, 'reason' => 'buffer'];
-        }
-
-        return ['available' => true, 'reason' => null];
-    }
-
-    private function hasAvailableTherapist(
-        Carbon $slotDatetime,
-        int    $duration,
-        string $zoneName,
-        string $dayName
-    ): bool {
-        $therapists = Therapist::with('zones')
-            ->where('is_active', true)
-            ->where('day_off', '!=', $dayName)
-            ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
-            ->get();
-
-        foreach ($therapists as $therapist) {
-            $travelMinutes = $therapist->getTravelTime($zoneName);
-            $timeBlocks    = Booking::computeTimeBlocks(
-                $slotDatetime->toDateTimeString(),
-                $duration,
-                $travelMinutes
-            );
-
-            if (!$this->hasConflict(
-                $therapist->id,
-                $timeBlocks['travel_start'],
-                $timeBlocks['buffer_end']
-            )) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function hasConflict(
-        int    $therapistId,
-        Carbon $travelStart,
-        Carbon $bufferEnd
-    ): bool {
-        return Booking::where('therapist_id', $therapistId)
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->where('travel_start', '<=', $bufferEnd)
-            ->where('buffer_end',   '>=', $travelStart)
-            ->exists();
-    }
 
     private function canReview(Booking $booking, int $customerId): bool
     {
