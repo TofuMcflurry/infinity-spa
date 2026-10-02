@@ -8,7 +8,8 @@ import {
     ChevronRight, Loader2, CheckCircle2,
     XCircle, AlertCircle, RefreshCw, Sparkles,
     CreditCard, Banknote, X, AlertTriangle,
-    Receipt, Image, ExternalLink
+    Receipt, Image, ExternalLink, CalendarClock,
+    ArrowRight, ChevronLeft, Bell
 } from 'lucide-react';
 
 // ── API helper ─────────────────────────────────────────────────────────────
@@ -52,6 +53,393 @@ const CANCEL_REASONS = [
     { id: 'other',             label: 'Other reason',             icon: '✏️'  },
 ];
 
+// ── Reschedule request helpers ──────────────────────────────────────────────
+// This is only ever a PREFERENCE for admin review — unlike the real booking
+// flow's getAvailableSlots, there's no server-side availability check here,
+// so the time window below just mirrors the same 16:00 -> 04:00 spa hours
+// the booking flow already uses, purely to keep the picker sensible.
+const RESCHEDULE_TIME_SLOTS = (() => {
+    const slots = [];
+    let h = 16, m = 0;
+    for (let i = 0; i < 24; i++) {
+        const hh = String(h % 24).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        const h12 = (h % 12) === 0 ? 12 : (h % 12);
+        slots.push({ value: `${hh}:${mm}`, label: `${h12}:${mm} ${h % 24 < 12 ? 'AM' : 'PM'}` });
+        m += 30;
+        if (m === 60) { m = 0; h += 1; }
+    }
+    return slots;
+})();
+
+// Every wall-clock field of a JS Date, as seen in Asia/Dubai — the
+// timezone the whole backend already assumes for any plain "Y-m-d H:i:s"
+// string it receives (see config/app.php's 'timezone').
+function dubaiParts(date) {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+    return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+// A slot's time-of-day alone doesn't say which calendar day it belongs to —
+// "00:00"-"03:30" is really the tail end of the shift that STARTED the
+// previous evening, so the date the customer picked must roll forward a day
+// for those values (same convention BookingController::getAvailableSlots
+// already uses for the real booking flow).
+function slotDateTimeString(dateStr, timeStr) {
+    const hour = parseInt(timeStr.slice(0, 2), 10);
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (hour < 16) d.setDate(d.getDate() + 1);
+    const y = d.getFullYear(), mo = String(d.getMonth() + 1).padStart(2, '0'), da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${da} ${timeStr}:00`;
+}
+
+// Quick "same time, N days later" suggestions computed from the booking's
+// own current schedule — Asia/Dubai has no DST, so shifting the raw epoch
+// by N*86400000ms always preserves the same Asia/Dubai wall-clock time.
+function rescheduleSuggestions(scheduledStartIso) {
+    if (!scheduledStartIso) return [];
+    const base = new Date(scheduledStartIso);
+    return [1, 3, 7].map(days => {
+        const shifted = new Date(base.getTime() + days * 86_400_000);
+        const { date, time } = dubaiParts(shifted);
+        const label = shifted.toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', weekday: 'short', month: 'short', day: 'numeric' });
+        const timeLabel = shifted.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: 'numeric', minute: '2-digit', hour12: true });
+        return {
+            days,
+            date, time,
+            caption: days === 1 ? 'Tomorrow' : `In ${days} days`,
+            label: `${label} · ${timeLabel}`,
+        };
+    });
+}
+
+// ── Reschedule Proposal (admin → customer) ──────────────────────────────────
+// Everything below follows docs/design/INFINITY-HOME-SPA-UI-HANDOFF.md §8
+// literally, including its exact token hex values (§1) — this is new UI the
+// handoff is the single source of truth for, so it is NOT restyled to match
+// the rest of this file's older ad-hoc palette.
+const HO = {
+    bg: '#0B1222', surface: '#111A2E', raised: '#16213A', line: '#24304B', lineStrong: '#66779B',
+    ink: '#F3EFE6', ink2: '#A9B3C7', ink3: '#8390A8', inkDisabled: '#4E5A73',
+    gold: '#E8B65C', goldHover: '#F0C477', onGold: '#1A1206', goldBg: '#2A2110', goldLine: '#6B5428',
+    success: '#4CC79A', successBg: '#0F2A24', successBorder: '#1F5444',
+    warning: '#F2A93B', warningBg: '#2C2210', warningBorder: '#5C4318',
+    danger: '#F07A72', dangerBg: '#331A1F', dangerBorder: '#5E2C31', dangerOutline: '#7A3A3F', dangerSolidText: '#2A0C0A',
+    info: '#6EA8F7', infoBg: '#132544', infoBorder: '#24447A',
+    scrim: 'rgba(4,8,18,0.72)',
+};
+
+// §8.2 — proposal status -> label/tone (locked)
+const PROPOSAL_STATUS_CONFIG = {
+    pending:   { label: 'Awaiting Customer',     tone: 'warning' },
+    accepted:  { label: 'Accepted',              tone: 'success' },
+    countered: { label: 'Alternative Requested', tone: 'info' },
+    cancelled: { label: 'Booking Cancelled',     tone: 'danger' },
+    expired:   { label: 'Expired · No Response', tone: 'neutral' },
+};
+
+function toneColors(tone) {
+    switch (tone) {
+        case 'success': return { text: HO.success, bg: HO.successBg, border: HO.successBorder };
+        case 'warning': return { text: HO.warning, bg: HO.warningBg, border: HO.warningBorder };
+        case 'danger':  return { text: HO.danger,  bg: HO.dangerBg,  border: HO.dangerBorder };
+        case 'info':    return { text: HO.info,    bg: HO.infoBg,    border: HO.infoBorder };
+        case 'gold':    return { text: HO.gold,    bg: HO.goldBg,    border: HO.goldLine };
+        // "neutral" — the undyed style §8.2 specifies for Expired (same as
+        // MiniTag "Requested", §2.5): no new colour token.
+        default:        return { text: HO.ink3,    bg: 'transparent', border: HO.line };
+    }
+}
+
+// Every wall-clock field of an ISO instant, as seen in Asia/Dubai, split
+// into the date/time pair ScheduleCompare's two mono lines need.
+function splitIsoToDubaiDateTime(iso) {
+    if (!iso) return { date: '—', time: '' };
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('en-US', { timeZone: 'Asia/Dubai', weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+    const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: 'numeric', minute: '2-digit', hour12: true });
+    return { date, time };
+}
+
+// §2.4 StatusTag
+function HandoffStatusTag({ label, tone }) {
+    const c = toneColors(tone);
+    return (
+        <span className="inline-flex items-center uppercase whitespace-nowrap"
+            style={{ height: 20, padding: '0 7px', borderRadius: 4, border: `1px solid ${c.border}`, background: c.bg, color: c.text, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em' }}>
+            {label}
+        </span>
+    );
+}
+
+// §8.2 ProposalStatusLabel — mono "RESCHEDULE PROPOSAL" + StatusTag, gap 8.
+function ProposalStatusLabel({ status }) {
+    const cfg = PROPOSAL_STATUS_CONFIG[status] ?? { label: status, tone: 'neutral' };
+    return (
+        <div className="flex items-center" style={{ gap: 8 }}>
+            <span className="font-mono uppercase whitespace-nowrap" style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: HO.ink3 }}>
+                Reschedule Proposal
+            </span>
+            <HandoffStatusTag label={cfg.label} tone={cfg.tone} />
+        </div>
+    );
+}
+
+// §2.12 StatusBanner
+function HandoffStatusBanner({ tone, icon: Icon, title, children }) {
+    const c = toneColors(tone);
+    return (
+        <div role="status" className="flex items-start" style={{ gap: 12, padding: '12px 14px', borderRadius: 10, border: `1px solid ${c.border}`, background: c.bg }}>
+            <Icon size={16} style={{ color: c.text, flexShrink: 0, marginTop: 1 }} />
+            <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: HO.ink, margin: 0 }}>{title}</p>
+                {children && <p style={{ fontSize: 13, lineHeight: '19px', color: HO.ink2, marginTop: 4 }}>{children}</p>}
+            </div>
+        </div>
+    );
+}
+
+// §2.9 ScheduleCompare — row of two cards with an arrow between.
+function HandoffScheduleCompare({ leftEyebrow, leftTone = 'neutral', leftDate, leftTime, leftSub, rightEyebrow, rightTone = 'gold', rightDate, rightTime, rightSub }) {
+    const Card = ({ eyebrow, tone, date, time, sub, borderColor }) => {
+        const c = toneColors(tone);
+        return (
+            <div className="flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', borderRadius: 10, background: HO.raised, border: `1px solid ${borderColor}` }}>
+                <span className="uppercase" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: c.text }}>{eyebrow}</span>
+                <span className="font-mono" style={{ fontSize: 15, fontWeight: 700, color: HO.ink }}>{date}</span>
+                {time && <span className="font-mono" style={{ fontSize: 13, fontWeight: 600, color: HO.ink2 }}>{time}</span>}
+                {sub && <span style={{ fontSize: 12, color: HO.ink3, marginTop: 2 }}>{sub}</span>}
+            </div>
+        );
+    };
+    return (
+        <div className="flex items-center" style={{ gap: 12 }}>
+            <Card eyebrow={leftEyebrow} tone={leftTone} date={leftDate} time={leftTime} sub={leftSub} borderColor={HO.line} />
+            <ArrowRight size={18} style={{ color: HO.ink3, flexShrink: 0 }} />
+            <Card eyebrow={rightEyebrow} tone={rightTone} date={rightDate} time={rightTime} sub={rightSub} borderColor={HO.goldLine} />
+        </div>
+    );
+}
+
+// §2.11 InfoNote
+function HandoffInfoNote({ icon: Icon = AlertCircle, children }) {
+    return (
+        <div role="note" className="flex" style={{ gap: 10, padding: '10px 12px', border: `1px solid ${HO.line}`, borderRadius: 8, background: HO.raised }}>
+            <Icon size={16} style={{ color: HO.info, flexShrink: 0, marginTop: 1 }} />
+            <p style={{ fontSize: 13, lineHeight: '19px', color: HO.ink2, margin: 0 }}>{children}</p>
+        </div>
+    );
+}
+
+// §2.22 CountdownTimer (extends WaitingTimer — counts down instead of up)
+function CountdownTimer({ expiresAt }) {
+    if (!expiresAt) return null;
+    const ms = new Date(expiresAt).getTime() - Date.now();
+    if (ms <= 0) return null;
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const label = h > 0 ? `${h}H ${m}M` : `${m}M`;
+    const warn = ms < 2 * 60 * 60 * 1000;
+    return (
+        <div className="flex items-center" style={{ gap: 6 }}>
+            <Clock size={12} style={{ color: warn ? HO.warning : HO.ink3 }} />
+            <span className="font-mono uppercase" style={{ fontSize: 11, fontWeight: 600, color: warn ? HO.warning : HO.ink3 }}>
+                Expires in {label}
+            </span>
+        </div>
+    );
+}
+
+// §2.1 Button
+function HandoffButton({ variant = 'secondary', size = 'md', children, onClick, disabled, loading }) {
+    const sizes = { sm: { height: 32, padX: 12, font: 13 }, md: { height: 40, padX: 16, font: 14 }, lg: { height: 44, padX: 20, font: 14 } };
+    const s = sizes[size] ?? sizes.md;
+    const variants = {
+        primary:        { background: HO.gold,        color: HO.onGold,        border: HO.gold },
+        secondary:      { background: HO.raised,      color: HO.ink,           border: HO.lineStrong },
+        ghost:          { background: 'transparent',  color: HO.ink2,          border: 'transparent' },
+        danger:         { background: 'transparent',  color: HO.danger,        border: HO.dangerOutline },
+        'danger-solid': { background: HO.danger,       color: HO.dangerSolidText, border: HO.danger },
+    };
+    const v = disabled ? { background: HO.raised, color: HO.inkDisabled, border: HO.line } : (variants[variant] ?? variants.secondary);
+    const spinnerColor = variant === 'primary' ? HO.onGold : HO.ink;
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled || loading}
+            aria-busy={loading || undefined}
+            aria-disabled={disabled || undefined}
+            className="inline-flex items-center justify-center whitespace-nowrap transition-all"
+            style={{
+                gap: 8, height: s.height, padding: `0 ${s.padX}px`, borderRadius: 8,
+                border: `1px solid ${v.border}`, background: v.background, color: v.color,
+                fontSize: s.font, fontWeight: variant === 'danger-solid' ? 700 : 600,
+                cursor: (disabled || loading) ? 'not-allowed' : 'pointer',
+            }}
+        >
+            {loading && <Loader2 size={14} className="animate-spin" style={{ color: spinnerColor }} />}
+            {children}
+        </button>
+    );
+}
+
+// §8.5 — the full proposal response section: ProposalStatusLabel, the
+// warning StatusBanner, ScheduleCompare, the three response actions,
+// InfoNote and CountdownTimer. Only ever rendered for a `pending` proposal
+// — once resolved, the booking's own normal status/schedule takes back
+// over (see BookingCard/BookingDetailsModal).
+function ProposalResponseSection({ booking, onAccept, onRequestAnother, onCancelBooking }) {
+    const proposal = booking.reschedule_proposal;
+    if (!proposal || proposal.status !== 'pending') return null;
+
+    const { date: proposedDate, time: proposedTime } = splitIsoToDubaiDateTime(proposal.proposed_start_at);
+
+    return (
+        <div className="space-y-3">
+            <ProposalStatusLabel status="pending" />
+            <HandoffStatusBanner tone="warning" icon={Clock} title="New time proposed">
+                Our team proposed a new time for your booking.
+            </HandoffStatusBanner>
+            <HandoffScheduleCompare
+                leftEyebrow="Current · Confirmed" leftTone="success"
+                leftDate={booking.date_short} leftTime={booking.time}
+                leftSub="Your booking stays as is"
+                rightEyebrow="Proposed" rightTone="gold"
+                rightDate={proposedDate} rightTime={proposedTime}
+                rightSub="Awaiting your response"
+            />
+            <div className="flex flex-wrap items-center" style={{ gap: 12 }}>
+                <HandoffButton variant="danger" size="sm" onClick={() => onCancelBooking?.(booking, proposal)}>
+                    Cancel Booking
+                </HandoffButton>
+                <div className="flex-1" />
+                <HandoffButton variant="secondary" size="sm" onClick={() => onRequestAnother?.(booking, proposal)}>
+                    Request Another Time
+                </HandoffButton>
+                <HandoffButton variant="primary" size="sm" onClick={() => onAccept?.(booking, proposal)}>
+                    Accept New Schedule
+                </HandoffButton>
+            </div>
+            <HandoffInfoNote icon={AlertCircle}>
+                Accepting confirms this new schedule right away. Suggesting another time sends it to our team for review — your booking stays as is until then.
+            </HandoffInfoNote>
+            <CountdownTimer expiresAt={proposal.expires_at} />
+        </div>
+    );
+}
+
+// §4.1 Toast — handoff-locked feedback. This is the first toast in
+// MyBookings.jsx; used only where §8 explicitly calls for one (the Accept
+// success message, §8.6) — everything else keeps its existing non-toast
+// feedback (modal close + list refresh), per §8.7/§8.9's "unchanged".
+function HandoffToast({ toast, onDismiss }) {
+    const tone = toast.type === 'error' ? 'danger' : toast.type;
+    const c = toneColors(tone);
+    const Icon = toast.type === 'error' ? AlertCircle : CheckCircle2;
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+            role={toast.type === 'error' ? 'alert' : 'status'}
+            className="fixed z-[70] bottom-6 left-1/2 -translate-x-1/2 sm:left-6 sm:translate-x-0 flex items-center"
+            style={{ gap: 12, padding: '12px 14px', borderRadius: 10, background: HO.raised, border: `1px solid ${c.border}`, boxShadow: '0 12px 32px rgba(0,0,0,.45)', maxWidth: 420 }}
+        >
+            <Icon size={16} style={{ color: c.text, flexShrink: 0 }} />
+            <span style={{ fontSize: 14, lineHeight: '20px', color: HO.ink }}>{toast.message}</span>
+            <button onClick={onDismiss} aria-label="Dismiss" style={{ color: HO.ink3, marginLeft: 4 }}>
+                <X size={14} />
+            </button>
+        </motion.div>
+    );
+}
+
+// §8.6 — Accept confirmation, reusing the Approve-confirmation Modal shell
+// (560) with customer-facing copy. The booking is only ever mutated by the
+// backend's own accept() call below — never optimistically here.
+function AcceptProposalModal({ booking, proposal, onClose, onAccepted }) {
+    const [submitting, setSubmitting] = useState(false);
+    const [error,      setError]      = useState(null);
+
+    const { date: newDate, time: newTime } = splitIsoToDubaiDateTime(proposal.proposed_start_at);
+    const bookingRef = `IHS-${String(booking.id).padStart(5, '0')}`;
+
+    const handleConfirm = async () => {
+        if (submitting) return; // belt-and-braces against a double click
+        setSubmitting(true);
+        setError(null);
+        try {
+            const data = await apiFetch(`/api/reschedule-proposals/${proposal.id}/accept`, { method: 'POST' });
+            onAccepted(data);
+        } catch (err) {
+            setError(err.message || 'Could not accept this schedule.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0" style={{ background: HO.scrim, backdropFilter: 'blur(4px)' }}
+                onClick={() => !submitting && onClose()}
+            />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                role="dialog" aria-modal="true"
+                className="relative w-full max-w-[560px] rounded-2xl overflow-hidden z-10"
+                style={{ background: HO.surface, border: `1px solid ${HO.line}`, boxShadow: '0 24px 64px rgba(0,0,0,.55)' }}
+            >
+                <div className="flex items-start justify-between" style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${HO.line}` }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div className="flex items-center" style={{ gap: 10 }}>
+                            <span className="font-mono uppercase" style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: HO.ink3 }}>
+                                {bookingRef}
+                            </span>
+                            <ProposalStatusLabel status="pending" />
+                        </div>
+                        <h3 className="font-display" style={{ fontSize: 22, lineHeight: '28px', fontWeight: 600, color: HO.ink }}>
+                            Accept this new schedule?
+                        </h3>
+                    </div>
+                    <button onClick={() => !submitting && onClose()} aria-label="Close" style={{ color: HO.ink2 }}>
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <HandoffScheduleCompare
+                        leftEyebrow="From · Current" leftTone="neutral"
+                        leftDate={booking.date_short} leftTime={booking.time}
+                        rightEyebrow="To · New" rightTone="gold"
+                        rightDate={newDate} rightTime={newTime}
+                    />
+                    <HandoffInfoNote icon={Bell}>
+                        Your booking will be rescheduled. You and your therapist will both be notified.
+                    </HandoffInfoNote>
+                    {error && (
+                        <div className="flex items-center gap-2" style={{ padding: 12, borderRadius: 8, background: HO.dangerBg, border: `1px solid ${HO.dangerBorder}`, color: HO.danger, fontSize: 13 }}>
+                            <AlertCircle size={14} /> {error}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center" style={{ gap: 12, padding: '16px 24px', borderTop: `1px solid ${HO.line}`, background: HO.bg }}>
+                    <div className="flex-1" />
+                    <HandoffButton variant="ghost" onClick={() => !submitting && onClose()} disabled={submitting}>Back</HandoffButton>
+                    <HandoffButton variant="primary" onClick={handleConfirm} loading={submitting}>
+                        {submitting ? 'Accepting…' : 'Accept Schedule'}
+                    </HandoffButton>
+                </div>
+            </motion.div>
+        </div>
+    );
+}
+
 // ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
     const config = {
@@ -73,7 +461,7 @@ function StatusBadge({ status }) {
 }
 
 // ── Booking Details Modal ──────────────────────────────────────────────────
-function BookingDetailsModal({ booking, onClose }) {
+function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProposal, onCancelViaProposal }) {
     const [showProof, setShowProof] = useState(false);
     const bookingRef = `IHS-${String(booking.id).padStart(5, '0')}`;
 
@@ -140,6 +528,16 @@ function BookingDetailsModal({ booking, onClose }) {
 
                 {/* ── Scrollable body ── */}
                 <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+                    {/* ── Reschedule Proposal response (§8.5) ── */}
+                    {booking.reschedule_proposal?.status === 'pending' && (
+                        <ProposalResponseSection
+                            booking={booking}
+                            onAccept={onAcceptProposal}
+                            onRequestAnother={onCounterProposal}
+                            onCancelBooking={onCancelViaProposal}
+                        />
+                    )}
 
                     {/* ── Session Info ── */}
                     <div className="rounded-xl p-4 space-y-3"
@@ -388,7 +786,9 @@ function BookingDetailsModal({ booking, onClose }) {
 }
 
 // ── Booking Card ───────────────────────────────────────────────────────────
-function BookingCard({ booking, tab, onViewDetails, onCancel }) {
+function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedule, onAcceptProposal, onCounterProposal, onCancelViaProposal }) {
+    const pendingReschedule = booking.reschedule_request?.status === 'pending';
+    const pendingProposal   = booking.reschedule_proposal?.status === 'pending';
     return (
         <motion.div
             layout
@@ -514,6 +914,48 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
                 </div>
             )}
 
+            {/* Reschedule Proposal (admin → customer) — "Schedule Change
+                Proposed", §8.5. Replaces the normal Reschedule/Cancel
+                actions below while a response is pending. */}
+            {pendingProposal && (
+                <div className="mb-4">
+                    <ProposalResponseSection
+                        booking={booking}
+                        onAccept={onAcceptProposal}
+                        onRequestAnother={onCounterProposal}
+                        onCancelBooking={onCancelViaProposal}
+                    />
+                </div>
+            )}
+
+            {/* A proposal that expired with no response — the booking was
+                cancelled per the approved design (§8.10); this just
+                explains why, using the data the backend actually returned. */}
+            {tab === 'cancelled' && booking.reschedule_proposal?.status === 'expired' && (
+                <div className="mb-4 flex items-center gap-2" style={{ padding: '10px 12px', borderRadius: 8, background: HO.infoBg, border: `1px solid ${HO.infoBorder}` }}>
+                    <AlertCircle size={13} style={{ color: HO.info, flexShrink: 0 }} />
+                    <span style={{ color: HO.info, fontSize: 12 }}>
+                        This booking was cancelled — a proposed reschedule to {booking.reschedule_proposal.proposed_start_at_fmt} wasn't answered in time.
+                    </span>
+                </div>
+            )}
+
+            {/* Reschedule request status bar */}
+            {booking.reschedule_request && (pendingReschedule || booking.reschedule_request.status === 'rejected') && (
+                <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
+                    style={{
+                        background: pendingReschedule ? 'rgba(96,165,250,0.08)' : 'rgba(248,113,113,0.08)',
+                        border: pendingReschedule ? '1px solid rgba(96,165,250,0.2)' : '1px solid rgba(248,113,113,0.2)',
+                    }}>
+                    <CalendarClock size={13} style={{ color: pendingReschedule ? '#60a5fa' : '#f87171' }} />
+                    <span style={{ color: pendingReschedule ? '#60a5fa' : '#f87171' }}>
+                        {pendingReschedule
+                            ? `Reschedule requested for ${booking.reschedule_request.requested_start_at_fmt} · awaiting admin review`
+                            : `Your last reschedule request was declined${booking.reschedule_request.admin_notes ? ': ' + booking.reschedule_request.admin_notes : ''}`}
+                    </span>
+                </div>
+            )}
+
             {/* Price + Actions row */}
             <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: '#1e2740' }}>
                 {booking.is_voucher_covered ? (
@@ -536,8 +978,26 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
                 )}
 
                 <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {/* Request Reschedule button */}
+                    {(tab === 'upcoming' || tab === 'pending') && booking.reschedule_eligible && !pendingProposal && (
+                        <button
+                            onClick={() => onRequestReschedule?.(booking)}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            style={{
+                                color:      '#60a5fa',
+                                background: 'rgba(96,165,250,0.05)',
+                                border:     '1px solid rgba(96,165,250,0.3)',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.12)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.05)'}
+                        >
+                            <CalendarClock size={13} />
+                            Reschedule
+                        </button>
+                    )}
+
                     {/* Cancel button */}
-                    {(tab === 'upcoming' || tab === 'pending') && (
+                    {(tab === 'upcoming' || tab === 'pending') && !pendingProposal && (
                         <button
                             onClick={() => onCancel?.(booking)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
@@ -614,6 +1074,266 @@ function BookingCard({ booking, tab, onViewDetails, onCancel }) {
     );
 }
 
+// ── Request Reschedule Modal ────────────────────────────────────────────────
+// Customer → My Bookings → Request Reschedule → choose preferred date/time
+// (or a quick suggestion) → review → submit → the booking now shows
+// "Reschedule requested ... awaiting admin review" (see the status bar in
+// BookingCard above). This never moves the booking itself — it only ever
+// creates a RescheduleRequest row via POST .../reschedule-request, the exact
+// same endpoint RescheduleRequestService backs; the final schedule is
+// entirely the admin's call (see AdminBookingController::approveRescheduleRequest).
+function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted }) {
+    const [step,          setStep]          = useState('choose'); // choose | review | success
+    const [selectedDate,  setSelectedDate]  = useState(dubaiParts(new Date()).date);
+    const [selectedTime,  setSelectedTime]  = useState(RESCHEDULE_TIME_SLOTS[0].value);
+    const [reason,        setReason]        = useState('');
+    const [submitting,    setSubmitting]    = useState(false);
+    const [error,         setError]         = useState(null);
+
+    const todayDubai    = dubaiParts(new Date()).date;
+    const suggestions   = rescheduleSuggestions(booking.scheduled_start);
+    const requestedDateTimeStr = slotDateTimeString(selectedDate, selectedTime);
+
+    // Tag the picked wall-clock values as UTC on both ends purely so
+    // toLocaleString echoes back exactly what was entered, regardless of
+    // the browser's own timezone — this is a display label only, never
+    // sent anywhere.
+    const requestedLabel = new Date(`${requestedDateTimeStr.replace(' ', 'T')}Z`)
+        .toLocaleString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const applySuggestion = (s) => { setSelectedDate(s.date); setSelectedTime(s.time); };
+
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        setError(null);
+        try {
+            // §8.7 — "Request Another Time" hands off to this exact flow;
+            // the only difference is which endpoint resolves it: countering
+            // a proposal must also mark it 'countered' and link the
+            // resulting request, which only the proposal-aware endpoint
+            // does (RescheduleProposalService::counter()).
+            const url = proposal
+                ? `/api/reschedule-proposals/${proposal.id}/counter`
+                : `/api/bookings/${booking.id}/reschedule-request`;
+            await apiFetch(url, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    requested_start_at: requestedDateTimeStr,
+                    reason:             reason.trim() || undefined,
+                }),
+            });
+            setStep('success');
+        } catch (err) {
+            setError(err.message || 'Could not submit this reschedule request.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const inputStyle = { background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 backdrop-blur-sm"
+                style={{ background: 'rgba(0,0,0,0.75)' }}
+                onClick={() => !submitting && onClose()}
+            />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
+                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+            >
+                {/* Header */}
+                <div className="sticky top-0 p-5 border-b flex items-center justify-between"
+                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                    <div>
+                        <h3 className="font-display font-semibold text-lg text-white">
+                            {step === 'success' ? 'Request Submitted' : 'Request Reschedule'}
+                        </h3>
+                        {step !== 'success' && (
+                            <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                                {booking.service} • Currently {booking.date_short} at {booking.time}
+                            </p>
+                        )}
+                        {/* §8.7 — the one addition this flow gets when opened
+                            from a proposal's "Request Another Time" button. */}
+                        {step !== 'success' && proposal && (
+                            <p className="font-mono mt-1" style={{ fontSize: 11, color: HO.ink3 }}>
+                                Responding to proposed time: {proposal.proposed_start_at_fmt}
+                            </p>
+                        )}
+                    </div>
+                    {step !== 'success' && (
+                        <button onClick={() => !submitting && onClose()} className="p-1.5 rounded-lg" style={{ color: '#64748b' }}>
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
+
+                {/* ── Step: choose ── */}
+                {step === 'choose' && (
+                    <div className="p-5 space-y-5">
+                        <div>
+                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Quick suggestions</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {suggestions.map(s => {
+                                    const isActive = selectedDate === s.date && selectedTime === s.time;
+                                    return (
+                                        <button
+                                            key={s.days}
+                                            onClick={() => applySuggestion(s)}
+                                            className="p-3 rounded-xl border text-center transition-all"
+                                            style={{
+                                                borderColor: isActive ? '#60a5fa' : '#1e2740',
+                                                background:  isActive ? 'rgba(96,165,250,0.1)' : '#141d33',
+                                            }}
+                                        >
+                                            <p className="text-[11px] font-semibold" style={{ color: isActive ? '#60a5fa' : '#cbd5e1' }}>{s.caption}</p>
+                                            <p className="text-[10px] mt-1" style={{ color: '#64748b' }}>{s.label}</p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Or pick a date & time</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <input
+                                    type="date"
+                                    min={todayDubai}
+                                    value={selectedDate}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none"
+                                    style={inputStyle}
+                                />
+                                <select
+                                    value={selectedTime}
+                                    onChange={e => setSelectedTime(e.target.value)}
+                                    className="w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none"
+                                    style={inputStyle}
+                                >
+                                    {RESCHEDULE_TIME_SLOTS.map(slot => (
+                                        <option key={slot.value} value={slot.value}>{slot.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Reason (optional)</p>
+                            <textarea
+                                value={reason}
+                                onChange={e => setReason(e.target.value)}
+                                placeholder="Let us know why you'd like to reschedule..."
+                                rows={3}
+                                maxLength={500}
+                                className="w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none resize-none"
+                                style={inputStyle}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Step: review ── */}
+                {step === 'review' && (
+                    <div className="p-5 space-y-5">
+                        <div className="space-y-3">
+                            <div className="p-4 rounded-xl" style={{ background: '#141d33', border: '1px solid #1e2740' }}>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Current Schedule</p>
+                                <p className="text-sm font-semibold text-white">{booking.date_short} at {booking.time}</p>
+                            </div>
+                            <div className="flex justify-center">
+                                <ArrowRight size={16} className="rotate-90" style={{ color: '#64748b' }} />
+                            </div>
+                            <div className="p-4 rounded-xl" style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.3)' }}>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#60a5fa' }}>Requested Schedule</p>
+                                <p className="text-sm font-semibold" style={{ color: '#60a5fa' }}>{requestedLabel}</p>
+                            </div>
+                        </div>
+
+                        {reason.trim() && (
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Your Reason</p>
+                                <p className="text-sm" style={{ color: '#cbd5e1' }}>{reason.trim()}</p>
+                            </div>
+                        )}
+
+                        <div className="flex items-start gap-3 p-4 rounded-xl"
+                            style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
+                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
+                            <p className="text-xs" style={{ color: '#94a3b8' }}>
+                                This is your preferred time, not a confirmed one. Our team will review it and may confirm a nearby time instead.
+                            </p>
+                        </div>
+
+                        {error && (
+                            <div className="flex items-center gap-2 p-3 rounded-xl text-sm"
+                                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                <AlertCircle size={14} /> {error}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ── Step: success ── */}
+                {step === 'success' && (
+                    <div className="p-8 flex flex-col items-center text-center gap-3">
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.12)' }}>
+                            <CalendarClock size={26} style={{ color: '#60a5fa' }} />
+                        </div>
+                        <p className="font-display font-semibold text-white">Your request is pending review</p>
+                        <p className="text-sm" style={{ color: '#94a3b8' }}>
+                            We'll notify you once an admin confirms the new schedule for {requestedLabel}.
+                        </p>
+                        <button
+                            onClick={onSubmitted}
+                            className="mt-2 w-full py-2.5 rounded-xl text-sm font-bold"
+                            style={{ background: '#e2b764', color: '#0b1120' }}
+                        >
+                            Done
+                        </button>
+                    </div>
+                )}
+
+                {/* Footer */}
+                {step !== 'success' && (
+                    <div className="sticky bottom-0 p-5 border-t flex gap-3"
+                        style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                        <button
+                            onClick={() => step === 'review' ? setStep('choose') : onClose()}
+                            disabled={submitting}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5"
+                            style={{ background: '#141d33', color: '#94a3b8' }}>
+                            {step === 'review' && <ChevronLeft size={14} />}
+                            {step === 'review' ? 'Back' : 'Close'}
+                        </button>
+                        <button
+                            onClick={() => step === 'choose' ? setStep('review') : handleSubmit()}
+                            disabled={submitting}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                            style={{
+                                background: 'rgba(96,165,250,0.15)',
+                                border:     '1px solid rgba(96,165,250,0.4)',
+                                color:      '#60a5fa',
+                            }}>
+                            {submitting
+                                ? <Loader2 size={14} className="animate-spin" />
+                                : step === 'choose' ? <ArrowRight size={14} /> : <CalendarClock size={14} />}
+                            {submitting ? 'Submitting...' : step === 'choose' ? 'Review Request' : 'Submit Request'}
+                        </button>
+                    </div>
+                )}
+            </motion.div>
+        </div>
+    );
+}
+
 // ── Empty State ────────────────────────────────────────────────────────────
 function EmptyState({ tab }) {
     const config = {
@@ -666,9 +1386,35 @@ export default function MyBookings() {
     const [showCancelModal,  setShowCancelModal]  = useState(false);
     const [cancelling,       setCancelling]       = useState(false);
     const [cancelError,      setCancelError]      = useState(null);
+    // Set only when Cancel was opened from a pending proposal's "Cancel
+    // Booking" action (§8.9) — routes the same modal's submit to the
+    // proposal-aware cancel endpoint instead of the plain one.
+    const [cancelViaProposal, setCancelViaProposal] = useState(null);
 
     const [selectedReason,   setSelectedReason]   = useState(null);
     const [otherText,        setOtherText]        = useState('');
+
+    // ── Request Reschedule modal ─────────────────────────────────────────────
+    const [rescheduleBooking,   setRescheduleBooking]   = useState(null);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    // Set only when opened from a pending proposal's "Request Another Time"
+    // action (§8.7) — same modal, routed to the proposal-aware counter
+    // endpoint instead of the plain one.
+    const [counterProposal,     setCounterProposal]     = useState(null);
+
+    // ── Accept Proposal modal (§8.6) ──────────────────────────────────────
+    const [acceptTarget,   setAcceptTarget]   = useState(null); // { booking, proposal }
+    const [showAcceptModal, setShowAcceptModal] = useState(false);
+
+    // ── Toast (§4.1) ───────────────────────────────────────────────────────
+    const [toast, setToast] = useState(null);
+    const showToast = useCallback((type, message) => {
+        setToast({ type, message });
+        if (type !== 'error') {
+            // Success/info auto-dismiss after 5s; error stays until dismissed.
+            setTimeout(() => setToast(current => (current?.message === message ? null : current)), 5000);
+        }
+    }, []);
 
     const fetchBookings = useCallback((silent = false) => {
         if (!silent) setLoading(true);
@@ -693,7 +1439,11 @@ export default function MyBookings() {
     }, [userId]);
 
     // ── Cancel handler ────────────────────────────────────────────────────
-        const handleCancelConfirm = useCallback(async () => {
+    // §8.9 — reuses this exact flow unchanged for a proposal-triggered
+    // cancellation; only the endpoint differs (the proposal-aware one also
+    // marks the proposal 'cancelled' in the same transaction), per
+    // cancelViaProposal.
+    const handleCancelConfirm = useCallback(async () => {
         if (!cancelBooking) return;
 
         const finalReason = selectedReason === 'other' ? otherText.trim() : selectedReason;
@@ -702,16 +1452,25 @@ export default function MyBookings() {
         setCancelling(true);
         setCancelError(null);
         try {
-            await apiFetch('/api/downpayment/cancel', {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({
-                    booking_id:          cancelBooking.id,
-                    cancellation_reason: finalReason,
-                }),
-            });
+            if (cancelViaProposal) {
+                await apiFetch(`/api/reschedule-proposals/${cancelViaProposal.id}/cancel`, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ reason: finalReason }),
+                });
+            } else {
+                await apiFetch('/api/downpayment/cancel', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({
+                        booking_id:          cancelBooking.id,
+                        cancellation_reason: finalReason,
+                    }),
+                });
+            }
             setShowCancelModal(false);
             setCancelBooking(null);
+            setCancelViaProposal(null);
             setSelectedReason(null);
             setOtherText('');
             fetchBookings();
@@ -720,7 +1479,26 @@ export default function MyBookings() {
         } finally {
             setCancelling(false);
         }
-    }, [cancelBooking, selectedReason, otherText, fetchBookings]);
+    }, [cancelBooking, cancelViaProposal, selectedReason, otherText, fetchBookings]);
+
+    // ── Reschedule Proposal response handlers (§8) ────────────────────────
+    const handleAcceptProposal = useCallback((booking, proposal) => {
+        setAcceptTarget({ booking, proposal });
+        setShowAcceptModal(true);
+    }, []);
+
+    const handleCounterProposal = useCallback((booking, proposal) => {
+        setRescheduleBooking(booking);
+        setCounterProposal(proposal);
+        setShowRescheduleModal(true);
+    }, []);
+
+    const handleCancelViaProposal = useCallback((booking, proposal) => {
+        setCancelBooking(booking);
+        setCancelViaProposal(proposal);
+        setCancelError(null);
+        setShowCancelModal(true);
+    }, []);
 
     const currentBookings = data?.[activeTab] ?? [];
     const counts = {
@@ -808,9 +1586,18 @@ export default function MyBookings() {
                                                 }}
                                                 onCancel={(b) => {
                                                     setCancelBooking(b);
+                                                    setCancelViaProposal(null);
                                                     setCancelError(null);
                                                     setShowCancelModal(true);
                                                 }}
+                                                onRequestReschedule={(b) => {
+                                                    setRescheduleBooking(b);
+                                                    setCounterProposal(null);
+                                                    setShowRescheduleModal(true);
+                                                }}
+                                                onAcceptProposal={handleAcceptProposal}
+                                                onCounterProposal={handleCounterProposal}
+                                                onCancelViaProposal={handleCancelViaProposal}
                                             />
                                         ))}
                                     </div>
@@ -826,6 +1613,9 @@ export default function MyBookings() {
                         <BookingDetailsModal
                             booking={detailsBooking}
                             onClose={() => { setShowDetailsModal(false); setDetailsBooking(null); }}
+                            onAcceptProposal={handleAcceptProposal}
+                            onCounterProposal={handleCounterProposal}
+                            onCancelViaProposal={handleCancelViaProposal}
                         />
                     )}
                 </AnimatePresence>
@@ -855,6 +1645,13 @@ export default function MyBookings() {
                                         <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
                                             {cancelBooking.service} • {cancelBooking.date_short} at {cancelBooking.time}
                                         </p>
+                                        {/* §8.9 — the one addition this flow gets when opened
+                                            from a proposal's "Cancel Booking" action. */}
+                                        {cancelViaProposal && (
+                                            <p className="font-mono mt-1" style={{ fontSize: 11, color: HO.ink3 }}>
+                                                Declining the proposed time: {cancelViaProposal.proposed_start_at_fmt}
+                                            </p>
+                                        )}
                                     </div>
                                     <button onClick={() => !cancelling && setShowCancelModal(false)}
                                         className="p-1.5 rounded-lg" style={{ color: '#64748b' }}>
@@ -980,6 +1777,49 @@ export default function MyBookings() {
                             </motion.div>
                         </div>
                     )}
+                </AnimatePresence>
+
+                {/* ── Request Reschedule Modal ── */}
+                <AnimatePresence>
+                    {showRescheduleModal && rescheduleBooking && (
+                        <RequestRescheduleModal
+                            booking={rescheduleBooking}
+                            proposal={counterProposal}
+                            onClose={() => { setShowRescheduleModal(false); setRescheduleBooking(null); setCounterProposal(null); }}
+                            onSubmitted={() => {
+                                setShowRescheduleModal(false);
+                                setRescheduleBooking(null);
+                                setCounterProposal(null);
+                                fetchBookings();
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
+
+                {/* ── Accept Proposal Modal (§8.6) ── */}
+                <AnimatePresence>
+                    {showAcceptModal && acceptTarget && (
+                        <AcceptProposalModal
+                            booking={acceptTarget.booking}
+                            proposal={acceptTarget.proposal}
+                            onClose={() => { setShowAcceptModal(false); setAcceptTarget(null); }}
+                            onAccepted={(data) => {
+                                setShowAcceptModal(false);
+                                setAcceptTarget(null);
+                                fetchBookings();
+                                const newStart = data?.booking?.scheduled_start;
+                                const label = newStart
+                                    ? (() => { const { date, time } = splitIsoToDubaiDateTime(newStart); return `${date} · ${time}`; })()
+                                    : null;
+                                showToast('success', label ? `Booking rescheduled to ${label}.` : 'Booking rescheduled.');
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
+
+                {/* ── Toast (§4.1) ── */}
+                <AnimatePresence>
+                    {toast && <HandoffToast toast={toast} onDismiss={() => setToast(null)} />}
                 </AnimatePresence>
 
             </div>

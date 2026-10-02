@@ -9,7 +9,7 @@ import {
     TrendingUp, Activity, ChevronRight, Archive,
     ChevronLeft, ChevronRight as ChevronRightIcon, Sparkle,
     Gift, Hourglass, Siren, UserX, Ban,
-    CalendarClock, ArrowRight, AlertTriangle,
+    CalendarClock, ArrowRight, AlertTriangle, Bell,
 } from 'lucide-react';
 
 // ── CSRF + API ────────────────────────────────────────────────────────────────
@@ -47,6 +47,11 @@ const RESCHEDULABLE_STATUSES = ['pending', 'accepted'];
 // Views
 const VIEWS = [
     { key: 'needsAttention',  label: 'Needs Attention', icon: Siren,        color: '#ef4444' },
+    // Mirrors the "Reschedule Requests" tab's own placement choice (a
+    // top-level view, not the handoff's literal nested SegmentedFilter —
+    // see §8.4 and the note on this file's existing deviation).
+    { key: 'awaitingCustomer', label: 'Awaiting Customer', icon: Clock, color: '#f59e0b' },
+    { key: 'rescheduleRequests', label: 'Reschedule Requests', icon: CalendarClock, color: '#60a5fa' },
     { key: 'all',             label: 'All Bookings',    icon: Archive,      color: '#e2b764' },
     { key: 'refunds',         label: 'Pending Refunds', icon: RotateCcw,    color: '#10b981' },
     { key: 'cancelled',       label: 'Cancelled',       icon: XCircle,      color: '#94a3b8' },
@@ -92,6 +97,55 @@ const STATUS_STYLES = {
     cancelled:       { label: 'Cancelled',        color: '#f87171', bg: 'rgba(248,113,113,0.1)',  border: 'rgba(248,113,113,0.25)' },
     rejected:        { label: 'Rejected',         color: '#ef4444', bg: 'rgba(239,68,68,0.1)',    border: 'rgba(239,68,68,0.25)'   },
 };
+
+// §8.2 — Reschedule Proposal status -> label/tone (locked), mapped onto
+// this file's own existing colour convention (same shape as STATUS_STYLES)
+// so it reuses the already-built Badge component rather than a new one.
+const PROPOSAL_STATUS_STYLES = {
+    pending:   { label: 'Awaiting Customer',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)' },
+    accepted:  { label: 'Accepted',              color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)' },
+    countered: { label: 'Alternative Requested', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.25)' },
+    cancelled: { label: 'Booking Cancelled',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)'  },
+    // "neutral" — the undyed style §8.2 specifies for Expired: no new colour.
+    expired:   { label: 'Expired · No Response', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
+};
+
+// §8.2 ProposalStatusLabel — mono "RESCHEDULE PROPOSAL" + the StatusTag
+// (here, the existing Badge component), gap 8. Mirrors RequestStatusLabel's
+// own construction used for RescheduleRequest rows.
+function ProposalStatusLabel({ status }) {
+    return (
+        <div className="flex items-center gap-2">
+            <span className="font-mono uppercase text-[10px] font-semibold tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
+                Reschedule Proposal
+            </span>
+            <Badge cfg={PROPOSAL_STATUS_STYLES[status] ?? { label: status, color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' }} />
+        </div>
+    );
+}
+
+// §2.22 CountdownTimer (extends WaitingTimer/fmtWaitingSince above — counts
+// down instead of up). `warning` under 2h remaining, same threshold rule.
+function fmtCountdown(expiresAtIso) {
+    if (!expiresAtIso) return null;
+    const ms = new Date(expiresAtIso).getTime() - Date.now();
+    if (ms <= 0) return { label: 'Expiring…', warn: true };
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return { label: h > 0 ? `${h}h ${m}m` : `${m}m`, warn: ms < 2 * 60 * 60 * 1000 };
+}
+
+function CountdownTimer({ expiresAt }) {
+    const c = fmtCountdown(expiresAt);
+    if (!c) return null;
+    return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold"
+            style={{ color: c.warn ? '#f59e0b' : 'var(--theme-text-muted)' }}>
+            <Clock size={11} /> Expires in {c.label}
+        </span>
+    );
+}
 
 // downpayment_status refund/verification workflow states — kept as-is, this
 // map drives the actual verify/refund actions and must reflect the real column.
@@ -255,10 +309,10 @@ function nextSevenDays() {
     return Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
 }
 
-// Module-scope (not defined inside RescheduleModal) so it keeps a stable
-// component identity across re-renders — defining it inside the modal
-// recreated this as a brand-new function on every keystroke in the Reason
-// textarea (each setReason call re-renders RescheduleModal), which made
+// Module-scope (not defined inside ProposeRescheduleModal) so it keeps a
+// stable component identity across re-renders — defining it inside the
+// modal recreated this as a brand-new function on every keystroke in the
+// Reason textarea (each setReason call re-renders the modal), which made
 // React remount the <Field> subtree, including the <textarea>, and drop
 // focus after every single character.
 function Field({ label, children }) {
@@ -270,21 +324,33 @@ function Field({ label, children }) {
     );
 }
 
-// ── Admin Reschedule Modal ────────────────────────────────────────────────────
-// Only ever collects the new date/time + an optional reason. Everything
-// else — therapist, service, duration, travel time, buffer, day-off/shift/
+// ── Admin Propose New Schedule Modal (handoff §8.3) ───────────────────────────
+// Superseded-in-place per the handoff's own note on §3.6: this reuses that
+// section's exact layout (BookingSummary, DateStrip, TimeSlotGrid,
+// ErrorAlert, Textarea) — only the copy and the submit target change. Only
+// ever collects the new date/time + an optional note. Everything else —
+// therapist, service, duration, travel time, buffer, day-off/shift/
 // unavailable-slot checks, and the actual conflict decision — is computed
-// and validated server-side by BookingRescheduleService. This UI never
-// re-implements any of that: the only thing it computes locally is the new
-// *session end* preview, using the booking's own already-known, unchanging
-// duration — purely cosmetic, not sent to the backend, not a validation
-// source. On failure it surfaces the backend's own message verbatim.
-function RescheduleModal({ booking, onClose, onSuccess }) {
+// and validated server-side by BookingRescheduleService
+// (RescheduleProposalService::create() calls validateCandidate() before
+// ever writing a proposal row). This UI never re-implements any of that:
+// the only thing it computes locally is the new *session end* preview,
+// using the booking's own already-known, unchanging duration — purely
+// cosmetic, not sent to the backend, not a validation source. On failure
+// it surfaces the backend's own message verbatim.
+//
+// Crucially, this never mutates the booking — it only ever creates a
+// pending RescheduleProposal. The booking moves only once the customer
+// accepts (or a resulting countered request is approved) — see
+// RescheduleProposalService.
+function ProposeRescheduleModal({ booking, onClose, onProposed }) {
     // date -> time -> confirm, matching the approved flow. Nothing here
     // decides availability — every date/time choice offered to the admin
     // comes straight from BookingRescheduleService::previewAvailability()
-    // via GET .../reschedule-availability, and the only mutation is the
-    // existing POST .../reschedule call, unchanged.
+    // via GET .../reschedule-availability (reused unchanged — proposals
+    // share the exact same scheduling rules a direct reschedule does), and
+    // the only mutation is POST .../reschedule-proposal, which never
+    // touches the booking's own schedule.
     const [step, setStep] = useState('date'); // 'date' | 'time' | 'confirm'
     const [dayOffWeekday, setDayOffWeekday] = useState(null);
     const [selectedDate, setSelectedDate] = useState(''); // 'YYYY-MM-DD'
@@ -350,22 +416,23 @@ function RescheduleModal({ booking, onClose, onSuccess }) {
         setSubmitting(true);
         setError('');
         try {
-            const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule`, {
+            const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule-proposal`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    scheduled_start: `${selectedDate} ${selectedSlot.time}:00`,
-                    ...(reason.trim() ? { reason: reason.trim() } : {}),
+                    proposed_start_at: `${selectedDate} ${selectedSlot.time}:00`,
+                    ...(reason.trim() ? { admin_reason: reason.trim() } : {}),
                 }),
             });
-            onSuccess(data.booking);
+            onProposed(data.proposal);
         } catch (e) {
             // Show the backend's own message verbatim — it's the precise,
             // authoritative reason (day off, shift, conflict, unavailable
-            // slot, non-reschedulable state, etc.), never re-derived here.
-            // Selections are left exactly as they were so the admin can
-            // simply pick a different time or date without starting over.
-            setError(e.message || 'Could not reschedule this booking.');
+            // slot, non-reschedulable state, an already-active proposal,
+            // etc.), never re-derived here. Selections are left exactly as
+            // they were so the admin can simply pick a different time or
+            // date without starting over.
+            setError(e.message || 'Could not send this proposal.');
         } finally {
             setSubmitting(false);
         }
@@ -382,7 +449,7 @@ function RescheduleModal({ booking, onClose, onSuccess }) {
         </div>
     ) : null;
 
-    const stepTitle = { date: 'Select New Date', time: 'Select Available Time', confirm: 'Confirm Reschedule' }[step];
+    const stepTitle = { date: 'Select New Date', time: 'Select Available Time', confirm: 'Confirm Proposal' }[step];
 
     const reasonFmt = reason.trim();
 
@@ -551,10 +618,18 @@ function RescheduleModal({ booking, onClose, onSuccess }) {
                                 </div>
                             </div>
 
-                            <Field label="Reason (optional)">
+                            <Field label="Note to customer (optional)">
                                 <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)}
-                                    placeholder="Why is this booking being rescheduled?" className={inputCls} style={inputStyle} />
+                                    placeholder="Let the customer know why this new time is being offered..." className={inputCls} style={inputStyle} />
                             </Field>
+
+                            {/* §2.11 InfoNote(bell) — replaces a checkbox, per the
+                                handoff's own locked convention. */}
+                            <div role="note" className="flex gap-2.5 px-3.5 py-2.5 rounded-xl text-xs"
+                                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
+                                <Bell size={14} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-text-muted)' }} />
+                                <span>The customer will be notified and can accept, suggest another time, or cancel. The booking keeps its current schedule until they respond.</span>
+                            </div>
 
                             <ErrorBanner />
 
@@ -566,9 +641,9 @@ function RescheduleModal({ booking, onClose, onSuccess }) {
                                 </button>
                                 <button onClick={handleSubmit} disabled={submitting}
                                     className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
-                                    style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#10b981' }}>
-                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                                    Confirm Reschedule
+                                    style={{ background: 'rgba(226,183,100,0.15)', border: '1px solid rgba(226,183,100,0.35)', color: '#e2b764' }}>
+                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <CalendarClock size={13} />}
+                                    {submitting ? 'Sending…' : 'Send Proposal'}
                                 </button>
                             </div>
                         </>
@@ -579,8 +654,390 @@ function RescheduleModal({ booking, onClose, onSuccess }) {
     );
 }
 
+// ── Admin Reschedule Request Review Modal ─────────────────────────────────────
+// Reviews a customer/therapist-submitted reschedule PREFERENCE (RescheduleRequest)
+// — distinct from ProposeRescheduleModal above, which the admin uses to offer a
+// new time with no prior request. Both end up calling the exact same
+// server-side scheduling engine (BookingRescheduleService, via
+// previewAvailability for the picker and either approveRescheduleRequest or
+// RescheduleProposalService::accept() for the eventual mutation), so this UI
+// is intentionally a close mirror of ProposeRescheduleModal rather than a new
+// design — the only real differences are the extra "what was requested"
+// context panel, the admin-notes-vs-reason field name, and the reject path.
+// Also handles a request that exists because a customer countered a
+// Reschedule Proposal (handoff §8.8) — same review flow, no second surface.
+function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected }) {
+    const booking = request.booking;
+
+    const [step, setStep] = useState('date'); // 'date' | 'time' | 'confirm' | 'reject'
+    const [dayOffWeekday, setDayOffWeekday] = useState(null);
+    const [selectedDate, setSelectedDate] = useState('');
+    const [slots, setSlots] = useState([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState(null);
+    const [adminNotes, setAdminNotes] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    const durationMinutes = (booking.scheduled_start && booking.scheduled_end)
+        ? Math.round((new Date(booking.scheduled_end) - new Date(booking.scheduled_start)) / 60000)
+        : null;
+
+    const currentStart = splitScheduleFmt(booking.scheduled_start_fmt);
+    const currentEnd   = splitScheduleFmt(booking.scheduled_end_fmt);
+    const requested    = splitScheduleFmt(request.requested_start_at_fmt);
+
+    // The requested date, as a 'YYYY-MM-DD' string — purely to flag the
+    // matching date/slot button below as "Requested", never to pre-select or
+    // auto-submit anything. The admin always makes the final, explicit pick.
+    const requestedDateStr = request.requested_start_at ? request.requested_start_at.slice(0, 10) : null;
+    const requestedTimeStr = request.requested_start_at ? request.requested_start_at.slice(11, 16) : null;
+
+    const newStartDt = selectedSlot ? buildWallClockDate(selectedDate, selectedSlot.time) : null;
+    const newEndDt = (newStartDt && durationMinutes != null)
+        ? new Date(newStartDt.getTime() + durationMinutes * 60000)
+        : null;
+
+    const closeUnlessBusy = () => { if (!submitting) onClose(); };
+
+    useEffect(() => {
+        let cancelled = false;
+        apiFetch(`/admin/api/bookings/${booking.id}/reschedule-availability`)
+            .then(data => { if (!cancelled) setDayOffWeekday(data.day_off_weekday); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [booking.id]);
+
+    const fetchSlotsFor = async (dateStr) => {
+        setLoadingSlots(true);
+        setSlots([]);
+        setSelectedSlot(null);
+        try {
+            const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule-availability?date=${dateStr}`);
+            setSlots(data.is_day_off ? [] : (data.slots ?? []));
+        } catch {
+            setSlots([]);
+        } finally {
+            setLoadingSlots(false);
+        }
+    };
+
+    const handlePickDate = (d) => {
+        const dateStr = toDateStr(d);
+        setSelectedDate(dateStr);
+        setError('');
+        setStep('time');
+        fetchSlotsFor(dateStr);
+    };
+
+    const handleApprove = async () => {
+        if (submitting || !selectedSlot) return;
+        setSubmitting(true);
+        setError('');
+        try {
+            const data = await apiFetch(`/admin/api/bookings/reschedule-requests/${request.id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    final_scheduled_start: `${selectedDate} ${selectedSlot.time}:00`,
+                    ...(adminNotes.trim() ? { admin_notes: adminNotes.trim() } : {}),
+                }),
+            });
+            onApproved(data.request);
+        } catch (e) {
+            // Verbatim backend message — day off, shift, conflict, unavailable
+            // slot, stale request/booking state, etc. Selections are left as
+            // they were so the admin can just pick a different time.
+            setError(e.message || 'Could not approve this reschedule request.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleReject = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        setError('');
+        try {
+            const data = await apiFetch(`/admin/api/bookings/reschedule-requests/${request.id}/reject`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(adminNotes.trim() ? { admin_notes: adminNotes.trim() } : {}),
+            });
+            onRejected(data.request);
+        } catch (e) {
+            setError(e.message || 'Could not reject this reschedule request.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm outline-none';
+    const inputStyle = { background: 'var(--theme-input-bg, #141d33)', border: '1px solid var(--theme-border)', color: 'var(--theme-text)' };
+
+    const ErrorBanner = () => error ? (
+        <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+            <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+        </div>
+    ) : null;
+
+    const stepTitle = { date: 'Select Final Date', time: 'Select Final Time', confirm: 'Confirm Approval', reject: 'Reject Request' }[step];
+
+    return (
+        <motion.div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }} onClick={closeUnlessBusy} />
+            <motion.div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl"
+                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}>
+
+                <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div className="flex items-center gap-2">
+                        <CalendarClock size={16} style={{ color: '#60a5fa' }} />
+                        <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>{stepTitle}</h3>
+                        {/* §8.8 — MiniTag marking this request as the result of a
+                            declined admin proposal. Still reviewed through this
+                            exact same flow — no second review surface. */}
+                        {request.countered_from_proposal && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                style={{ color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
+                                Countered Proposal
+                            </span>
+                        )}
+                    </div>
+                    <button onClick={closeUnlessBusy} disabled={submitting}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-40"
+                        style={{ background: 'var(--theme-btn-bg)' }}>
+                        <X size={13} style={{ color: 'var(--theme-text-muted)' }} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    {/* Requested preference — never mutated, always visible for context */}
+                    <div className="rounded-xl p-3.5" style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.25)' }}>
+                        <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: '#60a5fa' }}>
+                            Requested by {request.requested_by_role === 'therapist' ? 'Therapist' : 'Customer'}
+                        </p>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
+                            {requested.date} · {requested.time}
+                        </p>
+                        {request.reason && (
+                            <p className="text-xs mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>"{request.reason}"</p>
+                        )}
+                        {request.countered_from_proposal && (
+                            <p className="text-xs mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                This request follows a declined proposal of {request.countered_from_proposal.proposed_start_at_fmt}.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Current Schedule */}
+                    <div className="rounded-xl p-3.5" style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}>
+                        <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: 'var(--theme-text-muted)' }}>Current Schedule</p>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
+                            {currentStart.date} · {currentStart.time} – {currentEnd.time}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                            <span className="flex items-center gap-1"><User size={11} /> {booking.therapist_name ?? '—'}</span>
+                            <span className="flex items-center gap-1"><Clock size={11} /> {durationMinutes ? `${durationMinutes} min` : '—'}</span>
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>{booking.service_name}</p>
+                    </div>
+
+                    {/* ── Step: date ──────────────────────────────────────────────────── */}
+                    {step === 'date' && (
+                        <>
+                            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>Final Date</p>
+                            <div className="grid grid-cols-4 gap-2">
+                                {nextSevenDays().map(d => {
+                                    const dateStr  = toDateStr(d);
+                                    const weekday  = d.toLocaleDateString('en-US', { weekday: 'long' });
+                                    const isDayOff = dayOffWeekday != null && weekday === dayOffWeekday;
+                                    const isRequested = dateStr === requestedDateStr;
+                                    return (
+                                        <button key={dateStr} disabled={isDayOff} onClick={() => handlePickDate(d)}
+                                            className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:cursor-not-allowed relative"
+                                            style={{
+                                                background: isDayOff ? 'rgba(148,163,184,0.05)' : isRequested ? 'rgba(96,165,250,0.1)' : 'var(--theme-btn-bg)',
+                                                border: `1px solid ${isDayOff ? 'rgba(148,163,184,0.15)' : isRequested ? 'rgba(96,165,250,0.4)' : 'var(--theme-border)'}`,
+                                                color: isDayOff ? 'var(--theme-text-muted)' : 'var(--theme-text-head)',
+                                                opacity: isDayOff ? 0.55 : 1,
+                                            }}>
+                                            <span className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
+                                                {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                                            </span>
+                                            <span className="text-base font-bold leading-none">{d.getDate()}</span>
+                                            {isDayOff && <span className="text-[8px] font-bold mt-0.5" style={{ color: '#f87171' }}>Day Off</span>}
+                                            {!isDayOff && isRequested && <span className="text-[8px] font-bold mt-0.5" style={{ color: '#60a5fa' }}>Requested</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+                                Greyed days are the therapist's regular day off.
+                            </p>
+                            <ErrorBanner />
+                        </>
+                    )}
+
+                    {/* ── Step: time ──────────────────────────────────────────────────── */}
+                    {step === 'time' && (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Available Times — {fmtWallClockDate(buildWallClockDate(selectedDate, '00:00'))}
+                                </p>
+                                <button onClick={() => { setError(''); setStep('date'); }} className="text-[11px] font-semibold" style={{ color: '#e2b764' }}>
+                                    Change date
+                                </button>
+                            </div>
+
+                            {loadingSlots ? (
+                                <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin" style={{ color: '#e2b764' }} /></div>
+                            ) : slots.length === 0 ? (
+                                <div className="text-center py-6">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>No available times for this date.</p>
+                                    <button onClick={() => { setError(''); setStep('date'); }}
+                                        className="text-xs font-bold mt-2" style={{ color: '#e2b764' }}>
+                                        Choose another date
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {slots.map(s => {
+                                        const isSelected = selectedSlot?.time === s.time;
+                                        const isRequested = selectedDate === requestedDateStr && s.time === requestedTimeStr;
+                                        return (
+                                            <button key={s.time} disabled={!s.available} onClick={() => setSelectedSlot(s)}
+                                                className="py-2 rounded-lg text-xs font-semibold transition-all disabled:cursor-not-allowed relative"
+                                                style={{
+                                                    background: isSelected ? 'rgba(226,183,100,0.18)' : s.available ? 'var(--theme-btn-bg)' : 'rgba(148,163,184,0.05)',
+                                                    border: `1px solid ${isSelected ? 'rgba(226,183,100,0.5)' : isRequested && s.available ? 'rgba(96,165,250,0.5)' : s.available ? 'var(--theme-border)' : 'rgba(148,163,184,0.15)'}`,
+                                                    color: isSelected ? '#e2b764' : s.available ? 'var(--theme-text-2)' : 'var(--theme-text-muted)',
+                                                    opacity: s.available ? 1 : 0.45,
+                                                }}>
+                                                {s.label}
+                                                {isRequested && s.available && !isSelected && (
+                                                    <span className="block text-[8px] font-bold mt-0.5" style={{ color: '#60a5fa' }}>Requested</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {selectedSlot && (
+                                <div className="rounded-xl p-3 space-y-1" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                                    <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> Therapist available</p>
+                                    {durationMinutes != null && (
+                                        <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> {durationMinutes}-minute service</p>
+                                    )}
+                                    <p className="text-xs flex items-center gap-1.5" style={{ color: '#10b981' }}><CheckCircle2 size={12} /> Travel + buffer accounted for</p>
+                                </div>
+                            )}
+
+                            <ErrorBanner />
+
+                            <button onClick={() => { setError(''); setStep('confirm'); }} disabled={!selectedSlot}
+                                className="w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
+                                style={{ background: 'rgba(226,183,100,0.15)', border: '1px solid rgba(226,183,100,0.35)', color: '#e2b764' }}>
+                                Continue to Review
+                            </button>
+                        </>
+                    )}
+
+                    {/* ── Step: confirm ───────────────────────────────────────────────── */}
+                    {step === 'confirm' && newStartDt && newEndDt && (
+                        <>
+                            <div className="rounded-xl p-3.5 space-y-3" style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.3)' }}>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--theme-text-muted)' }}>Current</p>
+                                    <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>{currentStart.date} · {currentStart.time} – {currentEnd.time}</p>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <ArrowRight size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#e2b764' }} />
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: '#e2b764' }}>Final</p>
+                                        <p className="text-sm font-bold" style={{ color: 'var(--theme-text-head)' }}>
+                                            {fmtWallClockDate(newStartDt)} · {fmtWallClockTime(newStartDt)} – {fmtWallClockTime(newEndDt)}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="pt-2 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <p className="text-xs flex items-center gap-1.5 font-semibold" style={{ color: '#10b981' }}>
+                                        <CheckCircle2 size={12} /> Available — confirmed by the server
+                                    </p>
+                                </div>
+                            </div>
+
+                            <Field label="Admin Notes (optional)">
+                                <textarea rows={2} value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
+                                    placeholder="Notes visible to the customer and therapist..." className={inputCls} style={inputStyle} />
+                            </Field>
+
+                            <ErrorBanner />
+
+                            <div className="flex gap-2">
+                                <button onClick={() => setStep('time')} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                                    style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
+                                    Back
+                                </button>
+                                <button onClick={handleApprove} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                                    style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#10b981' }}>
+                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                    Approve & Reschedule
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── Step: reject ─────────────────────────────────────────────────── */}
+                    {step === 'reject' && (
+                        <>
+                            <Field label="Reason for rejection (optional)">
+                                <textarea rows={3} value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
+                                    placeholder="e.g. Requested time conflicts with therapist availability." className={inputCls} style={inputStyle} />
+                            </Field>
+
+                            <ErrorBanner />
+
+                            <div className="flex gap-2">
+                                <button onClick={() => { setError(''); setStep('date'); }} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                                    style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
+                                    Back
+                                </button>
+                                <button onClick={handleReject} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                                    style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
+                                    Confirm Reject
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Reject escape hatch — available from any review step */}
+                    {step !== 'reject' && (
+                        <button onClick={() => { setError(''); setAdminNotes(''); setStep('reject'); }} disabled={submitting}
+                            className="w-full text-center text-xs font-semibold py-1 disabled:opacity-40"
+                            style={{ color: '#ef4444' }}>
+                            Reject this request instead
+                        </button>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
 // ── Booking Detail Drawer ─────────────────────────────────────────────────────
-function BookingDrawer({ booking, onClose, onRefundSent, refunding, onRescheduled }) {
+function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, pendingProposal }) {
     const [imgZoom, setImgZoom] = useState(false);
     const [refInput, setRefInput] = useState('');
     const [showRefund, setShowRefund] = useState(false);
@@ -696,11 +1153,25 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onReschedule
                         <Row icon={User} label="Therapist" value={booking.therapist_name} accent="#f59e0b" />
                         <Row icon={CreditCard} label="Payment Method" value={booking.payment_method} accent="#8b5cf6" />
                     </Section>
-                    {RESCHEDULABLE_STATUSES.includes(booking.status) && (
+                    {/* §8.3/§8.7 — admin-initiated reschedule is now always a
+                        PROPOSAL, never an immediate mutation (superseded
+                        §3.6). While one is already pending, no second
+                        proposal (and no direct reschedule) is offered —
+                        this read-only state is the only thing shown
+                        instead, per §8.4 and requirement #7/#2. */}
+                    {pendingProposal ? (
+                        <div className="mb-5 p-4 rounded-xl space-y-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                            <ProposalStatusLabel status="pending" />
+                            <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>
+                                Proposed <span className="font-mono font-semibold">{pendingProposal.proposed_start_at_fmt}</span> — awaiting the customer's response.
+                            </p>
+                            <CountdownTimer expiresAt={pendingProposal.expires_at} />
+                        </div>
+                    ) : RESCHEDULABLE_STATUSES.includes(booking.status) && (
                         <button onClick={() => setShowReschedule(true)}
                             className="w-full mb-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
                             style={{ background: 'rgba(226,183,100,0.1)', border: '1px solid rgba(226,183,100,0.3)', color: '#e2b764' }}>
-                            <CalendarClock size={14} /> Reschedule Booking
+                            <CalendarClock size={14} /> Propose New Schedule
                         </button>
                     )}
                     <Section title="Payment">
@@ -761,10 +1232,10 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onReschedule
             <AnimatePresence>{imgZoom && <ProofLightbox url={proofUrl} onClose={() => setImgZoom(false)} />}</AnimatePresence>
             <AnimatePresence>
                 {showReschedule && (
-                    <RescheduleModal
+                    <ProposeRescheduleModal
                         booking={booking}
                         onClose={() => setShowReschedule(false)}
-                        onSuccess={(updated) => { onRescheduled(booking.id, updated); setShowReschedule(false); }}
+                        onProposed={(proposal) => { onProposed(booking.id, proposal); setShowReschedule(false); }}
                     />
                 )}
             </AnimatePresence>
@@ -882,6 +1353,240 @@ function NeedsAttentionQueue({ bookings, onComplete, onNoShow, onCancel, resolvi
                 })}
             </div>
         </div>
+    );
+}
+
+// ── Reschedule Requests Queue ──────────────────────────────────────────────────
+// Customer/therapist-submitted reschedule PREFERENCES awaiting admin review —
+// see RescheduleRequestReviewModal above for the actual approve/reject flow.
+// This list is read-only: every mutation happens inside that modal.
+function RescheduleRequestsQueue({ requests, onReview, onView }) {
+    if (!requests.length) return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.07)', border: '1px solid rgba(96,165,250,0.15)' }}>
+                <CheckCircle2 size={22} style={{ color: '#60a5fa' }} />
+            </div>
+            <div className="text-center">
+                <p className="font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>No reschedule requests pending</p>
+                <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>Customer and therapist reschedule preferences will appear here.</p>
+            </div>
+        </div>
+    );
+
+    return (
+        <div>
+            <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: 'var(--theme-border)', background: 'rgba(96,165,250,0.03)' }}>
+                <CalendarClock size={12} style={{ color: '#60a5fa' }} />
+                <span className="text-xs" style={{ color: '#60a5fa' }}>A requested time is only a preference — review it against the real schedule and pick the final time.</span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
+                {requests.map(r => {
+                    const b = r.booking;
+                    return (
+                        <div key={r.id} className="px-5 py-4">
+                            <div className="flex flex-wrap items-center gap-3 justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-bold" style={{ color: '#e2b764' }}>{b?.ref}</span>
+                                        <Badge cfg={STATUS_STYLES[b?.status]} />
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize"
+                                            style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)' }}>
+                                            {r.requested_by_role} request
+                                        </span>
+                                        {/* §8.8 — MiniTag: this request exists because the
+                                            customer countered an admin proposal instead of
+                                            accepting it. Reuses this exact review flow — no
+                                            second review surface. */}
+                                        {r.countered_from_proposal && (
+                                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                                style={{ color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
+                                                Countered Proposal
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm font-semibold mt-1" style={{ color: 'var(--theme-text-head)' }}>{b?.customer_name} · {b?.therapist_name}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                        {b?.service_name} · Currently {b?.scheduled_start_fmt ?? '—'}
+                                    </p>
+                                    {r.reason && (
+                                        <p className="text-xs mt-1 italic" style={{ color: 'var(--theme-text-muted)' }}>"{r.reason}"</p>
+                                    )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#60a5fa' }}>Requested</p>
+                                    <p className="text-sm font-bold" style={{ color: 'var(--theme-text-head)' }}>{r.requested_start_at_fmt}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>submitted {r.created_at_fmt}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <button onClick={() => onReview(r)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                                    style={{ background: 'rgba(96,165,250,0.12)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.3)' }}>
+                                    <CalendarClock size={11} /> Review Request
+                                </button>
+                                <button onClick={() => onView(b)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto"
+                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
+                                    <Eye size={11} /> View Booking
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ── Awaiting Customer Queue (admin → customer proposals, handoff §8.4) ──────
+// Read-only — every mutation happens on the CUSTOMER's side
+// (RescheduleProposalController::accept/counter/cancel); there is
+// deliberately no admin "withdraw" action here (handoff: "[Not on boards]").
+function AwaitingCustomerQueue({ proposals, onView }) {
+    if (!proposals.length) return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                <Clock size={22} style={{ color: '#f59e0b' }} />
+            </div>
+            <div className="text-center">
+                <p className="font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>No proposals awaiting a customer response</p>
+                <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>Schedules you propose to customers will appear here until they respond.</p>
+            </div>
+        </div>
+    );
+
+    return (
+        <div>
+            <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: 'var(--theme-border)', background: 'rgba(245,158,11,0.03)' }}>
+                <Clock size={12} style={{ color: '#f59e0b' }} />
+                <span className="text-xs" style={{ color: '#f59e0b' }}>
+                    {proposals.length} proposal{proposals.length === 1 ? ' is' : 's are'} awaiting a customer response. Bookings keep their current schedule until the customer responds.
+                </span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
+                {proposals.map(p => {
+                    const b = p.booking;
+                    return (
+                        <div key={p.id} className="px-5 py-4">
+                            <div className="flex flex-wrap items-center gap-3 justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-bold" style={{ color: '#e2b764' }}>{b?.ref}</span>
+                                        <Badge cfg={STATUS_STYLES[b?.status]} />
+                                    </div>
+                                    <p className="text-sm font-semibold mt-1" style={{ color: 'var(--theme-text-head)' }}>{b?.customer_name} · {b?.therapist_name}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                        {b?.service_name} · Current <span className="font-mono">{b?.scheduled_start_fmt ?? '—'}</span>
+                                    </p>
+                                    {p.admin_reason ? (
+                                        <p className="text-xs mt-1 italic" style={{ color: 'var(--theme-text-muted)' }}>"{p.admin_reason}"</p>
+                                    ) : (
+                                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>No note</p>
+                                    )}
+                                </div>
+                                <div className="text-right flex-shrink-0 space-y-1">
+                                    <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#e2b764' }}>Proposed</p>
+                                    <p className="text-sm font-bold font-mono" style={{ color: 'var(--theme-text-head)' }}>{p.proposed_start_at_fmt}</p>
+                                    <ProposalStatusLabel status={p.status} />
+                                    <div className="flex justify-end"><CountdownTimer expiresAt={p.expires_at} /></div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <button onClick={() => onView(p)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto"
+                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)', border: '1px solid var(--theme-border)' }}>
+                                    <Eye size={11} /> View
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t text-[11px]" style={{ borderColor: 'var(--theme-border)' }}>
+                <span style={{ color: 'var(--theme-text-muted)' }}>Accepted, countered, cancelled and expired proposals stay in each booking's history</span>
+            </div>
+        </div>
+    );
+}
+
+// Read-only "drawer" variant for a pending proposal (handoff §8.4) — no
+// Approve/Reject here, because there's nothing for the admin to decide:
+// the customer hasn't responded yet. Resolved proposals (accepted/
+// countered/cancelled/expired) reuse the same shell, just without the
+// waiting-specific footer note.
+function ViewProposalModal({ proposal, onClose }) {
+    const b = proposal.booking;
+    const isPending = proposal.status === 'pending';
+
+    return (
+        <motion.div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }} onClick={onClose} />
+            <motion.div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl"
+                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}>
+
+                <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold" style={{ color: '#e2b764' }}>{b?.ref}</span>
+                            <ProposalStatusLabel status={proposal.status} />
+                        </div>
+                        <h3 className="font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>Reschedule Proposal</h3>
+                    </div>
+                    <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--theme-btn-bg)' }}>
+                        <X size={13} style={{ color: 'var(--theme-text-muted)' }} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    <div className="rounded-xl p-3.5" style={{ background: 'var(--theme-bg)', border: '1px solid var(--theme-border)' }}>
+                        <p className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: 'var(--theme-text-muted)' }}>Current Schedule</p>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{b?.scheduled_start_fmt} – {splitScheduleFmt(b?.scheduled_end_fmt).time}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                            <span className="flex items-center gap-1"><User size={11} /> {b?.therapist_name ?? '—'}</span>
+                            <span className="flex items-center gap-1"><Calendar size={11} /> {b?.service_name}</span>
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl p-3.5" style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.3)' }}>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: '#e2b764' }}>Proposed</p>
+                        <p className="text-sm font-bold font-mono" style={{ color: 'var(--theme-text-head)' }}>{proposal.proposed_start_at_fmt}</p>
+                        {proposal.admin_reason && (
+                            <p className="text-xs mt-2 italic" style={{ color: 'var(--theme-text-muted)' }}>"{proposal.admin_reason}"</p>
+                        )}
+                    </div>
+
+                    {proposal.customer_response_note && (
+                        <div className="rounded-xl p-3.5" style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: 'var(--theme-text-muted)' }}>Customer's note</p>
+                            <p className="text-xs italic" style={{ color: 'var(--theme-text-2)' }}>"{proposal.customer_response_note}"</p>
+                        </div>
+                    )}
+
+                    {isPending ? (
+                        <>
+                            <div className="flex justify-center"><CountdownTimer expiresAt={proposal.expires_at} /></div>
+                            <div role="note" className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs text-center"
+                                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
+                                <Bell size={14} style={{ color: 'var(--theme-text-muted)' }} />
+                                Waiting for the customer to respond. You'll be notified here.
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-xs text-center" style={{ color: 'var(--theme-text-muted)' }}>
+                            {proposal.status === 'accepted' && 'The customer accepted this proposal — the booking has been rescheduled.'}
+                            {proposal.status === 'countered' && 'The customer suggested a different time — review it in Reschedule Requests.'}
+                            {proposal.status === 'cancelled' && 'The customer cancelled the booking in response to this proposal.'}
+                            {proposal.status === 'expired' && 'This proposal expired with no response.'}
+                        </p>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
     );
 }
 
@@ -1104,6 +1809,10 @@ export default function BookingsManager() {
     const [refundQueue, setRefundQueue] = useState([]);
     const [cancelledHist, setCancelledHist] = useState([]);
     const [staleQueue, setStaleQueue] = useState([]);
+    const [rescheduleRequests, setRescheduleRequests] = useState([]);
+    const [reviewingRequest, setReviewingRequest] = useState(null);
+    const [rescheduleProposals, setRescheduleProposals] = useState([]);
+    const [viewingProposal, setViewingProposal] = useState(null);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(true);
@@ -1125,16 +1834,20 @@ export default function BookingsManager() {
     const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
-            const [all, refunds, cancelled, stale] = await Promise.all([
+            const [all, refunds, cancelled, stale, rescheduleReqs, rescheduleProps] = await Promise.all([
                 apiFetch('/admin/api/bookings'),
                 apiFetch('/admin/api/bookings/pending-refunds'),
                 apiFetch('/admin/api/bookings/cancelled-history'),
                 apiFetch('/admin/api/bookings/stale'),
+                apiFetch('/admin/api/bookings/reschedule-requests'), // defaults to status=pending
+                apiFetch('/admin/api/bookings/reschedule-proposals'), // defaults to status=pending
             ]);
             setAllBookings(all);
             setRefundQueue(refunds);
             setCancelledHist(cancelled);
             setStaleQueue(stale);
+            setRescheduleRequests(rescheduleReqs);
+            setRescheduleProposals(rescheduleProps);
             // Calculate total pages for client-side pagination
             setTotalPages(Math.ceil(all.length / itemsPerPage));
         } catch {
@@ -1248,13 +1961,29 @@ export default function BookingsManager() {
         }
     };
 
-    // RescheduleModal already performed the POST and only calls this once
-    // the backend confirmed success — this just fans the already-updated
-    // booking (the backend's own formatBooking() payload) out to local
-    // state, the same way every other admin action here does.
-    const handleRescheduled = (bookingId, updatedBooking) => {
-        patchBooking(bookingId, updatedBooking);
-        showToast('Booking rescheduled ✅');
+    // ProposeRescheduleModal already performed the POST and only calls this
+    // once the backend confirmed success. It never touches the booking — a
+    // proposal doesn't mutate it (RescheduleProposalService::create()) —
+    // so there's nothing to patch; this just refetches the proposal queue
+    // (admin/api/bookings/reschedule-proposals) so the new pending
+    // proposal's full, formatted record (with its nested booking) shows up
+    // immediately in the "Awaiting Customer" queue and the drawer's
+    // read-only state, rather than building a partial one from the
+    // lightweight create-response here.
+    const handleProposed = () => {
+        showToast('Proposal sent — waiting for the customer to respond.');
+        fetchAll();
+    };
+
+    // RescheduleRequestReviewModal already performed the approve/reject POST
+    // — this just removes the now-resolved request from the pending queue
+    // and, for an approval, fans the updated booking (already rescheduled
+    // server-side) out to local state the same way handleRescheduled does.
+    const handleRescheduleRequestResolved = (resolvedRequest, message) => {
+        setRescheduleRequests(prev => prev.filter(r => r.id !== resolvedRequest.id));
+        if (resolvedRequest.booking) patchBooking(resolvedRequest.booking.id, resolvedRequest.booking);
+        setReviewingRequest(null);
+        showToast(message);
         fetchStats();
     };
 
@@ -1279,8 +2008,17 @@ export default function BookingsManager() {
 
     const badgeCounts = {
         needsAttention: staleQueue.length,
+        awaitingCustomer: rescheduleProposals.length,
+        rescheduleRequests: rescheduleRequests.length,
         refunds: refundQueue.length,
     };
+
+    // Used by BookingDrawer to hide "Propose New Schedule" and show the
+    // read-only "Awaiting Customer" state instead (requirement: no second
+    // proposal, no direct reschedule while one is pending).
+    const pendingProposalForSelected = selected
+        ? rescheduleProposals.find(p => p.status === 'pending' && p.booking?.id === selected.id) ?? null
+        : null;
 
     return (
         <AdminLayout title="Bookings Manager">
@@ -1340,6 +2078,19 @@ export default function BookingsManager() {
                             onView={setSelected}
                         />
                     )}
+                    {activeView === 'awaitingCustomer' && (
+                        <AwaitingCustomerQueue
+                            proposals={rescheduleProposals}
+                            onView={setViewingProposal}
+                        />
+                    )}
+                    {activeView === 'rescheduleRequests' && (
+                        <RescheduleRequestsQueue
+                            requests={rescheduleRequests}
+                            onReview={setReviewingRequest}
+                            onView={setSelected}
+                        />
+                    )}
                     {activeView === 'all' && (
                         <>
                             <PendingBookingsSection bookings={allBookings} onView={setSelected} />
@@ -1372,7 +2123,36 @@ export default function BookingsManager() {
                 </div>
             </div>
 
-            <AnimatePresence>{selected && <BookingDrawer booking={selected} onClose={() => setSelected(null)} onRefundSent={handleRefundSent} refunding={refunding} onRescheduled={handleRescheduled} />}</AnimatePresence>
+            <AnimatePresence>
+                {selected && (
+                    <BookingDrawer
+                        booking={selected}
+                        onClose={() => setSelected(null)}
+                        onRefundSent={handleRefundSent}
+                        refunding={refunding}
+                        onProposed={handleProposed}
+                        pendingProposal={pendingProposalForSelected}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {reviewingRequest && (
+                    <RescheduleRequestReviewModal
+                        request={reviewingRequest}
+                        onClose={() => setReviewingRequest(null)}
+                        onApproved={(req) => handleRescheduleRequestResolved(req, 'Reschedule request approved ✅')}
+                        onRejected={(req) => handleRescheduleRequestResolved(req, 'Reschedule request rejected')}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {viewingProposal && (
+                    <ViewProposalModal
+                        proposal={viewingProposal}
+                        onClose={() => setViewingProposal(null)}
+                    />
+                )}
+            </AnimatePresence>
             <AnimatePresence>{toast && <Toast toast={toast} />}</AnimatePresence>
         </AdminLayout>
     );

@@ -24,6 +24,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Flags en_route/arrived bookings stuck past their expected window
         // for admin review — purely additive metadata, never touches status.
         $schedule->command('bookings:flag-stale-active-sessions')->everyFifteenMinutes();
+
+        // Cancels a booking whose admin-sent reschedule proposal went
+        // unanswered past its deadline — never touches scheduled_start/end,
+        // only ever cancels via the existing refund/forfeit decision tree.
+        $schedule->command('bookings:expire-reschedule-proposals')->everyTenMinutes();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

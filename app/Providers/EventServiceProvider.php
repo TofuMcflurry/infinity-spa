@@ -10,6 +10,9 @@ use App\Events\Audit\BookingRejected;
 use App\Events\Audit\BookingCancelled;
 use App\Events\Audit\BookingCompleted;
 use App\Events\Audit\BookingRescheduled;
+use App\Events\Audit\RescheduleProposed;
+use App\Events\Audit\RescheduleProposalResponded;
+use App\Events\Audit\RescheduleProposalExpired;
 use App\Events\Audit\RefundSent;
 use App\Events\Audit\BookingFlaggedStale;
 use App\Events\Audit\StaleBookingResolved;
@@ -44,6 +47,9 @@ class EventServiceProvider extends ServiceProvider
         BookingCancelled::class      => [AuditLogListener::class],
         BookingCompleted::class      => [AuditLogListener::class],
         BookingRescheduled::class    => [AuditLogListener::class],
+        RescheduleProposed::class           => [AuditLogListener::class],
+        RescheduleProposalResponded::class  => [AuditLogListener::class],
+        RescheduleProposalExpired::class    => [AuditLogListener::class],
         RefundSent::class            => [AuditLogListener::class],
         BookingFlaggedStale::class   => [AuditLogListener::class],
         StaleBookingResolved::class  => [AuditLogListener::class],

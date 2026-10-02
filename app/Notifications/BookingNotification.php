@@ -14,12 +14,17 @@ class BookingNotification extends Notification
 
     public function __construct(
         public Booking $booking,
-        public string  $type,  // accepted|rejected|cancelled|en_route|arrived|completed|booking_pending|customer_cancelled|payment_succeeded|payment_failed|rescheduled
+        public string  $type,  // accepted|rejected|cancelled|en_route|arrived|completed|booking_pending|customer_cancelled|payment_succeeded|payment_failed|rescheduled|reschedule_proposed|reschedule_countered|reschedule_proposal_expired
         // Only used by 'rescheduled' — the booking's scheduled_start BEFORE
         // the admin's change, captured by the caller before it mutated the
         // model, so the notification can show old -> new. Null for every
         // other type.
         public ?Carbon $previousScheduledStart = null,
+        // Only used by 'reschedule_proposed' and 'reschedule_proposal_expired'
+        // — a candidate time that is NOT on the booking itself (the booking's
+        // own scheduled_start stays unchanged throughout a pending proposal,
+        // see RescheduleProposalService). Null for every other type.
+        public ?Carbon $candidateScheduledStart = null,
     ) {}
 
     // In-app-only types: the therapist's "new request" alert and the
@@ -46,6 +51,12 @@ class BookingNotification extends Notification
         $sessionLabel  = \Carbon\Carbon::parse($this->booking->scheduled_start)
             ->timezone('Asia/Dubai')
             ->format('M j \a\t g:i A');
+        // Only meaningful for 'reschedule_proposed'/'reschedule_proposal_expired'
+        // — falls back to the booking's own (unchanged) schedule otherwise so
+        // the message never breaks if a caller forgets to pass it.
+        $proposedLabel = $this->candidateScheduledStart
+            ? $this->candidateScheduledStart->timezone('Asia/Dubai')->format('M j \a\t g:i A')
+            : $sessionLabel;
 
         $messages = [
             'booking_pending'       => [
@@ -118,6 +129,30 @@ class BookingNotification extends Notification
                 'icon'    => 'calendar',
                 'color'   => 'blue',
             ],
+            // ── Reschedule Proposal (admin → customer) ──────────────────────
+            // 'reschedule_proposed'/'reschedule_proposal_expired' deliberately
+            // never say "rescheduled" — the booking hasn't moved yet. Only
+            // the 'rescheduled' type above (fired by
+            // RescheduleProposalService::accept()) represents a confirmed
+            // schedule change.
+            'reschedule_proposed'   => [
+                'title'   => 'Schedule Change Proposed',
+                'message' => "We've proposed a new time for your {$serviceName} booking: {$proposedLabel}. Waiting for your response.",
+                'icon'    => 'calendar-clock',
+                'color'   => 'blue',
+            ],
+            'reschedule_countered'  => [
+                'title'   => 'Customer Requested Another Time',
+                'message' => "{$customerName} suggested a different time for booking {$bookingRef}.",
+                'icon'    => 'calendar-clock',
+                'color'   => 'blue',
+            ],
+            'reschedule_proposal_expired' => [
+                'title'   => 'Reschedule Proposal Expired',
+                'message' => "The proposed schedule change for your {$serviceName} booking went unanswered, so the booking was cancelled.",
+                'icon'    => 'x-circle',
+                'color'   => 'red',
+            ],
         ];
 
         $msg = $messages[$this->type] ?? [
@@ -141,6 +176,10 @@ class BookingNotification extends Notification
             'url'        => match (true) {
                 $this->type === 'booking_pending' => '/therapist/bookings?tab=pending',
                 $this->type === 'rescheduled' && ($notifiable->role ?? null) === 'therapist' => '/therapist/bookings',
+                // Admin-facing — sent to admins when a customer counters a
+                // proposal, so it routes to the admin bookings view, not
+                // the customer's own.
+                $this->type === 'reschedule_countered' => '/admin/bookings',
                 default => '/my-bookings',
             },
         ];
@@ -179,6 +218,9 @@ class BookingNotification extends Notification
             'payment_failed'       => "❌ Payment Failed — {$bookingRef}",
             'cancelled'            => "Your Infinity Home Spa booking has been cancelled",
             'rescheduled'          => "📅 Booking Rescheduled — {$bookingRef}",
+            'reschedule_proposed'          => "📅 We've Proposed a New Time — {$bookingRef}",
+            'reschedule_countered'         => "🔁 Customer Suggested Another Time — {$bookingRef}",
+            'reschedule_proposal_expired'  => "⌛ Reschedule Proposal Expired — {$bookingRef}",
         ];
 
         $mail = (new MailMessage)
@@ -193,6 +235,11 @@ class BookingNotification extends Notification
         if ($this->type === 'rescheduled' && $this->previousScheduledStart) {
             $mail->line('**Previous Schedule:** ' . $this->previousScheduledStart->timezone('Asia/Dubai')->format('l, d F Y \a\t g:i A'));
             $mail->line("**New Schedule:** {$date} at {$time}");
+        } elseif (in_array($this->type, ['reschedule_proposed', 'reschedule_proposal_expired'], true) && $this->candidateScheduledStart) {
+            // The booking's own schedule hasn't moved yet — show it
+            // alongside the candidate time so neither reads as confirmed.
+            $mail->line("**Current Schedule:** {$date} at {$time}");
+            $mail->line('**Proposed Schedule:** ' . $this->candidateScheduledStart->timezone('Asia/Dubai')->format('l, d F Y \a\t g:i A'));
         } else {
             $mail->line("**Date:** {$date} at {$time}");
         }
@@ -246,6 +293,26 @@ class BookingNotification extends Notification
                 ->action('View Booking', url(
                     $notifiable->role === 'therapist' ? '/therapist/bookings' : '/my-bookings'
                 )),
+
+            // Customer-facing. Deliberately never claims the booking has
+            // been rescheduled — only 'rescheduled' above does that, and
+            // only once the customer has actually accepted.
+            'reschedule_proposed' => $mail
+                ->line('📅 We\'ve proposed a **new time** for your booking.')
+                ->line('Please accept this time, suggest another, or cancel your booking.')
+                ->action('Respond to Proposal', url('/my-bookings')),
+
+            // Admin-facing — see the 'url' override in toDatabase() for the
+            // matching in-app link.
+            'reschedule_countered' => $mail
+                ->line("🔁 A customer suggested a different time for booking {$bookingRef}.")
+                ->line('Please review and respond.')
+                ->action('Review Request', url('/admin/bookings')),
+
+            'reschedule_proposal_expired' => $mail
+                ->line('⌛ The proposed schedule change for your booking went **unanswered** in time.')
+                ->line('Your booking has been cancelled as a result. Please see our cancellation policy for refund details.')
+                ->action('View Bookings', url('/my-bookings')),
 
             default => $mail->action('View Booking', url('/my-bookings')),
         };

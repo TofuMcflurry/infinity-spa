@@ -38,7 +38,20 @@ class BookingRescheduleService
     // for yet.
     public const RESCHEDULABLE_STATUSES = ['pending', 'accepted'];
 
-    public static function reschedule(Booking $booking, Carbon $newStart, ?string $reason = null): Booking
+    /**
+     * Validates a candidate new start time against every rule reschedule()
+     * itself enforces — status, future time, day-off, shift, unavailable
+     * slot, and conflict (self-excluded) — WITHOUT writing anything.
+     * Returns the computed time blocks (scheduled_end/travel_start/
+     * buffer_end) a caller can use to preview the change.
+     *
+     * reschedule() below calls this first and is the only method that ever
+     * writes to the booking — this is a read-only reuse of the same rules,
+     * never a second scheduling engine. See
+     * RescheduleProposalService::create(), which previews a proposal this
+     * way without mutating the booking until the customer accepts it.
+     */
+    public static function validateCandidate(Booking $booking, Carbon $newStart): array
     {
         abort_if(
             !in_array($booking->status, self::RESCHEDULABLE_STATUSES, true),
@@ -82,6 +95,13 @@ class BookingRescheduleService
             422,
             'This time conflicts with another booking for this therapist.'
         );
+
+        return $blocks;
+    }
+
+    public static function reschedule(Booking $booking, Carbon $newStart, ?string $reason = null): Booking
+    {
+        $blocks = self::validateCandidate($booking, $newStart);
 
         $booking->update([
             'scheduled_start' => $newStart,
