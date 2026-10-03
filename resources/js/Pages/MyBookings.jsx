@@ -1724,16 +1724,69 @@ export default function MyBookings() {
 
                                 <div className="p-5 space-y-5">
 
-                                    {/* Refund / Forfeit warning */}
-                                    {cancelBooking.downpayment_status === 'verified' ? (
-                                        cancelBooking.hours_until_session > 24 ? (
+                                    {/* Refund / Forfeit warning — driven by the same authoritative
+                                        payment contract as the booking/payment display
+                                        (resources/js/lib/paymentSummary.js). `payment_status` is
+                                        the only authority for "has this been paid," so a fully
+                                        paid (Stripe, full or deposit) booking must never fall into
+                                        the legacy "downpayment not verified" copy below — that
+                                        copy is only for a booking nothing has been charged on yet. */}
+                                    {(() => {
+                                        const pay = computePaymentSummary(cancelBooking);
+                                        const withinGrace = cancelBooking.hours_until_session > 24;
+
+                                        if (!pay.isPaid) {
+                                            return (
+                                                <div className="flex items-start gap-3 p-4 rounded-xl"
+                                                    style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
+                                                    <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
+                                                    <div>
+                                                        <p className="text-sm font-semibold" style={{ color: '#e2b764' }}>No charge</p>
+                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                            Payment hasn't been completed yet — no amount will be charged.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (pay.isVoucher) {
+                                            return withinGrace ? (
+                                                <div className="flex items-start gap-3 p-4 rounded-xl"
+                                                    style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                                    <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
+                                                    <div>
+                                                        <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Voucher will be restored</p>
+                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                            Your session is more than 24 hours away. Your voucher will be restored for future use.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-start gap-3 p-4 rounded-xl"
+                                                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                                                    <div>
+                                                        <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Voucher will be forfeited</p>
+                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                            Your session is less than 24 hours away. Your voucher cannot be restored per our policy.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        const amountLabel = pay.isFull ? 'payment' : 'downpayment';
+                                        const paidAed = formatAed(pay.totalPaid);
+
+                                        return withinGrace ? (
                                             <div className="flex items-start gap-3 p-4 rounded-xl"
                                                 style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
                                                 <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
                                                 <div>
                                                     <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Full refund eligible</p>
                                                     <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
-                                                        Your session is more than 24 hours away. Downpayment will be refunded within 3-5 business days.
+                                                        Your session is more than 24 hours away. Your {amountLabel} of {paidAed} will be refunded within 3-5 business days.
                                                     </p>
                                                 </div>
                                             </div>
@@ -1742,25 +1795,14 @@ export default function MyBookings() {
                                                 style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
                                                 <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
                                                 <div>
-                                                    <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Downpayment will be forfeited</p>
+                                                    <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>{pay.isFull ? 'Payment' : 'Downpayment'} will be forfeited</p>
                                                     <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
-                                                        Your session is less than 24 hours away. Downpayment cannot be refunded per our policy.
+                                                        Your session is less than 24 hours away. Your {amountLabel} of {paidAed} cannot be refunded per our policy.
                                                     </p>
                                                 </div>
                                             </div>
-                                        )
-                                    ) : (
-                                        <div className="flex items-start gap-3 p-4 rounded-xl"
-                                            style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
-                                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
-                                            <div>
-                                                <p className="text-sm font-semibold" style={{ color: '#e2b764' }}>No charge</p>
-                                                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
-                                                    Your downpayment hasn't been verified yet — no amount will be charged.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
 
                                     {/* Reason selector */}
                                     <div>
