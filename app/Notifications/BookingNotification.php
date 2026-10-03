@@ -135,12 +135,26 @@ class BookingNotification extends Notification
             // the 'rescheduled' type above (fired by
             // RescheduleProposalService::accept()) represents a confirmed
             // schedule change.
-            'reschedule_proposed'   => [
-                'title'   => 'Schedule Change Proposed',
-                'message' => "We've proposed a new time for your {$serviceName} booking: {$proposedLabel}. Waiting for your response.",
-                'icon'    => 'calendar-clock',
-                'color'   => 'blue',
-            ],
+            // QA finding 5 — also sent to the therapist (create() now
+            // notifies both), so title/message branch by role the same way
+            // the 'rescheduled' type's url already does below. The
+            // therapist's copy is deliberately read-only in tone: only the
+            // customer can accept/counter/cancel a proposal, and the
+            // booking's own confirmed schedule stays unchanged for the
+            // therapist until that response.
+            'reschedule_proposed'   => ($notifiable->role ?? null) === 'therapist'
+                ? [
+                    'title'   => 'Schedule Change Proposed',
+                    'message' => "Our team proposed a new time for the {$serviceName} booking with {$customerName}: {$proposedLabel}. Your confirmed schedule stays as-is until the customer responds.",
+                    'icon'    => 'calendar-clock',
+                    'color'   => 'blue',
+                ]
+                : [
+                    'title'   => 'Schedule Change Proposed',
+                    'message' => "We've proposed a new time for your {$serviceName} booking: {$proposedLabel}. Waiting for your response.",
+                    'icon'    => 'calendar-clock',
+                    'color'   => 'blue',
+                ],
             'reschedule_countered'  => [
                 'title'   => 'Customer Requested Another Time',
                 'message' => "{$customerName} suggested a different time for booking {$bookingRef}.",
@@ -176,6 +190,7 @@ class BookingNotification extends Notification
             'url'        => match (true) {
                 $this->type === 'booking_pending' => '/therapist/bookings?tab=pending',
                 $this->type === 'rescheduled' && ($notifiable->role ?? null) === 'therapist' => '/therapist/bookings',
+                $this->type === 'reschedule_proposed' && ($notifiable->role ?? null) === 'therapist' => '/therapist/bookings',
                 // Admin-facing — sent to admins when a customer counters a
                 // proposal, so it routes to the admin bookings view, not
                 // the customer's own.
@@ -297,10 +312,18 @@ class BookingNotification extends Notification
             // Customer-facing. Deliberately never claims the booking has
             // been rescheduled — only 'rescheduled' above does that, and
             // only once the customer has actually accepted.
-            'reschedule_proposed' => $mail
-                ->line('📅 We\'ve proposed a **new time** for your booking.')
-                ->line('Please accept this time, suggest another, or cancel your booking.')
-                ->action('Respond to Proposal', url('/my-bookings')),
+            // QA finding 5 — role-aware the same way 'rescheduled' above is:
+            // the therapist's copy stays read-only since only the customer
+            // can act on a proposal.
+            'reschedule_proposed' => $notifiable->role === 'therapist'
+                ? $mail
+                    ->line('📅 Our team has **proposed a new time** for this booking.')
+                    ->line('Your confirmed schedule stays unchanged until the customer responds.')
+                    ->action('View Booking', url('/therapist/bookings'))
+                : $mail
+                    ->line('📅 We\'ve proposed a **new time** for your booking.')
+                    ->line('Please accept this time, suggest another, or cancel your booking.')
+                    ->action('Respond to Proposal', url('/my-bookings')),
 
             // Admin-facing — see the 'url' override in toDatabase() for the
             // matching in-app link.

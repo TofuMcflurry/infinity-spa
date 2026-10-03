@@ -35,10 +35,14 @@ use Illuminate\Support\Facades\DB;
  */
 class RescheduleProposalService
 {
-    // Mirrors BookingRescheduleService::RESCHEDULABLE_STATUSES — a proposal
-    // only makes sense for a booking that could still legally be
-    // rescheduled.
-    public const ELIGIBLE_STATUSES = ['pending', 'accepted'];
+    // Narrower than BookingRescheduleService::RESCHEDULABLE_STATUSES on
+    // purpose (QA finding 4): a Pending booking hasn't been accepted by a
+    // therapist yet, so an admin-initiated proposal on it is premature —
+    // the booking's own normal accept/reject lifecycle, or the existing
+    // Reschedule Request flow, is how a not-yet-accepted booking's time
+    // gets settled. Proposals are only for a booking the therapist has
+    // already committed to.
+    public const ELIGIBLE_STATUSES = ['accepted'];
 
     // [Not on boards] per the design handoff §8.5 — the exact expiry
     // window was left to the backend. 24 hours matches the magnitude of
@@ -135,6 +139,19 @@ class RescheduleProposalService
         $proposal->load('booking.customer', 'booking.service', 'booking.serviceVariant', 'booking.therapist.user');
         if ($proposal->booking->customer) {
             $proposal->booking->customer->notify(new BookingNotification(
+                booking:                 $proposal->booking,
+                type:                    'reschedule_proposed',
+                candidateScheduledStart: $proposal->proposed_start_at,
+            ));
+        }
+        // QA finding 5: the therapist is informed a proposal is pending too
+        // — same notification type, role-aware copy/link (see
+        // BookingNotification::toDatabase()/toMail()). The booking's own
+        // scheduled_start/end are untouched by create(), so the therapist's
+        // confirmed schedule keeps showing as-is until the customer
+        // responds — nothing else to change for that half of this finding.
+        if ($proposal->booking->therapist?->user) {
+            $proposal->booking->therapist->user->notify(new BookingNotification(
                 booking:                 $proposal->booking,
                 type:                    'reschedule_proposed',
                 candidateScheduledStart: $proposal->proposed_start_at,

@@ -782,6 +782,24 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         </div>
                     )}
 
+                    {/* ── Reschedule Request Rejected (QA finding 1) ──
+                        Reuses the exact Rejection Reason block pattern above.
+                        The title always shows once rejected; the reason line
+                        is only added when admin_notes is actually present —
+                        never an empty "Reason from the team:" line. */}
+                    {booking.reschedule_request?.status === 'rejected' && (
+                        <div className="rounded-xl p-4"
+                            style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+                                style={{ color: '#64748b' }}>Reschedule Request Rejected</p>
+                            {booking.reschedule_request.admin_notes && (
+                                <p className="text-xs" style={{ color: '#f87171' }}>
+                                    Reason from the team: {booking.reschedule_request.admin_notes}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     {/* ── Booked on ── */}
                     <div className="text-center pt-2">
                         <p className="text-[11px]" style={{ color: '#64748b' }}>
@@ -972,18 +990,32 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             )}
 
             {/* Reschedule request status bar */}
-            {booking.reschedule_request && (pendingReschedule || booking.reschedule_request.status === 'rejected') && (
+            {booking.reschedule_request && pendingReschedule && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
-                    style={{
-                        background: pendingReschedule ? 'rgba(96,165,250,0.08)' : 'rgba(248,113,113,0.08)',
-                        border: pendingReschedule ? '1px solid rgba(96,165,250,0.2)' : '1px solid rgba(248,113,113,0.2)',
-                    }}>
-                    <CalendarClock size={13} style={{ color: pendingReschedule ? '#60a5fa' : '#f87171' }} />
-                    <span style={{ color: pendingReschedule ? '#60a5fa' : '#f87171' }}>
-                        {pendingReschedule
-                            ? `Reschedule requested for ${booking.reschedule_request.requested_start_at_fmt} · awaiting admin review`
-                            : `Your last reschedule request was declined${booking.reschedule_request.admin_notes ? ': ' + booking.reschedule_request.admin_notes : ''}`}
+                    style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)' }}>
+                    <CalendarClock size={13} style={{ color: '#60a5fa' }} />
+                    <span style={{ color: '#60a5fa' }}>
+                        Reschedule requested for {booking.reschedule_request.requested_start_at_fmt} · awaiting admin review
                     </span>
+                </div>
+            )}
+
+            {/* Reschedule request rejected — exact copy per QA finding 1:
+                title line always shown once rejected; the reason line is
+                only added when admin_notes is actually present, never as an
+                empty "Reason from the team:" line. */}
+            {booking.reschedule_request?.status === 'rejected' && (
+                <div className="mb-4 px-3 py-2 rounded-xl flex items-start gap-2 text-xs"
+                    style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
+                    <CalendarClock size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#f87171' }} />
+                    <div>
+                        <p style={{ color: '#f87171' }} className="font-semibold">Reschedule Request Rejected</p>
+                        {booking.reschedule_request.admin_notes && (
+                            <p style={{ color: '#f87171' }} className="mt-0.5">
+                                Reason from the team: {booking.reschedule_request.admin_notes}
+                            </p>
+                        )}
+                    </div>
                 </div>
             )}
 

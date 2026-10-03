@@ -141,6 +141,19 @@ class AdminRescheduleRequestReviewTest extends TestCase
         );
     }
 
+    // BookingController::myBookings() groups its response into
+    // upcoming/pending/completed/cancelled buckets by booking status, not a
+    // single flat list — flatten across all of them to find one booking by id.
+    private function findMyBooking(\Illuminate\Testing\TestResponse $response, int $bookingId): ?array
+    {
+        $groups = $response->json();
+        foreach ($groups as $group) {
+            $found = collect($group)->firstWhere('id', $bookingId);
+            if ($found) return $found;
+        }
+        return null;
+    }
+
     // ── REQUEST LIST ──────────────────────────────────────────────────────
 
     public function test_admin_can_list_pending_requests(): void
@@ -565,5 +578,83 @@ class AdminRescheduleRequestReviewTest extends TestCase
 
         $booking->refresh();
         $this->assertSame(self::ORIGINAL_START, $booking->scheduled_start->toDateTimeString());
+    }
+
+    // ── QA finding 1: the rejection reason is surfaced on the customer's own
+    // my-bookings endpoint, and never as an empty reason when none was
+    // given. ─────────────────────────────────────────────────────────────
+
+    public function test_rejection_reason_is_exposed_to_the_customer_on_my_bookings(): void
+    {
+        $booking = $this->makeBooking();
+        $req     = $this->makeRequest($booking, '2026-12-09 18:00:00');
+
+        $this->reject($req, 'Therapist unavailable that day')->assertOk();
+
+        $response = $this->actingAs($this->customer)->getJson('/api/my-bookings');
+        $response->assertOk();
+
+        $row = $this->findMyBooking($response, $booking->id);
+        $this->assertNotNull($row, 'Expected to find the booking in the customer my-bookings payload.');
+        $this->assertSame('rejected', $row['reschedule_request']['status']);
+        $this->assertSame('Therapist unavailable that day', $row['reschedule_request']['admin_notes']);
+    }
+
+    public function test_rejection_reason_is_null_when_admin_gave_no_notes(): void
+    {
+        $booking = $this->makeBooking();
+        $req     = $this->makeRequest($booking, '2026-12-09 18:00:00');
+
+        $this->reject($req)->assertOk();
+
+        $response = $this->actingAs($this->customer)->getJson('/api/my-bookings');
+        $response->assertOk();
+
+        $row = $this->findMyBooking($response, $booking->id);
+        $this->assertNotNull($row, 'Expected to find the booking in the customer my-bookings payload.');
+        $this->assertSame('rejected', $row['reschedule_request']['status']);
+        $this->assertNull($row['reschedule_request']['admin_notes']);
+    }
+
+    // ── QA finding 2: one-click approval sends request.requested_start_at
+    // straight through as final_scheduled_start — no re-entry by the admin.
+    // This is the exact request the "Approve Request" quick-approve button
+    // makes. ──────────────────────────────────────────────────────────────
+
+    public function test_one_click_approval_using_the_customers_requested_time_verbatim(): void
+    {
+        $booking = $this->makeBooking();
+        $req     = $this->makeRequest($booking, '2026-12-09 20:00:00');
+
+        $response = $this->approve($req, $req->requested_start_at->toDateTimeString());
+        $response->assertOk();
+        $response->assertJsonPath('request.status', 'approved');
+
+        $booking->refresh();
+        $this->assertSame('2026-12-09 20:00:00', $booking->scheduled_start->toDateTimeString());
+
+        $req->refresh();
+        $this->assertSame($req->requested_start_at->toDateTimeString(), $req->resolved_start_at->toDateTimeString());
+    }
+
+    // ── QA finding 2 (secondary action): "Choose Different Time" must still
+    // reach the existing, fully manual approval flow and succeed with a
+    // time other than what the customer requested. ──────────────────────────
+
+    public function test_choose_different_time_still_approves_with_an_alternative_time(): void
+    {
+        $booking = $this->makeBooking();
+        $req     = $this->makeRequest($booking, '2026-12-09 18:00:00');
+
+        $response = $this->approve($req, '2026-12-09 19:00:00', 'Therapist free an hour later instead');
+        $response->assertOk();
+        $response->assertJsonPath('request.status', 'approved');
+
+        $booking->refresh();
+        $this->assertSame('2026-12-09 19:00:00', $booking->scheduled_start->toDateTimeString());
+
+        $req->refresh();
+        $this->assertSame('2026-12-09 18:00:00', $req->requested_start_at->toDateTimeString());
+        $this->assertSame('2026-12-09 19:00:00', $req->resolved_start_at->toDateTimeString());
     }
 }

@@ -175,6 +175,21 @@ class RescheduleProposalTest extends TestCase
         $this->propose($booking, '2026-12-09 20:00:00')->assertStatus(422);
     }
 
+    // ── QA finding 4: a Pending booking (not yet accepted by a therapist)
+    // may not enter the Admin Proposal flow — narrower than the general
+    // reschedulable-status set on purpose. ─────────────────────────────────
+
+    public function test_creation_rejects_a_pending_booking(): void
+    {
+        $booking = $this->makeBooking(['status' => 'pending']);
+
+        $response = $this->propose($booking, '2026-12-09 20:00:00');
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'This booking is not eligible for a reschedule proposal.');
+
+        $this->assertDatabaseMissing('reschedule_proposals', ['booking_id' => $booking->id]);
+    }
+
     public function test_creation_rejects_a_candidate_time_that_fails_scheduling_rules(): void
     {
         $booking = $this->makeBooking();
@@ -255,6 +270,35 @@ class RescheduleProposalTest extends TestCase
             BookingNotification::class,
             fn ($n) => $n->type === 'reschedule_proposed' && $n->candidateScheduledStart?->toDateTimeString() === '2026-12-09 20:00:00'
         );
+    }
+
+    // ── QA finding 5: the therapist is informed a proposal is pending too,
+    // but the booking's own confirmed schedule stays exactly as-is for them
+    // until the customer responds (create() never mutates the booking). ────
+
+    public function test_creating_a_proposal_also_notifies_the_therapist(): void
+    {
+        NotificationFacade::fake();
+        $booking = $this->makeBooking();
+
+        $this->propose($booking, '2026-12-09 20:00:00')->assertCreated();
+
+        NotificationFacade::assertSentTo(
+            $this->therapistUser,
+            BookingNotification::class,
+            fn ($n) => $n->type === 'reschedule_proposed' && $n->candidateScheduledStart?->toDateTimeString() === '2026-12-09 20:00:00'
+        );
+    }
+
+    public function test_therapist_still_sees_the_current_confirmed_schedule_while_a_proposal_is_pending(): void
+    {
+        $booking = $this->makeBooking();
+
+        $this->propose($booking, '2026-12-09 20:00:00')->assertCreated();
+
+        $booking->refresh();
+        $this->assertSame('accepted', $booking->status);
+        $this->assertSame(self::ORIGINAL_START, $booking->scheduled_start->toDateTimeString());
     }
 
     // ── 3, 4: accept mutates the booking ──────────────────────────────────────

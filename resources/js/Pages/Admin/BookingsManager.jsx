@@ -38,12 +38,15 @@ async function apiFetch(url, options = {}) {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ITEMS_PER_PAGE = 50;
 
-// Statuses the backend actually allows to be rescheduled
-// (BookingRescheduleService::RESCHEDULABLE_STATUSES) — mirrored here only to
-// decide whether to show the "Reschedule" action at all. The backend is the
-// real authority: it re-checks this itself on every request regardless of
-// what this list says.
-const RESCHEDULABLE_STATUSES = ['pending', 'accepted'];
+// Statuses eligible for an Admin Reschedule Proposal
+// (RescheduleProposalService::ELIGIBLE_STATUSES) — mirrored here only to
+// decide whether to show the "Propose New Schedule" action at all. The
+// backend is the real authority: it re-checks this itself on every request
+// regardless of what this list says. QA finding 4: a Pending booking (not
+// yet accepted by a therapist) is deliberately excluded — narrower than the
+// general reschedulable-status set, since a proposal only makes sense once
+// the therapist has committed to the booking.
+const PROPOSAL_ELIGIBLE_STATUSES = ['accepted'];
 
 // Views
 const VIEWS = [
@@ -669,7 +672,15 @@ function ProposeRescheduleModal({ booking, onClose, onProposed }) {
 function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected }) {
     const booking = request.booking;
 
-    const [step, setStep] = useState('date'); // 'date' | 'time' | 'confirm' | 'reject'
+    // 'checking' (initial — verifying the customer's own requested_start_at
+    // is still valid/available, QA finding 2) | 'quick' (one-click approve/
+    // reject using that requested time, no re-entry) | 'date' | 'time' |
+    // 'confirm' (the existing manual flow, reached only via "Choose
+    // Different Time") | 'reject'
+    const [step, setStep] = useState('checking');
+    // Where the 'reject' step's Back button returns to — whichever step the
+    // admin was actually on when they chose to reject, not always 'date'.
+    const [returnStep, setReturnStep] = useState('date');
     const [dayOffWeekday, setDayOffWeekday] = useState(null);
     const [selectedDate, setSelectedDate] = useState('');
     const [slots, setSlots] = useState([]);
@@ -707,6 +718,40 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
             .catch(() => {});
         return () => { cancelled = true; };
     }, [booking.id]);
+
+    // One-click approval pre-check (QA finding 2): verify the customer's own
+    // requested_start_at is still a valid, open slot before offering the
+    // quick-approve screen. Reuses the exact same dated availability
+    // endpoint the manual 'time' step already calls — no second engine.
+    // Falls back to the existing manual 'date' flow on a day off, a taken
+    // slot, or any fetch error.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!requestedDateStr || !requestedTimeStr) {
+                if (!cancelled) { setStep('date'); setReturnStep('date'); }
+                return;
+            }
+            try {
+                const data = await apiFetch(`/admin/api/bookings/${booking.id}/reschedule-availability?date=${requestedDateStr}`);
+                if (cancelled) return;
+                const matched = !data.is_day_off && (data.slots ?? []).find(s => s.time === requestedTimeStr && s.available);
+                if (matched) {
+                    setSelectedDate(requestedDateStr);
+                    setSelectedSlot(matched);
+                    setStep('quick');
+                    setReturnStep('quick');
+                } else {
+                    setStep('date');
+                    setReturnStep('date');
+                }
+            } catch {
+                if (!cancelled) { setStep('date'); setReturnStep('date'); }
+            }
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [booking.id, request.id]);
 
     const fetchSlotsFor = async (dateStr) => {
         setLoadingSlots(true);
@@ -754,6 +799,30 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
         }
     };
 
+    // One-click approval (QA finding 2): uses request.requested_start_at
+    // verbatim — never reconstructed from selectedDate/selectedSlot — so the
+    // admin is never asked to re-enter the time the customer already gave.
+    const handleQuickApprove = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        setError('');
+        try {
+            const data = await apiFetch(`/admin/api/bookings/reschedule-requests/${request.id}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    final_scheduled_start: request.requested_start_at,
+                    ...(adminNotes.trim() ? { admin_notes: adminNotes.trim() } : {}),
+                }),
+            });
+            onApproved(data.request);
+        } catch (e) {
+            setError(e.message || 'Could not approve this reschedule request.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleReject = async () => {
         if (submitting) return;
         setSubmitting(true);
@@ -783,7 +852,14 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
         </div>
     ) : null;
 
-    const stepTitle = { date: 'Select Final Date', time: 'Select Final Time', confirm: 'Confirm Approval', reject: 'Reject Request' }[step];
+    const stepTitle = {
+        checking: 'Checking Availability',
+        quick: 'Review Request',
+        date: 'Select Final Date',
+        time: 'Select Final Time',
+        confirm: 'Confirm Approval',
+        reject: 'Reject Request',
+    }[step];
 
     return (
         <motion.div className="fixed inset-0 z-[90] flex items-center justify-center p-4"
@@ -846,6 +922,64 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
                         </div>
                         <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>{booking.service_name}</p>
                     </div>
+
+                    {/* ── Step: checking (one-click approval pre-check, QA finding 2) ──── */}
+                    {step === 'checking' && (
+                        <div className="flex flex-col items-center justify-center gap-2 py-8">
+                            <Loader2 size={20} className="animate-spin" style={{ color: '#e2b764' }} />
+                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Checking the requested time…</p>
+                        </div>
+                    )}
+
+                    {/* ── Step: quick (one-click approval, QA finding 2) ─────────────────
+                        Approve Request uses request.requested_start_at directly — the
+                        admin never re-enters the date/time the customer already gave.
+                        "Choose Different Time" is the only path into the existing
+                        manual date/time flow below. */}
+                    {step === 'quick' && (
+                        <>
+                            <div className="rounded-xl p-3.5 space-y-1.5" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Customer Requested
+                                </p>
+                                <p className="text-sm font-bold" style={{ color: 'var(--theme-text-head)' }}>
+                                    {requested.date} · {requested.time}
+                                </p>
+                                <p className="text-xs font-semibold flex items-center gap-1" style={{ color: '#10b981' }}>
+                                    <CheckCircle2 size={12} /> Available
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Admin Notes (optional)
+                                </p>
+                                <textarea rows={2} value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
+                                    placeholder="Visible to the customer..." className={inputCls} style={inputStyle} />
+                            </div>
+
+                            <ErrorBanner />
+
+                            <div className="flex gap-2">
+                                <button onClick={() => { setError(''); setReturnStep('quick'); setStep('reject'); }} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-bold disabled:opacity-40"
+                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                                    Reject
+                                </button>
+                                <button onClick={handleQuickApprove} disabled={submitting}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                                    style={{ background: '#10b981', color: '#06241a' }}>
+                                    {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                    Approve Request
+                                </button>
+                            </div>
+
+                            <button onClick={() => { setError(''); setStep('date'); }} disabled={submitting}
+                                className="w-full text-center text-xs font-semibold py-1 disabled:opacity-40" style={{ color: '#e2b764' }}>
+                                Choose Different Time
+                            </button>
+                        </>
+                    )}
 
                     {/* ── Step: date ──────────────────────────────────────────────────── */}
                     {step === 'date' && (
@@ -1007,7 +1141,7 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
                             <ErrorBanner />
 
                             <div className="flex gap-2">
-                                <button onClick={() => { setError(''); setStep('date'); }} disabled={submitting}
+                                <button onClick={() => { setError(''); setStep(returnStep); }} disabled={submitting}
                                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
                                     style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}>
                                     Back
@@ -1022,9 +1156,13 @@ function RescheduleRequestReviewModal({ request, onClose, onApproved, onRejected
                         </>
                     )}
 
-                    {/* Reject escape hatch — available from any review step */}
-                    {step !== 'reject' && (
-                        <button onClick={() => { setError(''); setAdminNotes(''); setStep('reject'); }} disabled={submitting}
+                    {/* Reject escape hatch — available from any manual-flow review step.
+                        The 'quick' step has its own dedicated Reject button above, and
+                        'checking' has nothing to reject yet, so neither repeats this.
+                        admin_notes is intentionally preserved across this transition
+                        (QA finding 3) — never cleared. */}
+                    {step !== 'reject' && step !== 'quick' && step !== 'checking' && (
+                        <button onClick={() => { setError(''); setReturnStep(step); setStep('reject'); }} disabled={submitting}
                             className="w-full text-center text-xs font-semibold py-1 disabled:opacity-40"
                             style={{ color: '#ef4444' }}>
                             Reject this request instead
@@ -1167,7 +1305,7 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, 
                             </p>
                             <CountdownTimer expiresAt={pendingProposal.expires_at} />
                         </div>
-                    ) : RESCHEDULABLE_STATUSES.includes(booking.status) && (
+                    ) : PROPOSAL_ELIGIBLE_STATUSES.includes(booking.status) && (
                         <button onClick={() => setShowReschedule(true)}
                             className="w-full mb-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
                             style={{ background: 'rgba(226,183,100,0.1)', border: '1px solid rgba(226,183,100,0.3)', color: '#e2b764' }}>
