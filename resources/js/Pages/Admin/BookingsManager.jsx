@@ -11,6 +11,7 @@ import {
     Gift, Hourglass, Siren, UserX, Ban,
     CalendarClock, ArrowRight, AlertTriangle, Bell,
 } from 'lucide-react';
+import { computePaymentSummary, formatAed } from '@/lib/paymentSummary';
 
 // ── CSRF + API ────────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -160,23 +161,22 @@ const DP_STYLES = {
 
 // ── "Pay Status" column (All Bookings table) — computed, Stripe-aware ───────
 // Color language: green = paid/complete, amber = pending, red = actual problem.
-// Priority: voucher-covered → Stripe paid → awaiting checkout → legacy label.
+// statusKey is computed by the shared computePaymentSummary() (payment audit
+// findings A1/A2/A5) — 'paid_full' and 'deposit_paid' are distinct so a
+// downpayment-type booking's confirmed DEPOSIT is never shown as "Paid via
+// Stripe" in a way that overclaims full settlement.
 const PAY_STATUS_STYLES = {
-    voucher:          { label: 'Free (Voucher)',  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: Gift },
-    stripe_paid:      { label: 'Paid via Stripe', color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CreditCard },
-    awaiting_payment: { label: 'Awaiting Payment',color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Hourglass },
-    verified:         { label: 'Verified',        color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CheckCircle2 },
-    submitted:        { label: 'Submitted',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Clock },
-    no_proof:         { label: 'No Proof',        color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   icon: AlertCircle },
+    voucher:          { label: 'Free (Voucher)',           color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: Gift },
+    paid_full:        { label: 'Paid via Stripe',          color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CreditCard },
+    deposit_paid:     { label: 'Deposit Paid via Stripe',  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CreditCard },
+    awaiting_payment: { label: 'Awaiting Payment',         color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Hourglass },
+    verified:         { label: 'Verified',                 color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)',  icon: CheckCircle2 },
+    submitted:        { label: 'Submitted',                color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  icon: Clock },
+    no_proof:         { label: 'No Proof',                  color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   icon: AlertCircle },
 };
 
 function getPayStatus(booking) {
-    if (booking.is_voucher_covered) return 'voucher';
-    if (booking.payment_status === 'paid') return 'stripe_paid';
-    if (booking.status === 'pending_payment') return 'awaiting_payment';
-    if (booking.downpayment_status === 'verified') return 'verified';
-    if (booking.downpayment_proof) return 'submitted';
-    return 'no_proof';
+    return computePaymentSummary(booking).statusKey;
 }
 
 // created_at_iso is a genuine ISO-8601 instant (with explicit offset) from
@@ -1179,10 +1179,21 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, 
                         {booking.is_voucher_covered ? (
                             <Row icon={Gift} label="Payment" value={`Redeemed via Voucher${booking.voucher_code ? ` (${booking.voucher_code})` : ''}`} accent="#10b981" />
                         ) : booking.payment_type === 'full' ? (
-                            <>
-                                <Row icon={Banknote} label="Total Paid" value={`AED ${Number(booking.downpayment_amount ?? booking.service_price).toFixed(2)}`} accent="#10b981" />
-                                <Row icon={Banknote} label="Remaining" value="AED 0.00 — Fully Paid" accent="#10b981" />
-                            </>
+                            // Audit A1: previously read downpayment_amount — a
+                            // legacy field never resynced once payment_type
+                            // changed — instead of the actually-confirmed
+                            // paid_amount. Also now correctly distinguishes
+                            // "not yet paid" from "paid," which the old
+                            // unconditional "Fully Paid" text could not.
+                            (() => {
+                                const pay = computePaymentSummary(booking);
+                                return (
+                                    <>
+                                        <Row icon={Banknote} label="Total Paid" value={pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
+                                        <Row icon={Banknote} label="Remaining" value={pay.isPaid ? 'AED 0.00 — Fully Paid' : formatAed(pay.remaining)} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
+                                    </>
+                                );
+                            })()
                         ) : (
                             <>
                                 <Row icon={Banknote} label="Downpayment (20%)" value={`AED ${Number(booking.downpayment_amount).toFixed(2)}`} accent="#f59e0b" />

@@ -476,6 +476,12 @@ class BookingController extends Controller
                 'cancellation_reason' => $b->cancellation_reason,
                 'payment_type'        => $b->payment_type,
                 'payment_status'      => $b->payment_status,
+                // The one field that means "amount actually confirmed
+                // collected" (set only by the Stripe webhook, or 0 for a
+                // voucher-covered booking) — never downpayment_amount,
+                // which is a legacy name repurposed at creation time and
+                // never resynced afterward (payment audit findings A1/A5).
+                'paid_amount'         => $b->paid_amount,
                 'downpayment_amount'  => $b->downpayment_amount,
                 'remaining_amount'    => $b->remaining_amount,
                 'downpayment_status'  => $b->downpayment_status,

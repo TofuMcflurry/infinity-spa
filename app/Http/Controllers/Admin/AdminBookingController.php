@@ -599,6 +599,14 @@ class AdminBookingController extends Controller
             'scheduled_end_fmt'        => $b->scheduled_end
                 ? Carbon::parse($b->scheduled_end)->timezone('Asia/Dubai')->format('M d, Y g:i A')
                 : null,
+            // The one field that means "amount actually confirmed
+            // collected" (set only by the Stripe webhook, or 0 for a
+            // voucher-covered booking) — never downpayment_amount, which is
+            // a legacy name repurposed at creation time and never resynced
+            // afterward (payment audit finding A1 — this was previously
+            // omitted here entirely, forcing the admin UI to fall back to
+            // the wrong field).
+            'paid_amount'              => $b->paid_amount,
             'downpayment_amount'       => $b->downpayment_amount,
             'remaining_amount'         => $b->remaining_amount,
             'downpayment_status'       => $b->downpayment_status,

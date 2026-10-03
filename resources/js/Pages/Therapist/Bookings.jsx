@@ -8,6 +8,7 @@ import {
     Navigation, ClipboardList, Download, RefreshCw, Phone,
     FileText, CreditCard, Building2, Hourglass, Gift,
 } from 'lucide-react';
+import { computePaymentSummary, formatAed } from '@/lib/paymentSummary';
 
 // ── CSRF + API helper ────────────────────────────────────────────────────────
 function getCsrf() {
@@ -84,8 +85,16 @@ const PAYMENT_STATUS_CONFIG = {
         bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
         icon: Gift,
     },
-    stripe_paid: {
+    paid_full: {
         label: 'Paid via Stripe', color: '#10b981',
+        bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
+        icon: CreditCard,
+    },
+    // Distinct from paid_full so a downpayment-type booking's confirmed
+    // DEPOSIT is never shown as "Paid via Stripe" in a way that overclaims
+    // full settlement (payment audit finding A2).
+    deposit_paid: {
+        label: 'Deposit Paid via Stripe', color: '#10b981',
         bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)',
         icon: CreditCard,
     },
@@ -165,15 +174,11 @@ function diffMinutes(startStr, endStr) {
 }
 
 // ── Compute a single payment status per booking ──────────────────────────────
-// Priority: voucher-covered → Stripe paid → awaiting Stripe checkout →
-// legacy manual-verification labels (bookings that predate Stripe).
+// Delegates to the shared computePaymentSummary() (payment audit findings
+// A1/A2/A5) so Admin, Therapist, and Customer can no longer drift out of
+// sync on what "paid" means for a given booking.
 function getPaymentStatus(booking) {
-    if (booking.is_voucher_covered) return 'voucher';
-    if (booking.payment_status === 'paid') return 'stripe_paid';
-    if (booking.status === 'pending_payment') return 'awaiting_payment';
-    if (booking.downpayment_status === 'verified') return 'verified';
-    if (booking.downpayment_proof) return 'submitted';
-    return 'no_proof';
+    return computePaymentSummary(booking).statusKey;
 }
 
 // ── StatusBadge ──────────────────────────────────────────────────────────────
@@ -539,9 +544,23 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                         <DetailRow
                             icon={Banknote}
                             label="Remaining Balance"
-                            value={Number(booking.remaining_amount ?? 0) > 0
-                                ? `AED ${Number(booking.remaining_amount).toFixed(2)}`
-                                : 'None — fully paid'}
+                            // Audit A1/A5: remaining_amount is set to 0 at
+                            // creation for ANY full-payment booking —
+                            // including one still pending_payment, nothing
+                            // actually collected yet — so "0 remaining" must
+                            // never be read as "fully paid" without first
+                            // checking payment_status.
+                            value={(() => {
+                                const remainingAmt = Number(booking.remaining_amount ?? 0);
+                                if (remainingAmt > 0) return `AED ${remainingAmt.toFixed(2)}`;
+                                // remaining_amount is 0 — only genuinely "fully
+                                // paid" if payment_status actually confirms it;
+                                // a full-payment booking still pending_payment
+                                // also has remaining_amount=0 at creation,
+                                // which must not be read as already settled.
+                                const pay = computePaymentSummary(booking, servicePrice);
+                                return pay.isPaid ? 'None — fully paid' : `AED ${Number(servicePrice ?? 0).toFixed(2)} — awaiting payment`;
+                            })()}
                             accent="#f59e0b"
                         />
                         <div className="py-2.5 flex items-center justify-between">
@@ -899,14 +918,23 @@ function TableRow({ booking, onView, index }) {
                 {booking.is_voucher_covered ? (
                     <p className="text-sm font-medium" style={{ color: '#10b981' }}>Free (Voucher)</p>
                 ) : booking.payment_type === 'full' ? (
-                    <>
-                        <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
-                            AED {Number(booking.downpayment_amount ?? servicePrice).toFixed(2)}
-                        </p>
-                        <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
-                            Full · {booking.payment_method ?? '—'}
-                        </p>
-                    </>
+                    // Audit A1: previously read downpayment_amount — a legacy
+                    // field never resynced once payment_type changed —
+                    // instead of the actually-confirmed paid_amount, and
+                    // never distinguished "not yet paid" from "paid."
+                    (() => {
+                        const pay = computePaymentSummary(booking, servicePrice);
+                        return (
+                            <>
+                                <p className="text-sm font-medium" style={{ color: pay.isPaid ? 'var(--theme-text-head)' : '#f59e0b' }}>
+                                    {pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'}
+                                </p>
+                                <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Full · {booking.payment_method ?? '—'}
+                                </p>
+                            </>
+                        );
+                    })()
                 ) : booking.downpayment_amount != null ? (
                     <>
                         <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>

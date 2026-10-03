@@ -11,6 +11,7 @@ import {
     Receipt, Image, ExternalLink, CalendarClock,
     ArrowRight, ChevronLeft, Bell
 } from 'lucide-react';
+import { computePaymentSummary, PAYMENT_STATUS_LABELS, formatAed } from '@/lib/paymentSummary';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -465,19 +466,32 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
     const [showProof, setShowProof] = useState(false);
     const bookingRef = `IHS-${String(booking.id).padStart(5, '0')}`;
 
-    // A Stripe-confirmed payment is never "awaiting" anything — that legacy
-    // label set only applies to bookings that went through the old manual
-    // proof-of-transfer flow (downpayment_status still 'pending' by default
-    // on every booking, so payment_status must be checked first).
-    const downpaymentStatusConfig = booking.payment_status === 'paid'
-        ? { label: 'Paid via Stripe ✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' }
-        : {
-            pending:   { label: 'Awaiting transfer',  color: '#e2b764', bg: 'rgba(226,183,100,0.08)',  border: 'rgba(226,183,100,0.2)'  },
-            submitted: { label: 'Under review',       color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',   border: 'rgba(96,165,250,0.2)'   },
-            verified:  { label: 'Verified ✅',        color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
-            refunded:  { label: 'Refunded',           color: '#10b981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.2)'   },
-            forfeited: { label: 'Forfeited',          color: '#f87171', bg: 'rgba(248,113,113,0.08)',  border: 'rgba(248,113,113,0.2)'  },
-        }[booking.downpayment_status] ?? { label: booking.downpayment_status, color: '#94a3b8', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
+    // Shared payment contract (see resources/js/lib/paymentSummary.js —
+    // audit findings A1/A2/A5): `payment_status` is the only authority for
+    // "has this been paid," and a paid *deposit* is labeled distinctly from
+    // a paid *full* booking so "Paid via Stripe" never overclaims full
+    // settlement for a downpayment-type booking.
+    const pay = computePaymentSummary(booking);
+    const downpaymentStatusConfig = {
+        paid_full:        { label: PAYMENT_STATUS_LABELS.paid_full + ' ✅',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
+        deposit_paid:      { label: PAYMENT_STATUS_LABELS.deposit_paid + ' ✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
+        awaiting_payment:  { label: 'Awaiting Payment',            color: '#e2b764', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
+        no_proof:          { label: 'Awaiting transfer',           color: '#e2b764', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
+        submitted:         { label: 'Under review',                color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)'  },
+        verified:          { label: 'Verified ✅',                  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)'  },
+    }[pay.statusKey] ?? { label: pay.statusKey, color: '#94a3b8', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
+
+    // Refund/forfeit outcomes come from `downpayment_status` directly and
+    // take priority over the live payment-status label once cancelled.
+    if (booking.downpayment_status === 'refunded') {
+        downpaymentStatusConfig.label = 'Refunded';
+        downpaymentStatusConfig.color = '#10b981';
+    } else if (booking.downpayment_status === 'forfeited') {
+        downpaymentStatusConfig.label = 'Forfeited';
+        downpaymentStatusConfig.color = '#f87171';
+        downpaymentStatusConfig.bg = 'rgba(248,113,113,0.08)';
+        downpaymentStatusConfig.border = 'rgba(248,113,113,0.2)';
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -608,14 +622,14 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                             <>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[11px]" style={{ color: '#94a3b8' }}>Total Paid</span>
-                                    <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>
-                                        AED {Number(booking.price).toFixed(2)}
+                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? '#10b981' : '#e2b764' }}>
+                                        {pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[11px]" style={{ color: '#94a3b8' }}>Remaining</span>
-                                    <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>
-                                        AED 0.00 — Fully Paid
+                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? '#10b981' : '#e2b764' }}>
+                                        {pay.isPaid ? 'AED 0.00 — Fully Paid' : formatAed(pay.remaining)}
                                     </span>
                                 </div>
                             </>
@@ -645,7 +659,14 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                     </div>
 
                     {/* ── Downpayment Status ── */}
-                    {booking.downpayment_status && (
+                    {/* Audit A5: a full-payment booking has no downpayment at
+                        all — downpayment_status defaults to 'pending' on every
+                        booking regardless of payment_type, so this box must be
+                        explicitly excluded for payment_type === 'full' rather
+                        than gated on that ever-truthy field alone. The
+                        Payment Breakdown box above already shows the real
+                        "Fully Paid" / "Not yet paid" state for that case. */}
+                    {pay.showDownpaymentSection && booking.downpayment_status && (
                         <div className="rounded-xl p-4 space-y-3"
                             style={{ background: downpaymentStatusConfig.bg, border: `1px solid ${downpaymentStatusConfig.border}` }}>
                             <p className="text-[10px] uppercase tracking-wider font-semibold"
@@ -893,9 +914,19 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                              : booking.downpayment_status === 'submitted' ? '#60a5fa'
                              : '#e2b764'
                     }}>
-                        {booking.downpayment_status === 'verified'  && '✅ Downpayment verified'}
-                        {booking.downpayment_status === 'submitted' && '⏳ Downpayment under review'}
-                        {booking.downpayment_status === 'pending'   && '⚠️ Awaiting downpayment transfer'}
+                        {/* Audit A5: "Downpayment" wording only applies to a
+                            genuine downpayment-type booking — a full-payment
+                            booking that's still awaiting its (one-time, full)
+                            charge is not "awaiting a downpayment transfer." */}
+                        {booking.payment_type === 'full' ? (
+                            <>⚠️ Awaiting payment</>
+                        ) : (
+                            <>
+                                {booking.downpayment_status === 'verified'  && '✅ Downpayment verified'}
+                                {booking.downpayment_status === 'submitted' && '⏳ Downpayment under review'}
+                                {booking.downpayment_status === 'pending'   && '⚠️ Awaiting downpayment transfer'}
+                            </>
+                        )}
                     </span>
                     {booking.downpayment_amount && (
                         <span className="ml-auto font-bold" style={{ color: '#e2b764' }}>

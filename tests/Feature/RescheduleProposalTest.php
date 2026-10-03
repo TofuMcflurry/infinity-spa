@@ -188,6 +188,26 @@ class RescheduleProposalTest extends TestCase
         $this->assertDatabaseMissing('reschedule_proposals', ['booking_id' => $booking->id]);
     }
 
+    // ── Audit A3: a guest booking (no customer_id) has no account that can
+    // ever log in to accept/counter/cancel a proposal — must be rejected at
+    // creation, not left to expire unresolvably 24h later. ──────────────────
+
+    public function test_creation_rejects_a_guest_booking_with_no_customer_account(): void
+    {
+        $booking = $this->makeBooking([
+            'customer_id' => null,
+            'guest_name'  => 'Guest Person',
+            'guest_email' => 'guest@example.com',
+            'guest_phone' => '0501234567',
+        ]);
+
+        $response = $this->propose($booking, '2026-12-09 20:00:00');
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'This booking has no customer account to notify — it cannot be sent a reschedule proposal.');
+
+        $this->assertDatabaseMissing('reschedule_proposals', ['booking_id' => $booking->id]);
+    }
+
     // ── 8: duplicate active proposal blocked ─────────────────────────────────
 
     public function test_duplicate_active_proposal_is_blocked(): void

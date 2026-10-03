@@ -102,17 +102,38 @@ class TherapistBookingController extends Controller
         return response()->json(['message' => 'Booking accepted!', 'booking' => $locked]);
     }
 
+    // Row-locks the booking and re-checks it's still in a rejectable state
+    // before rejecting — mirrors accept()'s own lock+guard pattern above
+    // (audit finding B1: this method previously had neither, so it could
+    // flip an en_route/arrived/completed/already-cancelled booking back to
+    // 'rejected' via a stale client, a replayed request, or a direct API
+    // call — the frontend's own button only offers Reject for
+    // pending/pending_payment/accepted, so this guard just makes the
+    // backend actually enforce what the UI already assumes).
     public function reject(Request $request, Booking $booking)
     {
         $this->authorizeTherapist($booking);
         $request->validate(['reason' => 'nullable|string|max:255']);
 
-        $booking->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
-        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
-        broadcast(new BookingStatusUpdated($booking));
-        $booking->customer->notify(new BookingNotification($booking, 'rejected'));
+        $locked = DB::transaction(function () use ($booking, $request) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        return response()->json(['message' => 'Booking rejected.', 'booking' => $booking]);
+            abort_if(
+                !in_array($locked->status, ['pending', 'pending_payment', 'accepted']),
+                422,
+                'This booking can no longer be rejected.'
+            );
+
+            $locked->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
+
+            return $locked;
+        });
+
+        $locked->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        broadcast(new BookingStatusUpdated($locked));
+        $locked->customer->notify(new BookingNotification($locked, 'rejected'));
+
+        return response()->json(['message' => 'Booking rejected.', 'booking' => $locked]);
     }
 
     public function cancel(Request $request, Booking $booking)
