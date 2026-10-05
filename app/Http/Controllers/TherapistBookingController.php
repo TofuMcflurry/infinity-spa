@@ -208,17 +208,38 @@ class TherapistBookingController extends Controller
         return response()->json(['message' => 'Session started! Head on over.', 'booking' => $locked]);
     }
 
+    // Row-locks the booking and re-checks ownership + status before marking
+    // arrived — mirrors accept()/reject()/start()'s lock+guard pattern above
+    // (this previously had neither, so a stale client or replayed request
+    // could flip a non-en_route booking to 'arrived' without the backend
+    // actually enforcing what the UI already assumes).
     public function arrived(Booking $booking)
     {
         $this->authorizeTherapist($booking);
-        abort_if($booking->status !== 'en_route', 422, 'Therapist must be en route first.');
 
-        $booking->update(['status' => 'arrived']);
-        broadcast(new BookingStatusUpdated($booking));
-        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
-        $booking->customer->notify(new BookingNotification($booking, 'arrived'));
+        $therapistId = auth()->user()->therapist->id;
 
-        return response()->json(['message' => 'Arrived!', 'booking' => $booking]);
+        $locked = DB::transaction(function () use ($booking, $therapistId) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
+
+            abort_if($locked->therapist_id !== $therapistId, 403, 'Unauthorized.');
+
+            abort_if(
+                $locked->status !== 'en_route',
+                422,
+                'Therapist must be en route first.'
+            );
+
+            $locked->update(['status' => 'arrived']);
+
+            return $locked;
+        });
+
+        broadcast(new BookingStatusUpdated($locked));
+        $locked->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        $locked->customer->notify(new BookingNotification($locked, 'arrived'));
+
+        return response()->json(['message' => 'Arrived!', 'booking' => $locked]);
     }
 
     public function complete(Booking $booking)

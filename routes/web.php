@@ -106,6 +106,9 @@ Route::middleware(['auth', 'verified', 'therapist'])
             Route::post('/bookings/{booking}/arrived',      [TherapistBookingController::class, 'arrived'])->name('bookings.arrived');
             Route::post('/bookings/{booking}/complete',     [TherapistBookingController::class, 'complete'])->name('bookings.complete');
 
+            // ── GPS v1 (ingestion only — see docs/architecture/GPS-ARCHITECTURE.md) ─
+            Route::post('/bookings/{booking}/location',     [App\Http\Controllers\TherapistLocationController::class, 'update'])->name('bookings.location');
+
             // ── Profile ───────────────────────────────────────────────────────
             Route::get('/profile',                          [TherapistBookingController::class, 'profile'])->name('profile');
             Route::post('/profile',                         [TherapistBookingController::class, 'updateProfile'])->name('profile.update');

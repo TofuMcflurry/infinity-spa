@@ -12,6 +12,7 @@ import {
     ArrowRight, ChevronLeft, Bell
 } from 'lucide-react';
 import { computePaymentSummary, PAYMENT_STATUS_LABELS, formatAed } from '@/lib/paymentSummary';
+import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -908,6 +909,15 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                     </div>
                 </div>
             </div>
+
+            {/* GPS v1 — live therapist location, shown only while this
+                booking is en_route. TherapistLiveMap renders nothing itself
+                once the booking leaves en_route. */}
+            {booking.status === 'en_route' && (
+                <div className="mb-4">
+                    <TherapistLiveMap booking={booking} />
+                </div>
+            )}
 
             {/* Downpayment status bar — only relevant while payment itself is
                 still outstanding. Once payment_status is 'paid' (Stripe or

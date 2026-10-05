@@ -14,6 +14,7 @@ import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
 import ThemeToggle from '@/Components/ThemeToggle';
 import { useBookingStatus } from '@/hooks/useBookingStatus';
+import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -136,8 +137,10 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                 </div>
 
                 {/* ── En Route / Arrived Hero Banner ── */}
-                {/* GPS placeholder only — no map, coordinates, location polling, or
-                    location permissions. Text status only. */}
+                {/* GPS v1 (docs/architecture/GPS-ARCHITECTURE.md): the live
+                    map below reuses TherapistLiveMap/useTherapistLiveLocation
+                    as-is — it renders itself only while isEnRoute and hides
+                    itself automatically once status leaves en_route. */}
                 <AnimatePresence>
                     {(isEnRoute || isArrived) && (
                         <motion.div
@@ -169,6 +172,12 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                                     </p>
                                 </div>
                             </div>
+
+                            {isEnRoute && (
+                                <div className="mt-3">
+                                    <TherapistLiveMap booking={booking} />
+                                </div>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

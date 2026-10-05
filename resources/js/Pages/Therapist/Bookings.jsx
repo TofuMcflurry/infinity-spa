@@ -9,6 +9,7 @@ import {
     FileText, CreditCard, Building2, Hourglass, Gift,
 } from 'lucide-react';
 import { computePaymentSummary, formatAed } from '@/lib/paymentSummary';
+import { useTherapistGps } from '@/hooks/useTherapistGps';
 
 // ── CSRF + API helper ────────────────────────────────────────────────────────
 function getCsrf() {
@@ -1107,6 +1108,13 @@ export default function Bookings() {
         }
     }, [patchBooking, fetchBookings]);
 
+    // GPS v1 (docs/architecture/GPS-ARCHITECTURE.md) — the backend only ever
+    // allows one en_route/arrived booking per therapist at a time (see
+    // TherapistBookingController::start()), so there's at most one booking
+    // here for the hook to track.
+    const activeGpsBooking = bookings.find(b => b.status === 'en_route') ?? null;
+    const gps = useTherapistGps(activeGpsBooking);
+
     const filtered = bookings.filter(b => {
         const inTab = (TAB_STATUSES[activeTab] ?? []).includes(b.status);
         if (!inTab) return false;
@@ -1157,6 +1165,30 @@ export default function Bookings() {
                             Refresh
                         </button>
                     </div>
+
+                    {/* GPS v1 — live-location notice, shown only while a booking is en_route */}
+                    {activeGpsBooking && (
+                        <div
+                            className="flex items-start gap-2.5 rounded-xl px-4 py-3 mb-6 text-xs"
+                            style={{
+                                background: gps.permissionDenied ? 'rgba(239,68,68,0.08)' : 'rgba(59,130,246,0.08)',
+                                border: `1px solid ${gps.permissionDenied ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.25)'}`,
+                                color: 'var(--theme-text-2)',
+                            }}
+                        >
+                            <Navigation size={14} className="mt-0.5 flex-shrink-0" style={{ color: gps.permissionDenied ? '#ef4444' : '#3b82f6' }} />
+                            <div>
+                                <p className="font-semibold" style={{ color: gps.permissionDenied ? '#ef4444' : '#3b82f6' }}>
+                                    {gps.message || 'Starting live location…'}
+                                </p>
+                                <p className="mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Sharing your live location is required while this booking is en route, so the
+                                    customer can see you're on your way. Keep this tab open and active while
+                                    travelling — tracking isn't guaranteed if the browser is locked or backgrounded.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Stats strip */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
