@@ -11,6 +11,7 @@ use App\Services\RescheduleRequestService;
 use App\Services\TherapistAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
@@ -281,42 +282,58 @@ class BookingController extends Controller
         }
 
         // ── Therapist conflict check ──────────────────────────────────────────
-        if (TherapistAvailabilityService::hasConflict(
-            $therapist->id,
-            $timeBlocks['travel_start'],
-            $timeBlocks['buffer_end']
-        )) {
-            return response()->json([
-                'message' => 'Sorry, this slot is no longer available.',
-            ], 409);
-        }
+        // Locks the therapist's own row for the duration of the conflict
+        // check + insert — the same DB::transaction + lockForUpdate pattern
+        // already used throughout TherapistBookingController/AdminBookingController,
+        // applied to the therapist row as a stand-in resource lock (the
+        // booking being created doesn't exist yet, so there is no booking
+        // row to lock). This serializes concurrent booking-creation attempts
+        // for this therapist, so a second request's hasConflict() check can
+        // never run against the same not-yet-committed state the first
+        // request already passed — it blocks until the first transaction
+        // commits (or rolls back), then re-evaluates against the real,
+        // post-commit set of bookings.
+        $booking = DB::transaction(function () use (
+            $therapist, $timeBlocks, $request, $variant,
+            $isVoucherCovered, $downpaymentAmount, $remainingAmount, $slotDatetime
+        ) {
+            Therapist::where('id', $therapist->id)->lockForUpdate()->firstOrFail();
 
-        $booking = Booking::create([
-            'customer_id'        => auth()->id(),
-            'therapist_id'       => $request->therapist_id,
-            'service_id'         => $variant->service_id,
-            'service_variant_id' => $variant->id,
-            'location'           => $request->location,
-            'zone_name'          => $request->zone_name,
-            'scheduled_start'    => $slotDatetime,
-            'scheduled_end'      => $timeBlocks['scheduled_end'],
-            'travel_start'       => $timeBlocks['travel_start'],
-            'buffer_end'         => $timeBlocks['buffer_end'],
-            'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
-            'payment_type'       => $request->input('payment_type', 'downpayment'),
-            // A voucher-covered booking has nothing to pay via Stripe, so it
-            // skips 'pending_payment' and is marked paid immediately — but
-            // still awaits therapist approval like any other paid booking,
-            // the same end state the Stripe webhook reaches for a paid booking.
-            'status'             => $isVoucherCovered ? 'pending' : 'pending_payment',
-            'downpayment_amount' => $downpaymentAmount,
-            'remaining_amount'   => $remainingAmount,
-            'downpayment_status' => 'pending',
-            'payment_status'     => $isVoucherCovered ? 'paid' : 'pending',
-            'paid_amount'        => $isVoucherCovered ? 0 : null,
-            'voucher_code'       => $request->voucher_code,
-            'is_voucher_covered' => $isVoucherCovered,
-        ]);
+            if (TherapistAvailabilityService::hasConflict(
+                $therapist->id,
+                $timeBlocks['travel_start'],
+                $timeBlocks['buffer_end']
+            )) {
+                abort(409, 'Sorry, this slot is no longer available.');
+            }
+
+            return Booking::create([
+                'customer_id'        => auth()->id(),
+                'therapist_id'       => $request->therapist_id,
+                'service_id'         => $variant->service_id,
+                'service_variant_id' => $variant->id,
+                'location'           => $request->location,
+                'zone_name'          => $request->zone_name,
+                'scheduled_start'    => $slotDatetime,
+                'scheduled_end'      => $timeBlocks['scheduled_end'],
+                'travel_start'       => $timeBlocks['travel_start'],
+                'buffer_end'         => $timeBlocks['buffer_end'],
+                'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
+                'payment_type'       => $request->input('payment_type', 'downpayment'),
+                // A voucher-covered booking has nothing to pay via Stripe, so it
+                // skips 'pending_payment' and is marked paid immediately — but
+                // still awaits therapist approval like any other paid booking,
+                // the same end state the Stripe webhook reaches for a paid booking.
+                'status'             => $isVoucherCovered ? 'pending' : 'pending_payment',
+                'downpayment_amount' => $downpaymentAmount,
+                'remaining_amount'   => $remainingAmount,
+                'downpayment_status' => 'pending',
+                'payment_status'     => $isVoucherCovered ? 'paid' : 'pending',
+                'paid_amount'        => $isVoucherCovered ? 0 : null,
+                'voucher_code'       => $request->voucher_code,
+                'is_voucher_covered' => $isVoucherCovered,
+            ]);
+        });
 
         // Booking::create() above is a single, already-committed insert — the
         // row exists by the time we reach here, so it's safe to notify now.
