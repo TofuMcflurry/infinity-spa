@@ -233,6 +233,86 @@ class TherapistBookingNotificationIdempotencyTest extends TestCase
         NotificationFacade::assertNothingSent();
     }
 
+    // ── Stale active-session guard (P0 fix) ─────────────────────────────
+    // See tests/Feature/StaleActiveSessionTest.php for the thresholds
+    // these mirror (FlagStaleActiveSessions::EN_ROUTE_STALE_AFTER_MINUTES /
+    // ARRIVED_STALE_AFTER_HOURS) — a stale en_route/arrived session must
+    // no longer block the therapist from starting new work, while a
+    // genuinely active one (test_start_still_blocks_when_therapist_already_has_an_active_session
+    // above) still must.
+
+    public function test_start_is_not_blocked_by_a_stale_en_route_session_from_a_previous_day(): void
+    {
+        NotificationFacade::fake();
+
+        $stale = $this->makeBooking([
+            'status'          => 'en_route',
+            'scheduled_start' => now()->subHours(3), // past the 60-minute threshold
+            'scheduled_end'   => now()->subHours(2),
+        ]);
+        $next = $this->makeBooking(['status' => 'accepted']);
+
+        $response = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$next->id}/start");
+
+        $response->assertOk();
+        $next->refresh();
+        $this->assertSame('en_route', $next->status);
+
+        // The stale booking itself must be left exactly as-is — this guard
+        // only stops it from blocking new work, it never silently resolves it.
+        $stale->refresh();
+        $this->assertSame('en_route', $stale->status);
+        $this->assertNull($stale->flagged_at);
+        $this->assertNull($stale->resolved_at);
+    }
+
+    public function test_start_is_not_blocked_by_a_stale_arrived_session_from_a_previous_day(): void
+    {
+        NotificationFacade::fake();
+
+        $stale = $this->makeBooking([
+            'status'          => 'arrived',
+            'scheduled_start' => now()->subHours(5),
+            'scheduled_end'   => now()->subHours(4), // past the 2-hour threshold
+        ]);
+        $next = $this->makeBooking(['status' => 'accepted']);
+
+        $response = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$next->id}/start");
+
+        $response->assertOk();
+        $next->refresh();
+        $this->assertSame('en_route', $next->status);
+
+        $stale->refresh();
+        $this->assertSame('arrived', $stale->status);
+        $this->assertNull($stale->flagged_at);
+        $this->assertNull($stale->resolved_at);
+    }
+
+    public function test_start_still_blocked_by_an_arrived_session_still_within_the_grace_window(): void
+    {
+        NotificationFacade::fake();
+
+        // Not stale yet — scheduled_end only just passed, still inside the
+        // 2-hour grace window — must still count as genuinely active.
+        $recent = $this->makeBooking([
+            'status'          => 'arrived',
+            'scheduled_start' => now()->subMinutes(90),
+            'scheduled_end'   => now()->subMinutes(30),
+        ]);
+        $next = $this->makeBooking(['status' => 'accepted']);
+
+        $response = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$next->id}/start");
+
+        $response->assertStatus(422);
+        $next->refresh();
+        $this->assertSame('accepted', $next->status);
+        NotificationFacade::assertNothingSent();
+    }
+
     public function test_start_rejects_a_booking_that_is_not_accepted(): void
     {
         NotificationFacade::fake();

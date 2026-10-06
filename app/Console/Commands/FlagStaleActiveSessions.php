@@ -14,8 +14,12 @@ class FlagStaleActiveSessions extends Command
     protected $signature = 'bookings:flag-stale-active-sessions';
     protected $description = 'Flag accepted/en_route/arrived bookings stuck past their expected window for admin review';
 
-    private const EN_ROUTE_STALE_AFTER_MINUTES = 60;
-    private const ARRIVED_STALE_AFTER_HOURS    = 2;
+    // Public: TherapistBookingController::start()'s "one active session"
+    // guard reuses these exact thresholds to tell a genuinely active
+    // en_route/arrived session apart from a stale one, so that guard and
+    // this command's own flagging criteria can never drift apart.
+    public const EN_ROUTE_STALE_AFTER_MINUTES = 60;
+    public const ARRIVED_STALE_AFTER_HOURS    = 2;
 
     // An accepted booking the therapist confirmed but never started (never
     // went en_route) even after the appointment time has passed. Same grace

@@ -6,6 +6,7 @@ use App\Models\Booking;
 use Illuminate\Http\Request;
 use App\Notifications\BookingNotification;
 use App\Events\BookingStatusUpdated;
+use App\Console\Commands\FlagStaleActiveSessions;
 use Illuminate\Support\Facades\DB;
 
 class TherapistBookingController extends Controller
@@ -190,8 +191,27 @@ class TherapistBookingController extends Controller
                 'Only accepted bookings can be started.'
             );
 
+            // A GENUINELY active session must still block starting another
+            // one — but a STALE en_route/arrived session (one that has
+            // already passed the same threshold bookings:flag-stale-active-
+            // sessions uses to surface it for admin review) must not keep
+            // blocking the therapist's entire future schedule just because
+            // nobody has resolved it yet. Reuses those exact thresholds
+            // (not a new one) so this guard and the admin stale-review
+            // queue can never disagree about what counts as "still active".
+            // The stale booking itself is left untouched here — only
+            // existing admin stale-resolution flows (or the therapist
+            // completing it directly) ever change its status.
             $hasActive = Booking::where('therapist_id', $therapistId)
-                ->whereIn('status', ['en_route', 'arrived'])
+                ->where(function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->where('status', 'en_route')
+                            ->where('scheduled_start', '>=', now()->subMinutes(FlagStaleActiveSessions::EN_ROUTE_STALE_AFTER_MINUTES));
+                    })->orWhere(function ($q2) {
+                        $q2->where('status', 'arrived')
+                            ->where('scheduled_end', '>=', now()->subHours(FlagStaleActiveSessions::ARRIVED_STALE_AFTER_HOURS));
+                    });
+                })
                 ->exists();
 
             abort_if($hasActive, 422, 'You already have an active session in progress.');
