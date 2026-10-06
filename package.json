@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "concurrently --names \"vite,reverb,laravel\" --prefix-colors \"cyan,yellow,green\" \"vite\" \"php artisan reverb:start --debug\" \"php artisan serve\""
+        "dev": "vite"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",
