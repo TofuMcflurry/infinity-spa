@@ -262,14 +262,35 @@ class TherapistBookingController extends Controller
         return response()->json(['message' => 'Arrived!', 'booking' => $locked]);
     }
 
+    // Row-locks the booking and re-checks status inside the lock before
+    // completing — mirrors accept()/reject()/start()/arrived()'s lock+guard
+    // pattern above (this previously had neither, so two near-simultaneous
+    // Complete requests could both read status === 'arrived' and both run
+    // BookingCompletionService::complete(), double-firing its loyalty
+    // increment and completion notification). BookingCompletionService::complete()
+    // is called INSIDE this same transaction, while the lock is still held —
+    // the same pattern AdminBookingController::resolveStaleComplete() already
+    // uses — so a second request's lockForUpdate() cannot see a still-'arrived'
+    // row until the winner's completion write has already landed.
     public function complete(Booking $booking)
     {
         $this->authorizeTherapist($booking);
-        abort_if($booking->status !== 'arrived', 422, 'Therapist must have arrived first.');
 
-        \App\Services\BookingCompletionService::complete($booking);
+        $locked = DB::transaction(function () use ($booking) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
-        return response()->json(['message' => 'Booking marked as completed!', 'booking' => $booking]);
+            abort_if(
+                $locked->status !== 'arrived',
+                422,
+                'Therapist must have arrived first.'
+            );
+
+            \App\Services\BookingCompletionService::complete($locked);
+
+            return $locked;
+        });
+
+        return response()->json(['message' => 'Booking marked as completed!', 'booking' => $locked]);
     }
 
     public function profile()

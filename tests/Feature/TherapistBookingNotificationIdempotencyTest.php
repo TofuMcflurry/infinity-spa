@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\LoyaltyReward;
 use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
@@ -327,6 +328,87 @@ class TherapistBookingNotificationIdempotencyTest extends TestCase
         $this->assertSame('pending', $booking->status);
 
         NotificationFacade::assertNothingSent();
+    }
+
+    // ── COMPLETE (P1 idempotency fix) ───────────────────────────────────
+    // See tests/Feature/StaleActiveSessionTest.php for the admin stale-
+    // resolution completion path, which already goes through its own lock
+    // (AdminBookingController::lockStaleBooking()) and is unaffected by
+    // this change — this section covers the therapist-facing complete()
+    // endpoint, which previously had no lock at all.
+
+    public function test_complete_once_transitions_booking_and_sends_exactly_one_notification(): void
+    {
+        NotificationFacade::fake();
+
+        $booking = $this->makeBooking(['status' => 'arrived']);
+
+        $response = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$booking->id}/complete");
+
+        $response->assertOk();
+        $booking->refresh();
+        $this->assertSame('completed', $booking->status);
+
+        NotificationFacade::assertSentTimes(BookingNotification::class, 1);
+        $this->assertSame(
+            1,
+            LoyaltyReward::where('customer_id', $this->customer->id)->sum('completed_count'),
+            'Loyalty completed_count should increase by exactly one.'
+        );
+    }
+
+    public function test_complete_rejects_a_booking_that_is_not_arrived(): void
+    {
+        NotificationFacade::fake();
+
+        $booking = $this->makeBooking(['status' => 'accepted']);
+
+        $response = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$booking->id}/complete");
+
+        $response->assertStatus(422);
+        $booking->refresh();
+        $this->assertSame('accepted', $booking->status);
+
+        NotificationFacade::assertNothingSent();
+        $this->assertSame(0, LoyaltyReward::where('customer_id', $this->customer->id)->sum('completed_count'));
+    }
+
+    public function test_duplicate_complete_requests_only_run_completion_side_effects_once(): void
+    {
+        // Same rationale as test_concurrent_duplicate_start_requests_...
+        // above: true multi-process concurrency can't be driven from a
+        // single synchronous PHPUnit process, but this exercises the exact
+        // code path that makes concurrent safety hold in production — the
+        // row lock forces the second request to observe the post-commit
+        // 'completed' status before its own guard check runs, which is
+        // exactly what happens to the loser of a real race once the
+        // winner's transaction has committed.
+        NotificationFacade::fake();
+
+        $booking = $this->makeBooking(['status' => 'arrived']);
+
+        $winner = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$booking->id}/complete");
+        $loser = $this->actingAs($this->therapistUser)
+            ->postJson("/therapist/api/bookings/{$booking->id}/complete");
+
+        $winner->assertOk();
+        $loser->assertStatus(422);
+
+        $booking->refresh();
+        $this->assertSame('completed', $booking->status, 'Exactly one completion should have occurred.');
+
+        // The side effects BookingCompletionService::complete() fires —
+        // loyalty increment and completion notification — must each have
+        // run exactly once, not twice.
+        NotificationFacade::assertSentTimes(BookingNotification::class, 1);
+        $this->assertSame(
+            1,
+            LoyaltyReward::where('customer_id', $this->customer->id)->sum('completed_count'),
+            'Loyalty completed_count must not be double-counted by a duplicate completion request.'
+        );
     }
 
     // ── End-to-end happy path is unchanged ───────────────────────────────
