@@ -22,6 +22,18 @@
   --theme-sidebar-bg:   hsla(30,10%,8%,0.6);
   --theme-skeleton:     #141d33;
   --theme-divider:      rgba(255,255,255,0.03);
+
+  /* Customer Portal light-theme tokens (see .customer-theme below) — no
+     prior named token existed for these, so the dark-mode value here is
+     matched as closely as possible to the hex these components already
+     hardcode today, to keep dark mode pixel-identical once adopted. */
+  --theme-cta:              #e2b764;
+  --theme-cta-ink:          #0b1120;
+  --theme-link:             #e2b764;
+  --theme-tag-gold-bg:      rgba(226,183,100,0.1);
+  --theme-tag-gold-border:  rgba(226,183,100,0.2);
+  --theme-tag-pending-bg:   rgba(148,163,184,0.1);
+  --theme-tag-pending-text: #94a3b8;
 }
 
 [data-theme="light"] {
@@ -423,4 +435,39 @@
 [data-theme="light"] .therapist-theme .glass-card-strong {
   background: #FFFFFF;
   border-color: #E3DED4;
+}
+
+/* ── Customer Portal — light mode palette override ──────────────────────────
+   Scoped to .customer-theme (root wrapper in CustomerLayout.jsx) so this
+   does not affect Admin/Therapist light mode or any dark mode appearance. */
+[data-theme="light"] .customer-theme {
+  --theme-bg:           #FAF8F4;
+  --theme-card:         #FFFFFF;
+  --theme-card-hover:   #FAF8F4;
+  --theme-border:       #E8E2D6;
+  --theme-text:         #4B5468;
+  --theme-text-head:    #16203A;
+  --theme-text-2:       #4B5468;
+  --theme-text-muted:   #636A7E;
+  --theme-header-bg:    rgba(250,248,244,0.92);
+  --theme-btn-bg:       #F4F0E8;
+  --theme-input-bg:     #FFFFFF;
+  --theme-notif-bg:     #FFFFFF;
+  --theme-sidebar-bg:   #F4F0E8;
+  --theme-skeleton:     #F4F0E8;
+  --theme-divider:      rgba(22,32,58,0.06);
+
+  /* Customer-only — approved navy-and-ivory palette additions. */
+  --theme-cta:              #D9A441;
+  --theme-cta-ink:          #16203A;
+  --theme-link:             #8A5E10;
+  --theme-tag-gold-bg:      #FBF3E2;
+  --theme-tag-gold-border:  #EBD3A0;
+  --theme-tag-pending-bg:   #FCF0DC;
+  --theme-tag-pending-text: #8C5A00;
+}
+
+[data-theme="light"] .customer-theme .glass-card-strong {
+  background: #F4F0E8;
+  border-color: #E8E2D6;
 }

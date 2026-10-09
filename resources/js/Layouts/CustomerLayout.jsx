@@ -309,7 +309,7 @@ function CustomerSidebar() {
 // ── Main Layout ───────────────────────────────────────────────────────────────
 export default function CustomerLayout({ children }) {
     return (
-        <div className="flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
+        <div className="customer-theme flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
             <CustomerSidebar />
             <div className="flex-1 min-h-screen overflow-y-auto pb-24 md:pb-0">
                 {children}

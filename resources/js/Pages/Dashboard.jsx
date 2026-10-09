@@ -7,7 +7,7 @@ import {
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
     Loader2, Banknote, Gift, X, Check, Heart,
-    XCircle,
+    XCircle, WifiOff,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -57,18 +57,78 @@ const STATUS_STEPS = [
     { key: 'completed',  label: 'Completed',   icon: Sparkles     },
 ];
 
-function StatusTracker({ booking: initialBooking, onCompleted }) {
-    const { booking, wsReady } = useBookingStatus(initialBooking);
+// Per-state GPS treatment for the booking card's message note only — the
+// connection-status indicator itself (color/icon/freshness text) now lives
+// solely in TherapistLiveMap's own map header, not duplicated here. This
+// map only drives the note box's tint/icon/copy. Connecting (info/blue),
+// Live (success/green, existing copy unchanged), Stale (warning/amber,
+// tinted note box), Disconnected (danger/red, tinted note box). Only
+// applies while isEnRoute — Arrived has its own unrelated message, untouched
+// below.
+const GPS_STATE_META = {
+    connecting:   { color: '#3b82f6', noteBg: 'rgba(59,130,246,0.08)',  noteBorder: 'rgba(59,130,246,0.18)',  Icon: Loader2 },
+    live:         { color: '#e2b764', noteBg: null,                     noteBorder: null,                      Icon: Navigation },
+    stale:        { color: '#f59e0b', noteBg: 'rgba(245,158,11,0.08)',  noteBorder: 'rgba(245,158,11,0.2)',   Icon: Clock },
+    disconnected: { color: '#ef4444', noteBg: 'rgba(239,68,68,0.08)',   noteBorder: 'rgba(239,68,68,0.2)',    Icon: WifiOff },
+};
 
-    // Fire onCompleted when status hits completed — passes the booking along
-    // so the parent can show a brief confirmation without an extra fetch.
-    const prevStatus = useRef(booking?.status);
+function gpsMessageCopy(status, therapistFirstName) {
+    switch (status) {
+        case 'connecting':
+            return { title: 'Your therapist is on the way.', body: 'Their live location will appear in a moment.' };
+        case 'stale':
+            return { title: "We haven't had a location update for a few minutes.", body: `Your booking is still on track; the map shows ${therapistFirstName || 'their'} last known position.` };
+        case 'disconnected':
+            return { title: 'Live updates are paused while we reconnect.', body: "Your booking hasn't changed." };
+        case 'live':
+        default:
+            return { title: 'Your therapist is on the way!', body: "Get ready — they'll arrive soon." };
+    }
+}
+
+// booking/wsReady are now owned and kept live by the parent Dashboard (see
+// its own useBookingStatus call) — not subscribed here — so the exact same
+// subscription stays active across the whole pending→accepted→en_route→
+// arrived lifetime instead of only existing while this component happens to
+// be mounted. Completion detection has moved up to Dashboard for the same
+// reason: it must fire regardless of which card (this one or
+// UpcomingSessionCard) is currently rendered when the completed event
+// arrives.
+function StatusTracker({ booking }) {
+
+    // Tracks a failed <img> load (broken/expired URL) separately from a
+    // simply-missing avatar, so either case falls back to initials. Resets
+    // whenever the photo URL itself changes, so a new booking's photo gets
+    // its own chance to load rather than staying stuck on a prior failure.
+    const [avatarFailed, setAvatarFailed] = useState(false);
     useEffect(() => {
-        if (prevStatus.current !== 'completed' && booking?.status === 'completed') {
-            onCompleted?.(booking);
-        }
-        prevStatus.current = booking?.status;
-    }, [booking?.status]);
+        setAvatarFailed(false);
+    }, [booking.therapist_avatar]);
+
+    // GPS connection state (connecting/live/stale/disconnected), reported up
+    // from TherapistLiveMap via onStatusChange — used only to pick this
+    // card's message-note copy/tint/icon below (NOT for a status pill: the
+    // one connection-status indicator lives in TherapistLiveMap's own map
+    // header, not duplicated here). No second subscription — TherapistLiveMap/
+    // useTherapistLiveLocation stays the only place that subscribes. Reset
+    // whenever the booking leaves en_route so Arrived never shows a leftover
+    // GPS message.
+    const [gpsState, setGpsState] = useState(null);
+    const handleGpsStatusChange = useCallback((next) => setGpsState(next), []);
+    useEffect(() => {
+        if (booking.status !== 'en_route') setGpsState(null);
+    }, [booking.status]);
+
+    // Local-only UI toggle for the floating booking info card — purely
+    // presentational, never touches booking status or GPS state. Open by
+    // default; resets to open whenever the customer switches to a different
+    // booking (id change), so a collapsed card never silently carries over.
+    // Only meaningful while isEnRoute (there's a map to declutter) — Arrived
+    // has no map and always shows the card as before.
+    const [cardVisible, setCardVisible] = useState(true);
+    useEffect(() => {
+        setCardVisible(true);
+    }, [booking.id]);
 
     // pending_payment has no dedicated step — it's still "Pending" from the customer's view.
     const stepStatus = booking.status === 'pending_payment' ? 'pending' : booking.status;
@@ -87,12 +147,27 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
     const isEnRoute = booking.status === 'en_route';
     const isArrived = booking.status === 'arrived';
 
+    // Same initials derivation already used elsewhere (CustomerLayout.jsx
+    // sidebar, Dashboard.jsx header) — therapist_avatar may be null for a
+    // therapist who never uploaded a photo, so this is the fallback.
+    const therapistInitials = booking.therapist
+        ? booking.therapist.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : '';
+    const therapistFirstName = booking.therapist?.trim().split(/\s+/)[0] ?? '';
+
+    const gpsStatus      = gpsState?.status ?? null;
+    const gpsMeta        = GPS_STATE_META[gpsStatus] ?? GPS_STATE_META.live;
+    const { title: noteTitle, body: noteBody } = isEnRoute
+        ? gpsMessageCopy(gpsStatus, therapistFirstName)
+        : { title: 'Your therapist has arrived!', body: 'Enjoy your session.' };
+    const NoteIcon = isEnRoute ? gpsMeta.Icon : MapPin;
+
     return (
         <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="relative overflow-hidden rounded-2xl border p-6 md:p-8"
-            style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)', borderColor: isEnRoute ? 'rgba(226,183,100,0.4)' : '#1e2740',
+            style={{ background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-card) 100%)', borderColor: isEnRoute ? 'rgba(226,183,100,0.4)' : 'var(--theme-border)',
                 boxShadow: isEnRoute ? '0 0 40px rgba(226,183,100,0.08)' : 'none',
                 transition: 'border-color 0.5s, box-shadow 0.5s' }}
         >
@@ -102,89 +177,191 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
 
             <div className="relative z-10">
 
-                {/* ── Status badge + WS indicator ── */}
-                <div className="flex items-center justify-between mb-6">
-                    <motion.div
-                        key={booking.status}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase"
-                        style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.color }}
-                    >
-                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: meta.color }} />
-                        {meta.label}
-                    </motion.div>
+                {/* ── Map + floating tracking card ──────────────────────────
+                    GPS v1 (docs/architecture/GPS-ARCHITECTURE.md): reuses
+                    TherapistLiveMap/useTherapistLiveLocation as-is — it
+                    renders itself only while isEnRoute and hides itself
+                    automatically once status leaves en_route. The one
+                    connection-status indicator (Connecting/Live/Stale/
+                    Disconnected) lives in TherapistLiveMap's own map header
+                    above the map canvas — it is NOT duplicated in the card
+                    below, which only shows the booking-lifecycle tag (e.g.
+                    "Therapist On The Way") and a GPS-aware message note.
+                    onStatusChange still feeds that note's copy/tint/icon,
+                    without a second subscription.
 
-                    {/* Live / Polling indicator */}
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${wsReady ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
-                        {wsReady ? 'Live' : 'Syncing'}
-                    </div>
-                </div>
+                    Desktop/tablet (≥640px, isEnRoute): the tracking card
+                    floats over the map's top-right corner (mockups 01/02).
+                    Positioned top-right specifically because Leaflet's zoom
+                    control renders top-left inside TherapistLiveMap — the
+                    two can never overlap, at any width, by construction.
+                    The 48px top offset clears TherapistLiveMap's own
+                    status header strip, which renders above its map
+                    canvas, so this card never covers it either.
 
-                {/* ── Booking info ── */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                    <div>
-                        <h2 className="text-2xl font-display font-semibold text-white mb-1">{booking.service}</h2>
-                        <p className="flex items-center gap-2 text-sm" style={{ color: '#94a3b8' }}>
-                            <User size={14} /> {booking.therapist} • {booking.duration} mins
-                        </p>
-                    </div>
-                    <div className="md:text-right">
-                        <p className="text-sm mb-1" style={{ color: '#94a3b8' }}>Scheduled</p>
-                        <p className="text-2xl font-display font-light text-white">{booking.datetime}</p>
-                    </div>
-                </div>
+                    Mobile (<640px, isEnRoute): the card is NOT floated over
+                    the map — it stacks below it with a small negative
+                    margin, visually overlapping only the map's bottom edge
+                    (where just the attribution text lives, never the
+                    marker/zoom controls) rather than its top, per mockup 02.
 
-                {/* ── En Route / Arrived Hero Banner ── */}
-                {/* GPS v1 (docs/architecture/GPS-ARCHITECTURE.md): the live
-                    map below reuses TherapistLiveMap/useTherapistLiveLocation
-                    as-is — it renders itself only while isEnRoute and hides
-                    itself automatically once status leaves en_route. */}
-                <AnimatePresence>
-                    {(isEnRoute || isArrived) && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mb-8 overflow-hidden"
-                        >
-                            <div className="rounded-xl p-4 flex items-center gap-4"
-                                style={{
-                                    background: isArrived ? 'rgba(59,130,246,0.08)' : 'rgba(226,183,100,0.08)',
-                                    border: `1px solid ${isArrived ? 'rgba(59,130,246,0.2)' : 'rgba(226,183,100,0.2)'}`,
-                                }}>
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{
-                                        background: isArrived ? 'rgba(59,130,246,0.15)' : 'rgba(226,183,100,0.15)',
-                                        color: isArrived ? '#3b82f6' : '#e2b764',
-                                    }}>
-                                    {isArrived
-                                        ? <MapPin size={20} />
-                                        : <Navigation size={20} className="animate-bounce" />}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold" style={{ color: isArrived ? '#3b82f6' : '#e2b764' }}>
-                                        {isArrived ? 'Your therapist has arrived!' : 'Your therapist is on the way!'}
+                    When arrived (map not shown — TherapistLiveMap only
+                    renders for isEnRoute): the card is a plain stacked
+                    block, same as before this stage — there is no map to
+                    float over. */}
+                <div className="relative mb-5">
+                    <AnimatePresence>
+                        {isEnRoute && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <TherapistLiveMap booking={booking} responsiveHeight onStatusChange={handleGpsStatusChange} />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {(isEnRoute || isArrived) && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className={isEnRoute
+                                    ? (cardVisible
+                                        ? 'relative -mt-4 mx-3 lg:mx-0 lg:mt-0 lg:absolute lg:z-[700] lg:top-12 lg:right-5 lg:w-[360px] overflow-hidden'
+                                        // Collapsed: no map-edge overlap on mobile (requirement 8 —
+                                        // must never risk overlapping the map's zoom/attribution
+                                        // controls), plain flow spacing instead; desktop keeps the
+                                        // same floating slot the card itself uses, right-aligned.
+                                        : 'relative mt-3 mx-3 flex justify-center lg:mx-0 lg:mt-0 lg:absolute lg:z-[700] lg:top-12 lg:right-5 lg:w-[360px] lg:justify-end')
+                                    : 'relative overflow-hidden'}
+                            >
+                                {isArrived || cardVisible ? (
+                                <div className="rounded-xl p-4 lg:p-5"
+                                    style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)', boxShadow: '0 4px 16px rgba(0,0,0,0.18)' }}>
+
+                                    {/* Booking-lifecycle status tag, and — only while isEnRoute,
+                                        where there's a map to declutter — a close button that
+                                        hides just this card (not the map/marker/status indicator/
+                                        zoom controls/attribution/progress tracker below). The GPS
+                                        connection-status indicator is not duplicated here; it lives
+                                        solely in TherapistLiveMap's own map header above. */}
+                                    <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                                        <motion.div
+                                            key={booking.status}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase"
+                                            style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.color }}
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: meta.color }} />
+                                            {meta.label}
+                                        </motion.div>
+
+                                        {isEnRoute && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCardVisible(false)}
+                                                aria-label="Hide booking details"
+                                                aria-expanded="true"
+                                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#e2b764]"
+                                                style={{ color: 'var(--theme-text-muted)' }}
+                                                onMouseEnter={e => { e.currentTarget.style.color = 'var(--theme-text-head)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.color = 'var(--theme-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-muted)' }}>
+                                        Today's Session
                                     </p>
-                                    <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
-                                        {isArrived ? 'Enjoy your session.' : "Get ready — they'll arrive soon."}
-                                    </p>
-                                </div>
-                            </div>
+                                    <h2 className="text-2xl font-display font-semibold mb-3" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h2>
 
-                            {isEnRoute && (
-                                <div className="mt-3">
-                                    <TherapistLiveMap booking={booking} />
+                                    {/* Therapist photo (44-48px), full name and caption — stacked,
+                                        not squeezed onto one inline line with other text. */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 inline-flex items-center justify-center"
+                                            style={{ border: '1px solid var(--theme-border)' }}>
+                                            {booking.therapist_avatar && !avatarFailed ? (
+                                                <img
+                                                    src={booking.therapist_avatar}
+                                                    alt={`${booking.therapist}, your therapist`}
+                                                    className="w-full h-full object-cover"
+                                                    onError={() => setAvatarFailed(true)}
+                                                />
+                                            ) : (
+                                                <span className="w-full h-full inline-flex items-center justify-center text-sm font-display font-bold"
+                                                    style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}>
+                                                    {therapistInitials}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <div>
+                                            <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{booking.therapist}</p>
+                                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Your therapist</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-4 pt-3 text-xs" style={{ borderTop: '1px solid var(--theme-border)' }}>
+                                        <span className="font-bold uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Scheduled</span>
+                                        <span className="font-mono" style={{ color: 'var(--theme-text-2)' }}>{booking.datetime}</span>
+                                    </div>
+
+                                    {/* GPS-aware message note (mockups 03-06): copy, icon and —
+                                        for stale/disconnected — a tinted box follow the live
+                                        connection state while isEnRoute; Arrived keeps its own
+                                        existing, unrelated message untouched. No extra hairline
+                                        here — the Scheduled row above already provides the one
+                                        divider the mockups show between sections. */}
+                                    <div className="flex items-center gap-3 mt-4"
+                                        style={isEnRoute && gpsMeta.noteBg
+                                            ? { background: gpsMeta.noteBg, border: `1px solid ${gpsMeta.noteBorder}`, borderRadius: 10, padding: '12px' }
+                                            : undefined}>
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                            style={{
+                                                background: isArrived ? 'rgba(59,130,246,0.15)' : `${gpsMeta.color}26`,
+                                                color: isArrived ? '#3b82f6' : gpsMeta.color,
+                                            }}>
+                                            {isArrived
+                                                ? <MapPin size={18} />
+                                                : <NoteIcon size={18} className={gpsStatus === 'connecting' ? 'animate-spin' : gpsStatus === 'live' || gpsStatus === null ? 'animate-bounce' : ''} />}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold" style={{ color: isArrived ? '#3b82f6' : gpsMeta.color }}>
+                                                {noteTitle}
+                                            </p>
+                                            <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-2)' }}>
+                                                {noteBody}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCardVisible(true)}
+                                        aria-expanded="false"
+                                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#e2b764]"
+                                        style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-head)', boxShadow: '0 4px 16px rgba(0,0,0,0.18)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--theme-border)'; }}
+                                    >
+                                        Booking details
+                                    </button>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
 
                 {/* ── Progress bar + Steps ── */}
                 <div className="relative">
-                    <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: '#1e2740' }} />
+                    <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: 'var(--theme-border)' }} />
                     <motion.div
                         className="absolute top-5 left-5 h-px hidden sm:block"
                         initial={{ width: 0 }}
@@ -207,14 +384,14 @@ function StatusTracker({ booking: initialBooking, onCompleted }) {
                                 >
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${active ? 'shadow-lg' : ''}`}
                                         style={{
-                                            background: active ? meta.color : done ? `${meta.color}30` : '#1e2740',
-                                            color:      active ? '#0b1120'  : done ? meta.color          : '#64748b',
+                                            background: active ? meta.color : done ? `${meta.color}30` : 'var(--theme-border)',
+                                            color:      active ? '#0b1120'  : done ? meta.color          : 'var(--theme-text-muted)',
                                             boxShadow:  active ? `0 0 20px ${meta.color}50` : 'none',
                                         }}>
                                         <Icon size={18} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
                                     </div>
                                     <div className="sm:text-center">
-                                        <p className={`text-sm font-medium ${done ? 'text-white' : 'text-slate-500'}`}>{step.label}</p>
+                                        <p className={`text-sm font-medium ${active ? '' : 'hidden sm:block'}`} style={{ color: done ? 'var(--theme-text-head)' : 'var(--theme-text-muted)' }}>{step.label}</p>
                                         {active && (
                                             <motion.p
                                                 initial={{ opacity: 0 }}
@@ -256,7 +433,7 @@ function UpcomingSessionCard({ booking, isToday }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border p-6 md:p-7"
-            style={{ borderColor: '#1e2740', background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}
+            style={{ borderColor: 'var(--theme-border)', background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-card) 100%)' }}
         >
             <div className="flex items-center justify-between gap-3 mb-4">
                 <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase"
@@ -266,15 +443,15 @@ function UpcomingSessionCard({ booking, isToday }) {
                 </span>
                 <button onClick={() => router.visit(route('my.bookings'))}
                     className="text-xs flex items-center gap-1 transition-colors flex-shrink-0" style={{ color: '#e2b764' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
                     onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
                 >
                     View in My Bookings <ChevronRight size={12} />
                 </button>
             </div>
 
-            <h3 className="text-xl font-display font-semibold text-white mb-2">{booking.service}</h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm" style={{ color: '#94a3b8' }}>
+            <h3 className="text-xl font-display font-semibold mb-2" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h3>
+            <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm" style={{ color: 'var(--theme-text-2)' }}>
                 <span className="flex items-center gap-2"><User size={14} /> {booking.therapist}</span>
                 <span className="flex items-center gap-2"><Clock size={14} /> {booking.datetime}</span>
             </div>
@@ -306,7 +483,7 @@ function SessionCompletedConfirmation({ booking, onDismiss }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             className="relative overflow-hidden rounded-2xl p-6 flex items-center gap-4"
-            style={{ background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)', border: '1px solid rgba(168,85,247,0.3)' }}
+            style={{ background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-card) 100%)', border: '1px solid rgba(168,85,247,0.3)' }}
         >
             <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                 style={{ background: 'linear-gradient(135deg, #a855f7, #c084fc)', boxShadow: '0 0 24px rgba(168,85,247,0.3)' }}>
@@ -314,15 +491,15 @@ function SessionCompletedConfirmation({ booking, onDismiss }) {
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: '#a855f7' }}>Session Completed!</p>
-                <p className="text-sm" style={{ color: '#cbd5e1' }}>
+                <p className="text-sm" style={{ color: 'var(--theme-text)' }}>
                     {booking?.service ? `Your ${booking.service} session is done — it's` : 'Your session is done — it\'s'} now in your booking history.
                 </p>
             </div>
             <button onClick={() => onDismiss?.()}
                 className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
                 aria-label="Dismiss"
             >
                 <X size={14} />
@@ -335,10 +512,10 @@ function UsualBookingCard({ yourUsual }) {
     return (
         <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-display font-semibold text-white">Your Usual?</h2>
+                <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Your Usual?</h2>
             </div>
             <div className="group relative rounded-2xl border p-6 md:p-8 overflow-hidden transition-all"
-                style={{ borderColor: 'rgba(226,183,100,0.3)', background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}>
+                style={{ borderColor: 'rgba(226,183,100,0.3)', background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-card) 100%)' }}>
                 <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
                     <Sparkles size={120} style={{ color: '#e2b764' }} />
                 </div>
@@ -347,10 +524,10 @@ function UsualBookingCard({ yourUsual }) {
                         <div className="flex items-center gap-2 mb-2">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
                                 style={{ background: '#e2b764', color: '#0b1120' }}>Auto-Detected</span>
-                            <span className="text-sm" style={{ color: '#94a3b8' }}>Based on your history</span>
+                            <span className="text-sm" style={{ color: 'var(--theme-text-2)' }}>Based on your history</span>
                         </div>
-                        <h3 className="text-2xl font-display font-semibold text-white mb-4">{yourUsual.service?.name}</h3>
-                        <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm" style={{ color: '#cbd5e1' }}>
+                        <h3 className="text-2xl font-display font-semibold mb-4" style={{ color: 'var(--theme-text-head)' }}>{yourUsual.service?.name}</h3>
+                        <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm" style={{ color: 'var(--theme-text)' }}>
                             {yourUsual.therapist?.name && <div className="flex items-center gap-2"><User size={14} style={{ color: '#e2b764' }} />{yourUsual.therapist.name}</div>}
                             {yourUsual.time && <div className="flex items-center gap-2"><Clock size={14} style={{ color: '#e2b764' }} />{yourUsual.time}</div>}
                             {yourUsual.location && <div className="flex items-center gap-2"><MapPin size={14} style={{ color: '#e2b764' }} />{yourUsual.location}</div>}
@@ -373,17 +550,17 @@ function UsualBookingCard({ yourUsual }) {
 function TherapistCard({ therapist }) {
     return (
         <div className="flex items-center gap-4 p-4 rounded-xl border transition-colors group cursor-pointer"
-            style={{ borderColor: '#1e2740', background: '#0f1629' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#141d33'}
-            onMouseLeave={e => e.currentTarget.style.background = '#0f1629'}
+            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-btn-bg)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--theme-card)'}
         >
             <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-display font-bold flex-shrink-0 border-2"
-                style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764, #f0c97a)', borderColor: '#1e2740', color: '#0b1120' }}>
+                style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764, #f0c97a)', borderColor: 'var(--theme-border)', color: '#0b1120' }}>
                 {therapist.avatar}
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-medium text-white truncate">{therapist.name}</h4>
+                    <h4 className="font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{therapist.name}</h4>
                     {therapist.familiar && (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border flex-shrink-0"
                             style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.2)' }}>
@@ -391,7 +568,7 @@ function TherapistCard({ therapist }) {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-3 text-xs mb-2" style={{ color: '#94a3b8' }}>
+                <div className="flex items-center gap-3 text-xs mb-2" style={{ color: 'var(--theme-text-2)' }}>
                     <span className="flex items-center gap-1" style={{ color: '#e2b764' }}>
                         <Star size={12} className="fill-current" /> {therapist.rating}
                     </span>
@@ -400,9 +577,9 @@ function TherapistCard({ therapist }) {
                 </div>
                 <button onClick={() => router.visit(route('bookings'))}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all w-full sm:w-auto"
-                    style={{ background: '#1e2740', color: '#fff' }}
+                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-head)' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#e2b764'; e.currentTarget.style.color = '#0b1120'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#1e2740'; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-head)'; }}
                 >
                     Book Now
                 </button>
@@ -414,22 +591,22 @@ function TherapistCard({ therapist }) {
 function RecentActivityItem({ item }) {
     return (
         <div className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b last:border-0"
-            style={{ borderColor: '#1e2740' }}>
+            style={{ borderColor: 'var(--theme-border)' }}>
             <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: '#141d33', color: '#94a3b8' }}>
+                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
                     <Calendar size={20} />
                 </div>
                 <div>
-                    <h4 className="font-medium text-white mb-1">{item.service}</h4>
-                    <p className="text-sm" style={{ color: '#94a3b8' }}>{item.datetime} • {item.therapist} • {item.duration} mins</p>
+                    <h4 className="font-medium mb-1" style={{ color: 'var(--theme-text-head)' }}>{item.service}</h4>
+                    <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>{item.datetime} • {item.therapist} • {item.duration} mins</p>
                 </div>
             </div>
             <button onClick={() => router.visit(route('my.bookings'))}
                 className="shrink-0 px-4 py-2 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 transition-all"
-                style={{ borderColor: '#1e2740', color: '#cbd5e1' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)'; e.currentTarget.style.color = '#e2b764'; e.currentTarget.style.background = 'rgba(226,183,100,0.05)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#1e2740'; e.currentTarget.style.color = '#cbd5e1'; e.currentTarget.style.background = 'transparent'; }}
+                style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)'; e.currentTarget.style.color = 'var(--theme-link)'; e.currentTarget.style.background = 'rgba(226,183,100,0.05)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.color = 'var(--theme-text)'; e.currentTarget.style.background = 'transparent'; }}
             >
                 Book Again
             </button>
@@ -440,12 +617,12 @@ function RecentActivityItem({ item }) {
 function PreferenceItem({ icon: Icon, label, value }) {
     return (
         <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: '#141d33', color: '#94a3b8' }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
                 <Icon size={14} />
             </div>
             <div>
-                <div className="text-xs" style={{ color: '#64748b' }}>{label}</div>
-                <div className="text-sm font-medium" style={{ color: '#e2e8f0' }}>{value}</div>
+                <div className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{label}</div>
+                <div className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>{value}</div>
             </div>
         </div>
     );
@@ -502,7 +679,7 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
 
     return (
         <div className="rounded-2xl border overflow-hidden"
-            style={{ background: '#0f1629', borderColor: isAvailable ? 'rgba(226,183,100,0.4)' : '#1e2740' }}>
+            style={{ background: 'var(--theme-card)', borderColor: isAvailable ? 'rgba(226,183,100,0.4)' : 'var(--theme-border)' }}>
 
             {/* ── Reward available banner ── */}
             {isAvailable && !claimed && (
@@ -534,11 +711,11 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                             style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
                             <Activity size={16} />
                         </div>
-                        <h3 className="font-display font-semibold text-white">Wellness Journey</h3>
+                        <h3 className="font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Wellness Journey</h3>
                     </div>
                     {cycle > 1 && (
                         <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                            style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764', border: '1px solid rgba(226,183,100,0.2)' }}>
+                            style={{ background: 'var(--theme-tag-gold-bg)', color: 'var(--theme-link)', border: '1px solid var(--theme-tag-gold-border)' }}>
                             Cycle {cycle}
                         </span>
                     )}
@@ -547,14 +724,14 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                 {/* ── Progress ── */}
                 <div className="mb-5">
                     <div className="flex justify-between text-sm mb-2">
-                        <span style={{ color: '#cbd5e1' }}>Sessions completed</span>
-                        <span className="font-semibold" style={{ color: '#e2b764' }}>
+                        <span style={{ color: 'var(--theme-text)' }}>Sessions completed</span>
+                        <span className="font-semibold" style={{ color: 'var(--theme-link)' }}>
                             {count}/{goal} Bookings
                         </span>
                     </div>
 
                     {/* Progress bar */}
-                    <div className="h-2.5 w-full rounded-full overflow-hidden" style={{ background: '#1e2740' }}>
+                    <div className="h-2.5 w-full rounded-full overflow-hidden" style={{ background: 'var(--theme-border)' }}>
                         <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${pct}%` }}
@@ -571,7 +748,7 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                     {/* Status message */}
                     <div className="mt-2.5">
                         {isAvailable && !claimed ? (
-                            <p className="text-xs font-medium" style={{ color: '#e2b764' }}>
+                            <p className="text-xs font-medium" style={{ color: 'var(--theme-link)' }}>
                                 ✨ Congratulations! You've earned a complimentary 60-min session.
                             </p>
                         ) : claimed ? (
@@ -579,9 +756,9 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                                 Starting fresh — 10 more sessions to your next free reward!
                             </p>
                         ) : (
-                            <p className="text-xs" style={{ color: '#64748b' }}>
+                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                                 Just{' '}
-                                <strong className="text-white">{remaining} more {remaining === 1 ? 'booking' : 'bookings'}</strong>
+                                <strong style={{ color: 'var(--theme-text-head)' }}>{remaining} more {remaining === 1 ? 'booking' : 'bookings'}</strong>
                                 {' '}to unlock a complimentary 60-min upgrade.
                             </p>
                         )}
@@ -594,7 +771,7 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                         onClick={handleClaim}
                         disabled={claiming}
                         className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mb-5 transition-opacity disabled:opacity-70"
-                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}
+                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: 'var(--theme-cta-ink)' }}
                     >
                         {claiming
                             ? <Loader2 size={15} className="animate-spin" />
@@ -608,14 +785,14 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                 {hasVoucher && voucher && (
                     <div className="mb-5 p-4 rounded-xl text-center"
                         style={{ background: 'rgba(226,183,100,0.1)', border: '1px solid rgba(226,183,100,0.3)' }}>
-                        <p className="text-xs mb-2" style={{ color: '#94a3b8' }}>Your voucher code</p>
+                        <p className="text-xs mb-2" style={{ color: 'var(--theme-text-2)' }}>Your voucher code</p>
                         <p className="text-2xl font-display font-bold tracking-widest mb-1" style={{ color: '#e2b764' }}>
                             {voucher.code}
                         </p>
-                        <p className="text-xs" style={{ color: '#94a3b8' }}>
+                        <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>
                             Valid for any 60-min service · Expires {voucher.expires_at}
                         </p>
-                        <p className="text-xs mt-1" style={{ color: '#64748b' }}>
+                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>
                             {voucher.days_until_expiry} days remaining
                         </p>
                         {/* Copy button */}
@@ -629,18 +806,18 @@ function LoyaltyWidget({ loyalty, onRedeemed }) {
                 )}
 
                 {/* ── Stats ── */}
-                <div className="pt-5 border-t" style={{ borderColor: '#1e2740' }}>
-                    <h4 className="text-sm font-medium text-white mb-3">Your Stats</h4>
+                <div className="pt-5 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                    <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--theme-text-head)' }}>Your Stats</h4>
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
-                            <div className="text-2xl font-display text-white mb-0.5">
+                        <div className="p-3 rounded-xl text-center" style={{ background: 'var(--theme-btn-bg)' }}>
+                            <div className="text-2xl font-display mb-0.5" style={{ color: 'var(--theme-text-head)' }}>
                                 {relaxHours > 0 ? `${relaxHours}h` : '0h'}
                             </div>
-                            <div className="text-xs" style={{ color: '#94a3b8' }}>Relaxation Time</div>
+                            <div className="text-xs" style={{ color: 'var(--theme-text-2)' }}>Relaxation Time</div>
                         </div>
-                        <div className="p-3 rounded-xl text-center" style={{ background: '#141d33' }}>
-                            <div className="text-2xl font-display text-white mb-0.5">{totalDone}</div>
-                            <div className="text-xs" style={{ color: '#94a3b8' }}>Total Sessions</div>
+                        <div className="p-3 rounded-xl text-center" style={{ background: 'var(--theme-btn-bg)' }}>
+                            <div className="text-2xl font-display mb-0.5" style={{ color: 'var(--theme-text-head)' }}>{totalDone}</div>
+                            <div className="text-xs" style={{ color: 'var(--theme-text-2)' }}>Total Sessions</div>
                         </div>
                     </div>
 
@@ -675,27 +852,27 @@ function WishlistPreviewItem({ item }) {
         <button
             onClick={() => router.visit(route('wishlist'))}
             className="w-full flex items-center gap-3 py-3 text-left transition-colors border-b last:border-0"
-            style={{ borderColor: '#1e2740' }}
+            style={{ borderColor: 'var(--theme-border)' }}
         >
             <div className="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative"
-                style={{ background: '#141d33' }}>
+                style={{ background: 'var(--theme-btn-bg)' }}>
                 {imageUrl ? (
                     <img src={imageUrl} alt={name} className="w-full h-full object-cover" style={{ opacity: isUnavailable ? 0.45 : 1 }} />
                 ) : (
-                    <Heart size={16} style={{ color: '#1e2740' }} />
+                    <Heart size={16} style={{ color: 'var(--theme-border)' }} />
                 )}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{name}</p>
+                <p className="text-sm font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{name}</p>
                 {isUnavailable ? (
                     <p className="text-xs" style={{ color: '#f87171' }}>Currently unavailable</p>
                 ) : (
-                    <p className="text-xs" style={{ color: '#94a3b8' }}>
+                    <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>
                         From AED {minPrice.toLocaleString()}
                     </p>
                 )}
             </div>
-            <ChevronRight size={14} style={{ color: '#64748b', flexShrink: 0 }} />
+            <ChevronRight size={14} style={{ color: 'var(--theme-text-muted)', flexShrink: 0 }} />
         </button>
     );
 }
@@ -708,46 +885,46 @@ function WishlistWidget({ items, loading, error }) {
     const count = items.length;
 
     return (
-        <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
+        <div className="p-6 rounded-2xl border" style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}>
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                     <Heart size={16} style={{ color: '#e2b764' }} fill="#e2b764" />
-                    <h3 className="font-display font-semibold text-white">My Wishlist</h3>
+                    <h3 className="font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>My Wishlist</h3>
                 </div>
                 {!loading && !error && count > 0 && (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
+                        style={{ background: 'var(--theme-tag-gold-bg)', color: 'var(--theme-link)' }}>
                         {count} saved
                     </span>
                 )}
             </div>
-            <p className="text-xs mb-4" style={{ color: '#64748b' }}>Your saved services for later.</p>
+            <p className="text-xs mb-4" style={{ color: 'var(--theme-text-muted)' }}>Your saved services for later.</p>
 
             {loading ? (
                 <div className="space-y-3">
                     {[0, 1, 2].map(i => (
                         <div key={i} className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-lg animate-pulse flex-shrink-0" style={{ background: '#141d33' }} />
+                            <div className="w-11 h-11 rounded-lg animate-pulse flex-shrink-0" style={{ background: 'var(--theme-skeleton)' }} />
                             <div className="flex-1 space-y-1.5">
-                                <div className="h-3 rounded animate-pulse" style={{ background: '#141d33', width: '70%' }} />
-                                <div className="h-2.5 rounded animate-pulse" style={{ background: '#141d33', width: '40%' }} />
+                                <div className="h-3 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)', width: '70%' }} />
+                                <div className="h-2.5 rounded animate-pulse" style={{ background: 'var(--theme-skeleton)', width: '40%' }} />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : error ? (
-                <p className="text-xs py-4 text-center" style={{ color: '#64748b' }}>
+                <p className="text-xs py-4 text-center" style={{ color: 'var(--theme-text-muted)' }}>
                     Couldn't load your wishlist right now.
                 </p>
             ) : count === 0 ? (
                 <div className="py-4 text-center">
-                    <Heart size={24} className="mx-auto mb-2" style={{ color: '#1e2740' }} />
-                    <p className="text-xs mb-4 leading-relaxed" style={{ color: '#64748b' }}>
+                    <Heart size={24} className="mx-auto mb-2" style={{ color: 'var(--theme-border)' }} />
+                    <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>
                         No saved services yet.<br />Save your favorite treatments for later.
                     </p>
                     <button onClick={() => router.visit(route('services'))}
                         className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                        style={{ background: '#e2b764', color: '#0b1120' }}>
+                        style={{ background: 'var(--theme-cta)', color: 'var(--theme-cta-ink)' }}>
                         Browse Services
                     </button>
                 </div>
@@ -758,9 +935,9 @@ function WishlistWidget({ items, loading, error }) {
                     </div>
                     <button onClick={() => router.visit(route('wishlist'))}
                         className="w-full mt-3 pt-3 border-t text-sm flex items-center justify-center gap-1 transition-colors"
-                        style={{ borderColor: '#1e2740', color: '#e2b764' }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                        onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                        style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-link)' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-link)'}
                     >
                         View Wishlist <ChevronRight size={14} />
                     </button>
@@ -772,9 +949,9 @@ function WishlistWidget({ items, loading, error }) {
 
 function AutoPreferencesWidget({ prefs }) {
     return (
-        <div className="p-6 rounded-2xl border" style={{ background: '#0f1629', borderColor: '#1e2740' }}>
-            <h3 className="font-display font-semibold text-white mb-6">Auto-Preferences</h3>
-            <p className="text-sm mb-6 leading-relaxed" style={{ color: '#94a3b8' }}>
+        <div className="p-6 rounded-2xl border" style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}>
+            <h3 className="font-display font-semibold mb-6" style={{ color: 'var(--theme-text-head)' }}>Auto-Preferences</h3>
+            <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>
                 We've learned what you love. These preferences are automatically applied to speed up your booking.
             </p>
             {prefs ? (
@@ -784,13 +961,13 @@ function AutoPreferencesWidget({ prefs }) {
                     {prefs.payment && <PreferenceItem icon={prefs.payment === 'Cashless' ? CreditCard : Banknote} label="Preferred Payment" value={prefs.payment} />}
                 </div>
             ) : (
-                <p className="text-sm text-center py-4" style={{ color: '#64748b' }}>Complete your first booking to unlock personalized preferences!</p>
+                <p className="text-sm text-center py-4" style={{ color: 'var(--theme-text-muted)' }}>Complete your first booking to unlock personalized preferences!</p>
             )}
             <button onClick={() => router.visit(route('my.profile'))}
                 className="w-full mt-6 py-2 text-sm transition-colors"
-                style={{ color: '#94a3b8' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                style={{ color: 'var(--theme-text-2)' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-2)'}
             >
                 Manage Preferences
             </button>
@@ -847,6 +1024,17 @@ export default function Dashboard() {
     const [notifications,      setNotifications]      = useState([]);
     const [unreadCount,        setUnreadCount]        = useState(0);
     const [justCompletedBooking, setJustCompletedBooking] = useState(null);
+
+    // Coordinates the "Session Completed!" confirmation's dismissal with the
+    // dashboard-data refresh it kicks off, so dismissing can never reveal a
+    // stale upcoming_booking that still says en_route/arrived (see
+    // handleUpcomingCompleted/handleCompletedDismiss below). `refreshSettled`
+    // defaults true since no completion refresh is in flight until one starts.
+    const [refreshSettled,     setRefreshSettled]     = useState(true);
+    const timerElapsedRef     = useRef(true);
+    const refreshSeqRef       = useRef(0);
+    const completionGuardRef  = useRef(null);
+
     const [wishlistItems,      setWishlistItems]      = useState([]);
     const [wishlistLoading,    setWishlistLoading]    = useState(true);
     const [wishlistError,      setWishlistError]      = useState(false);
@@ -909,16 +1097,12 @@ export default function Dashboard() {
 
     const handleLogout = () => router.post(route('logout'));
 
-    // Booking just transitioned to completed — show the brief confirmation
-    // first, refresh the underlying data now (so it's already caught up by
-    // the time the confirmation dismisses), and defer the pending-review
-    // check until dismissal so the two don't compete for attention at once.
-    const handleUpcomingCompleted = useCallback((completedBooking) => {
-        setJustCompletedBooking(completedBooking ?? data?.upcoming_booking ?? null);
-        apiFetch('/api/dashboard-data').then(setData).catch(console.error);
-    }, [data?.upcoming_booking]);
-
-    const handleCompletedDismiss = useCallback(() => {
+    // Actually clears the confirmation and checks for a pending review — only
+    // ever called once both the 4s display timer has elapsed AND the
+    // post-completion dashboard-data refresh has settled (success or
+    // failure), so data.upcoming_booking can never still be the stale
+    // pre-completion snapshot at the moment the confirmation goes away.
+    const finalizeDismiss = useCallback(() => {
         setJustCompletedBooking(null);
         apiFetch('/api/reviews/pending')
             .then(reviews => {
@@ -929,6 +1113,104 @@ export default function Dashboard() {
             })
             .catch(console.error);
     }, []);
+
+    // Booking just transitioned to completed — show the brief confirmation
+    // first, then refresh the underlying data. completionGuardRef ignores a
+    // duplicate signal for the same booking id (e.g. StrictMode's double
+    // effect invoke, or StatusTracker remounting mid-transition) so it can
+    // never restart the timer/refresh or fire an overlapping fetch for a
+    // booking already being handled.
+    const handleUpcomingCompleted = useCallback((completedBooking) => {
+        const bookingId = completedBooking?.id ?? data?.upcoming_booking?.id ?? null;
+        if (bookingId !== null && completionGuardRef.current === bookingId) return;
+        completionGuardRef.current = bookingId;
+
+        setJustCompletedBooking(completedBooking ?? data?.upcoming_booking ?? null);
+        timerElapsedRef.current = false;
+        setRefreshSettled(false);
+
+        const seq = ++refreshSeqRef.current;
+        apiFetch('/api/dashboard-data')
+            .then(fresh => {
+                // Only the most recent refresh may apply — an older,
+                // slower-resolving request must never overwrite a newer
+                // result (out-of-order response protection).
+                if (seq === refreshSeqRef.current) setData(fresh);
+            })
+            .catch((err) => {
+                console.error('[Dashboard] post-completion refresh failed', err);
+                // A failed refresh must never resurrect the just-completed
+                // booking — trust the WebSocket-confirmed completion for
+                // this one booking even though the refresh itself didn't
+                // succeed, rather than leaving the stale pre-completion
+                // snapshot in place.
+                if (seq === refreshSeqRef.current) {
+                    setData(prev => (prev?.upcoming_booking?.id === bookingId
+                        ? { ...prev, upcoming_booking: null }
+                        : prev));
+                }
+            })
+            .finally(() => {
+                if (seq === refreshSeqRef.current) setRefreshSettled(true);
+            });
+    }, [data?.upcoming_booking]);
+
+    // Called when the confirmation's 4s timer elapses or it's dismissed
+    // manually. If the refresh above hasn't settled yet, wait for it instead
+    // of dismissing immediately — the effect below finalizes as soon as it
+    // does — so stale en_route/arrived data is never revealed in between.
+    const handleCompletedDismiss = useCallback(() => {
+        timerElapsedRef.current = true;
+        if (refreshSettled) finalizeDismiss();
+    }, [refreshSettled, finalizeDismiss]);
+
+    useEffect(() => {
+        if (refreshSettled && timerElapsedRef.current && justCompletedBooking) {
+            finalizeDismiss();
+        }
+    }, [refreshSettled, justCompletedBooking, finalizeDismiss]);
+
+    // ── Booking-status realtime subscription (parent-owned) ──────────────
+    // Previously this subscription lived inside StatusTracker, which itself
+    // only ever mounted once data.upcoming_booking.status was already
+    // en_route/arrived — so Accept (→accepted) and Start Session
+    // (→en_route) fired their broadcasts while nothing on the customer side
+    // was listening yet, and only a manual refresh could reveal them. Owning
+    // it here instead keeps exactly one subscription active for the entire
+    // lifetime of having any upcoming booking at all, pending through
+    // completed, so every transition renders live.
+    const { booking: liveUpcomingBooking, wsReady } = useBookingStatus(data?.upcoming_booking);
+    const prevUpcomingRef = useRef({ id: null, status: null });
+
+    useEffect(() => {
+        if (!liveUpcomingBooking?.id) return;
+        // Stale/mismatched guard — only act on this if it's still the exact
+        // booking currently shown; an id change is handled by
+        // useBookingStatus's own effect re-subscribing, not by this one.
+        if (data?.upcoming_booking?.id !== liveUpcomingBooking.id) return;
+
+        const isNewBooking = prevUpcomingRef.current.id !== liveUpcomingBooking.id;
+        const prevStatus   = isNewBooking ? null : prevUpcomingRef.current.status;
+        prevUpcomingRef.current = { id: liveUpcomingBooking.id, status: liveUpcomingBooking.status };
+
+        // A transition into completed goes through the existing confirmation
+        // + race-protected refetch flow directly — completed must never be
+        // written into data.upcoming_booking itself, since that would let
+        // the render ternary fall through to UpcomingSessionCard/StatusTracker
+        // with a completed booking for a frame before the confirmation can
+        // take over. handleUpcomingCompleted's own completionGuardRef still
+        // protects against a duplicate/overlapping call here.
+        if (!isNewBooking && prevStatus !== 'completed' && liveUpcomingBooking.status === 'completed') {
+            handleUpcomingCompleted(liveUpcomingBooking);
+            return;
+        }
+
+        if (liveUpcomingBooking.status !== data.upcoming_booking.status) {
+            setData(prev => (prev?.upcoming_booking?.id === liveUpcomingBooking.id
+                ? { ...prev, upcoming_booking: { ...prev.upcoming_booking, status: liveUpcomingBooking.status } }
+                : prev));
+        }
+    }, [liveUpcomingBooking?.id, liveUpcomingBooking?.status]);
 
     const user     = props.auth?.user;
     const initials = userProfile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -990,7 +1272,7 @@ export default function Dashboard() {
                                     <Bell size={18} />
                                     {unreadCount > 0 && (
                                         <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2"
-                                            style={{ borderColor: '#141d33' }} />
+                                            style={{ borderColor: 'var(--theme-btn-bg)' }} />
                                     )}
                                 </button>
 
@@ -1028,8 +1310,8 @@ export default function Dashboard() {
                                                 <div className="max-h-96 overflow-y-auto">
                                                     {notifications.length === 0 ? (
                                                         <div className="py-10 text-center">
-                                                            <Bell size={24} className="mx-auto mb-2 opacity-20 text-white" />
-                                                            <p className="text-xs" style={{ color: '#64748b' }}>No notifications yet</p>
+                                                            <Bell size={24} className="mx-auto mb-2 opacity-20" style={{ color: 'var(--theme-text-head)' }} />
+                                                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>No notifications yet</p>
                                                         </div>
                                                     ) : (
                                                         notifications.map(notif => (
@@ -1094,7 +1376,6 @@ export default function Dashboard() {
                             <StatusTracker
                                 key="tracker"
                                 booking={upcoming}
-                                onCompleted={handleUpcomingCompleted}
                             />
                         ) : upcoming ? (
                             <UpcomingSessionCard
@@ -1105,11 +1386,11 @@ export default function Dashboard() {
                         ) : (
                             <motion.div key="none" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                 className="flex items-center justify-between gap-3 flex-wrap">
-                                <p className="text-sm" style={{ color: '#94a3b8' }}>No upcoming sessions scheduled.</p>
+                                <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>No upcoming sessions scheduled.</p>
                                 <button onClick={() => router.visit(route('my.bookings'))}
-                                    className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
-                                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                    onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                                    className="text-sm flex items-center gap-1 transition-colors" style={{ color: 'var(--theme-link)' }}
+                                    onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                                    onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-link)'}
                                 >
                                     View Upcoming Bookings <ChevronRight size={14} />
                                 </button>
@@ -1125,17 +1406,17 @@ export default function Dashboard() {
                             ) : (
                                 <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                                     <div className="flex items-center justify-between mb-6">
-                                        <h2 className="text-xl font-display font-semibold text-white">Ready to book?</h2>
+                                        <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Ready to book?</h2>
                                     </div>
                                     <div className="rounded-2xl border p-8 flex items-center gap-6"
-                                        style={{ borderColor: 'rgba(226,183,100,0.3)', background: 'linear-gradient(135deg, #141d33 0%, #0f1629 100%)' }}>
+                                        style={{ borderColor: 'rgba(226,183,100,0.3)', background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-card) 100%)' }}>
                                         <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
                                             style={{ background: '#e2b764', color: '#0b1120' }}>
                                             <Sparkles size={28} />
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="font-display font-bold text-lg text-white mb-1">Book Your First Session</h3>
-                                            <p className="text-sm" style={{ color: '#94a3b8' }}>Experience premium spa services delivered to your doorstep</p>
+                                            <h3 className="font-display font-bold text-lg mb-1" style={{ color: 'var(--theme-text-head)' }}>Book Your First Session</h3>
+                                            <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>Experience premium spa services delivered to your doorstep</p>
                                         </div>
                                         <button onClick={() => router.visit(route('bookings'))}
                                             className="shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm"
@@ -1148,11 +1429,11 @@ export default function Dashboard() {
 
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-xl font-display font-semibold text-white">Top Therapists For You</h2>
+                                    <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Top Therapists For You</h2>
                                     <button onClick={() => router.visit(route('bookings'))}
-                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
-                                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: 'var(--theme-link)' }}
+                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-link)'}
                                     >
                                         View All <ChevronRight size={14} />
                                     </button>
@@ -1166,17 +1447,17 @@ export default function Dashboard() {
 
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-xl font-display font-semibold text-white">Recent Activity</h2>
+                                    <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Recent Activity</h2>
                                     <button onClick={() => router.visit(route('my.bookings'))}
-                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: '#e2b764' }}
-                                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#e2b764'}
+                                        className="text-sm flex items-center gap-1 transition-colors" style={{ color: 'var(--theme-link)' }}
+                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-link)'}
                                     >
                                         View All <ChevronRight size={14} />
                                     </button>
                                 </div>
                                 {(data?.recent_activity ?? []).length === 0 ? (
-                                    <div className="py-12 text-center" style={{ color: '#64748b' }}>
+                                    <div className="py-12 text-center" style={{ color: 'var(--theme-text-muted)' }}>
                                         <Calendar size={32} className="mx-auto mb-3 opacity-50" />
                                         <p>No bookings yet. Start your wellness journey!</p>
                                     </div>

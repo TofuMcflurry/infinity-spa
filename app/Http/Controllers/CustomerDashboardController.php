@@ -198,6 +198,10 @@ class CustomerDashboardController extends Controller
                 'id'              => $upcomingBooking->id,
                 'service'         => $upcomingBooking->service->name,
                 'therapist'       => $upcomingBooking->therapist->user->name,
+                // Already-eager-loaded relation (see ->with(['therapist.user'])
+                // above) — reading ->avatar here costs no extra query. May be
+                // null; the frontend falls back to initials when it is.
+                'therapist_avatar' => $upcomingBooking->therapist->user->avatar,
                 'datetime'        => Carbon::parse($upcomingBooking->scheduled_start)->timezone('Asia/Dubai')->format('F j, Y · g:i A'),
                 // Raw ISO timestamp, additive — lets the frontend reliably
                 // determine "is this scheduled today" (Asia/Dubai calendar

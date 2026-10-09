@@ -51,9 +51,19 @@ export function useTherapistLiveLocation(booking) {
             window.Echo
                 .private(channelName)
                 .listen('.location.updated', (e) => {
-                    lastUpdatedAtRef.current = Date.now();
+                    // Freshness is anchored to the GPS fix's own server-
+                    // validated recorded_at (when the position was actually
+                    // captured), not Date.now() at receipt — so reconnecting
+                    // can never make an old reading look freshly "just now"
+                    // just because the WebSocket happened to redeliver
+                    // around the same time. Falls back to receipt time only
+                    // if recorded_at is ever missing or unparseable.
+                    const parsed = e?.recorded_at ? new Date(e.recorded_at).getTime() : NaN;
+                    const recordedAt = Number.isFinite(parsed) ? parsed : Date.now();
+
+                    lastUpdatedAtRef.current = recordedAt;
                     setLocation(e);
-                    setLastUpdatedAt(lastUpdatedAtRef.current);
+                    setLastUpdatedAt(recordedAt);
                     setIsStale(false);
                 });
 
