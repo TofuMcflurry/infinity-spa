@@ -1307,7 +1307,7 @@ export default function Dashboard() {
                                                 </div>
 
                                                 {/* List */}
-                                                <div className="max-h-96 overflow-y-auto">
+                                                <div className="max-h-96 overflow-y-auto notif-scroll">
                                                     {notifications.length === 0 ? (
                                                         <div className="py-10 text-center">
                                                             <Bell size={24} className="mx-auto mb-2 opacity-20" style={{ color: 'var(--theme-text-head)' }} />

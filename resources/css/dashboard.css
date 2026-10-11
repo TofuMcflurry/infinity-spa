@@ -34,6 +34,11 @@
   --theme-tag-gold-border:  rgba(226,183,100,0.2);
   --theme-tag-pending-bg:   rgba(148,163,184,0.1);
   --theme-tag-pending-text: #94a3b8;
+
+  /* Muted navy/gray — default (dark) scrollbar thumb. Track is always
+     transparent so it reads as "soft" against whatever surface it sits
+     on, with no separate token needed. */
+  --theme-scrollbar-thumb: rgba(148, 163, 184, 0.35);
 }
 
 [data-theme="light"] {
@@ -52,6 +57,9 @@
   --theme-sidebar-bg:   rgba(250,247,244,0.95);
   --theme-skeleton:     #ede8e1;
   --theme-divider:      rgba(0,0,0,0.04);
+
+  /* Soft neutral/beige — light scrollbar thumb. */
+  --theme-scrollbar-thumb: rgba(107, 107, 107, 0.3);
 }
 
 @layer base {
@@ -465,9 +473,129 @@
   --theme-tag-gold-border:  #EBD3A0;
   --theme-tag-pending-bg:   #FCF0DC;
   --theme-tag-pending-text: #8C5A00;
+
+  /* Gold-compatible scrollbar thumb for the customer portal specifically
+     (Notifications list, Booking Assistant) — slightly warmer than the
+     generic light-mode neutral above, matching --theme-link. */
+  --theme-scrollbar-thumb: rgba(138, 94, 16, 0.25);
 }
 
 [data-theme="light"] .customer-theme .glass-card-strong {
   background: #F4F0E8;
   border-color: #E8E2D6;
+}
+
+/* ── Scrollbars (theme-aware) ─────────────────────────────────────────────
+   Standards-based scrollbar-color/scrollbar-width (Firefox and other
+   modern engines) plus a narrowly-scoped WebKit fallback (Chrome/Edge/
+   Safari). Applied to the document scrollbar and the two known in-app
+   scroll lists that needed fixing (Notifications list, Booking Assistant
+   messages) — never via a universal `*` selector, so third-party widgets
+   such as Leaflet's map container keep their native behavior untouched. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-scrollbar-thumb) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background-color: var(--theme-scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.notif-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-scrollbar-thumb) transparent;
+  scrollbar-gutter: stable;
+}
+
+.notif-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notif-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notif-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--theme-scrollbar-thumb);
+  border-radius: 8px;
+}
+
+/* Booking Assistant messages — scrollbar hidden at rest (both engines),
+   revealed on hover or when keyboard focus is inside the pane. Hiding the
+   thumb never disables actual scrolling — wheel, trackpad, touch, and
+   keyboard scrolling of the element all keep working either way, this
+   only changes whether the thumb is painted. */
+.ihs-assistant-messages {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-gutter: stable;
+}
+
+.ihs-assistant-messages::-webkit-scrollbar {
+  width: 0px;
+}
+
+.ihs-assistant-messages:hover,
+.ihs-assistant-messages:focus,
+.ihs-assistant-messages:focus-within {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-scrollbar-thumb) transparent;
+}
+
+.ihs-assistant-messages:hover::-webkit-scrollbar,
+.ihs-assistant-messages:focus::-webkit-scrollbar,
+.ihs-assistant-messages:focus-within::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ihs-assistant-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ihs-assistant-messages::-webkit-scrollbar-thumb {
+  background-color: var(--theme-scrollbar-thumb);
+  border-radius: 8px;
+}
+
+/* Quick-reply chip row — subtle fade hinting more chips are scrollable.
+   Applied unconditionally rather than toggled by actual scroll position:
+   with 7 fixed text chips in this fixed-width panel, the row reliably
+   overflows at every supported breakpoint, so a static mask gives the same
+   visual result as JS scroll-position tracking without the extra code. */
+.ihs-assistant-chips {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* ── Booking Assistant panel height ───────────────────────────────────────
+   A stable height — NOT content-dependent — so the panel never grows or
+   shrinks as messages are added; the messages pane absorbs all growth via
+   its own internal scroll instead. Mobile keeps a viewport-relative height;
+   desktop (md+) targets a fixed ~500px, still capped via min() so it never
+   exceeds a short viewport. Each pair below is a vh-first/dvh-second
+   fallback: browsers that don't understand `dvh` simply fail to parse the
+   second declaration and keep the first (dvh tracks the *visible* viewport
+   on mobile, shrinking correctly when a toolbar or keyboard appears). */
+.ihs-assistant-panel {
+  height: 75vh;
+  height: 75dvh;
+}
+
+@media (min-width: 768px) {
+  .ihs-assistant-panel {
+    height: min(500px, 85vh);
+    height: min(500px, 85dvh);
+  }
 }
