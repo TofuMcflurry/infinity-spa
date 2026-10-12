@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { addDays, format, startOfDay, getDay, addMonths, isBefore, startOfMonth } from "date-fns";
 import {
     ChevronLeft, ChevronRight, Clock, MapPin,
-    CalendarDays, Globe, CheckCircle2, Loader2, AlertCircle, Sparkles
+    CalendarDays, Globe, CheckCircle2, Loader2, AlertCircle, Sparkles,
+    Info, Sun, Moon, Check, ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -36,16 +37,16 @@ const generateTimeSlots = () => {
         const totalMins = 16 * 60 + i * 30; // Start at 4PM
         const hour = Math.floor(totalMins / 60) % 24;
         const min = totalMins % 60;
-        
+
         // Stop at 4AM (04:00) next day
         if (hour >= 4 && hour < 16 && i > 0) break;
-        
+
         let displayHour = hour % 12;
         if (displayHour === 0) displayHour = 12;
         const ampm = hour < 12 ? "AM" : "PM";
         const label = `${displayHour}:${String(min).padStart(2, "0")} ${ampm}`;
         const value = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-        
+
         slots.push({ value, label, hour });
     }
     return slots;
@@ -53,13 +54,28 @@ const generateTimeSlots = () => {
 
 const ALL_TIME_SLOTS = generateTimeSlots();
 
+// Presentation-only grouping of the existing slot output — no change to
+// values, order, or what gets submitted. Every slot here is still the exact
+// same object from ALL_TIME_SLOTS; this just splits the array in two so
+// mobile can render two visual groups with a header in between.
+const EVENING_SLOTS = ALL_TIME_SLOTS.filter((t) => t.hour >= 16);
+const AFTER_MIDNIGHT_SLOTS = ALL_TIME_SLOTS.filter((t) => t.hour < 16);
+
 // ── Shared input class ───────────────────────────────────────────────────────
+// Mobile-first: 50px tall / 16px text (so iOS doesn't zoom on focus) per the
+// approved mobile spec. md: resets back to today's exact 44px/14px desktop
+// sizing — nothing changes at ≥768px.
 
 const inputCls =
-    "w-full h-11 px-3 rounded-lg text-sm transition-all " +
-    "bg-[hsl(var(--input))] border border-[hsl(var(--border))] " +
+    "w-full min-w-0 h-12 px-3 rounded-[8px] text-base transition-all " +
+    "bg-[#0B1222] border border-[#66779B] " +
     "text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] " +
-    "focus:outline-none focus:border-[hsl(var(--gold))] focus:ring-1 focus:ring-[hsl(var(--gold))/0.3]";
+    "focus:outline-none focus:border-[hsl(var(--gold))] focus:ring-1 focus:ring-[hsl(var(--gold))/0.3] " +
+    "md:h-11 md:text-sm md:rounded-lg md:bg-[hsl(var(--input))] md:border-[hsl(var(--border))]";
+
+// Mobile label style (13px/600/ink-secondary). md: resets to the original
+// text-sm/font-medium/foreground look — unchanged at ≥768px.
+const labelCls = "block text-[13px] font-semibold text-[#A9B3C7] mb-1.5 md:text-sm md:font-medium md:text-[hsl(var(--foreground))]";
 
 // ── Custom Scrollbar CSS ──────────────────────────────────────────────────────
 const scrollbarStyles = `
@@ -85,7 +101,7 @@ function MiniCalendar({ selectedDate, onSelect }) {
     // AFTER
     const todayDubaiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
     const today = startOfDay(new Date(todayDubaiStr));
-    
+
     // Allow future dates up to 3 months ahead
     const maxDate = addMonths(today, 3);
 
@@ -109,7 +125,7 @@ function MiniCalendar({ selectedDate, onSelect }) {
             else setViewMonth(m => m - 1);
         }
     };
-    
+
     const nextMonth = () => {
         if (canNext) {
             if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
@@ -127,32 +143,41 @@ function MiniCalendar({ selectedDate, onSelect }) {
         if (getDay(date) === 2) return true;           // Tuesday
         return false;
     };
-    
+
     const isSelected = (date) =>
         date && selectedDate && format(date, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
     const isToday = (date) =>
         date && format(date, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
 
     return (
-        <div className="w-full">
+        <div className="w-full min-w-0">
             {/* Month nav */}
             <div className="flex items-center justify-between mb-4">
                 <button
                     type="button"
                     onClick={prevMonth}
                     disabled={!canPrev}
-                    className="rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed"
+                    className={cn(
+                        "rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed",
+                        "max-md:!w-10 max-md:!h-10 max-md:!rounded-[8px] max-md:!border max-md:!border-[#66779B] max-md:!bg-transparent max-md:!opacity-100"
+                    )}
                 >
                     <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="rdp-caption_label" style={{ color: "hsl(var(--foreground))" }}>
+                <span
+                    className="rdp-caption_label max-md:!text-[19px]"
+                    style={{ color: "hsl(var(--foreground))" }}
+                >
                     {MONTHS[viewMonth]} {viewYear}
                 </span>
                 <button
                     type="button"
                     onClick={nextMonth}
                     disabled={!canNext}
-                    className="rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed"
+                    className={cn(
+                        "rdp-nav_button disabled:opacity-20 disabled:cursor-not-allowed",
+                        "max-md:!w-10 max-md:!h-10 max-md:!rounded-[8px] max-md:!border max-md:!border-[#66779B] max-md:!bg-transparent max-md:!opacity-100"
+                    )}
                 >
                     <ChevronRight className="h-4 w-4" />
                 </button>
@@ -160,10 +185,14 @@ function MiniCalendar({ selectedDate, onSelect }) {
 
             {/* Day headers */}
             <div className="grid grid-cols-7 mb-1">
-                {DAYS.map(d => (
+                {DAYS.map((d, i) => (
                     <div
                         key={d}
-                        className="text-center text-[0.72rem] font-medium py-1"
+                        className={cn(
+                            "text-center text-[0.72rem] font-medium py-1",
+                            "max-md:!text-[11px] max-md:!font-bold max-md:!uppercase max-md:!tracking-wide max-md:!py-2",
+                            i === 2 && "max-md:!text-[#4E5A73]"
+                        )}
                         style={{ color: "hsl(var(--muted-foreground))" }}
                     >
                         {d}
@@ -172,32 +201,71 @@ function MiniCalendar({ selectedDate, onSelect }) {
             </div>
 
             {/* Date grid */}
-            <div className="grid grid-cols-7 gap-y-0.5">
+            <div className="grid grid-cols-7 gap-y-0.5 max-md:!gap-1.5">
                 {cells.map((date, idx) => (
                     <div key={idx} className="flex items-center justify-center py-px">
                         {date ? (
                             <button
                                 type="button"
                                 disabled={isDisabled(date)}
+                                aria-disabled={isDisabled(date)}
+                                aria-pressed={isSelected(date)}
+                                aria-label={format(date, "EEEE, MMMM d, yyyy")}
                                 onClick={() => !isDisabled(date) && onSelect(date)}
                                 className={cn(
                                     "rdp-day",
                                     isSelected(date) && "rdp-day_selected",
                                     isToday(date) && !isSelected(date) && "rdp-day_today",
                                     isDisabled(date) && "rdp-day_disabled",
-                                    getDay(date) === 2 && "opacity-40 cursor-not-allowed" // Tuesday indicator
+                                    getDay(date) === 2 && "opacity-40 cursor-not-allowed",
+                                    // Mobile-only visual override. `!` forces these to win over
+                                    // the shared .rdp-day rule (which is shared with other, real
+                                    // react-day-picker instances elsewhere in the app) without
+                                    // editing that shared CSS. md: and up render through the
+                                    // untouched classes above, exactly as today.
+                                    "max-md:!w-full max-md:!aspect-square max-md:!rounded-[10px] max-md:!text-[15px] max-md:!font-medium max-md:![font-variant-numeric:tabular-nums]",
+                                    "max-md:focus-visible:!outline-none max-md:focus-visible:!ring-2 max-md:focus-visible:!ring-[#E8B65C] max-md:focus-visible:!ring-offset-0",
+                                    getDay(date) === 2
+                                        ? "max-md:!text-[#4E5A73] max-md:!border max-md:!border-dashed max-md:!border-[#2A3654] max-md:!bg-[repeating-linear-gradient(135deg,transparent_0_5px,rgba(102,119,155,.10)_5px_6px)] max-md:!cursor-not-allowed"
+                                        : isSelected(date)
+                                        ? "max-md:!bg-[#E8B65C] max-md:!text-[#1A1206] max-md:!font-bold max-md:!shadow-[0_6px_18px_-6px_rgba(232,182,92,.55)]"
+                                        : isDisabled(date)
+                                        ? "max-md:!text-[#4E5A73] max-md:!bg-transparent max-md:!cursor-not-allowed"
+                                        : cn(
+                                            "max-md:!bg-[#16213A] max-md:!text-[#F3EFE6]",
+                                            isToday(date) && "max-md:!border max-md:!border-[#E8B65C]"
+                                        )
                                 )}
                             >
                                 {date.getDate()}
                                 {getDay(date) === 2 && (
-                                    <span className="absolute text-[8px] -bottom-1 left-1/2 -translate-x-1/2 opacity-50">
+                                    <span className="absolute text-[8px] -bottom-1 left-1/2 -translate-x-1/2 opacity-50 max-md:hidden">
                                         🚫
                                     </span>
                                 )}
+                                {isToday(date) && !isSelected(date) && getDay(date) !== 2 && (
+                                    <span className="hidden max-md:block absolute bottom-[6px] left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-[#E8B65C]" />
+                                )}
                             </button>
-                        ) : <div className="w-9 h-9" />}
+                        ) : <div className="w-9 h-9 max-md:!w-full max-md:!aspect-square" />}
                     </div>
                 ))}
+            </div>
+
+            {/* Legend — mobile only */}
+            <div className="mt-4 hidden max-md:flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[#A9B3C7]">
+                <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-[3px] bg-[#16213A]" /> Available
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-[3px] bg-[#E8B65C]" /> Selected
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-[3px] border border-[#E8B65C]" /> Today
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-[3px] border border-dashed border-[#2A3654]" /> Closed
+                </span>
             </div>
         </div>
     );
@@ -217,12 +285,12 @@ function ErrorMsg({ message }) {
 
 // ── Back Button ───────────────────────────────────────────────────────────────
 
-function BackBtn({ onClick }) {
+function BackBtn({ onClick, className }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className="flex items-center gap-1 text-sm font-medium mb-5 transition-opacity hover:opacity-70"
+            className={cn("flex items-center gap-1 text-sm font-medium mb-5 transition-opacity hover:opacity-70", className)}
             style={{ color: "hsl(var(--gold))" }}
         >
             <ChevronLeft className="h-4 w-4" />
@@ -235,9 +303,9 @@ function BackBtn({ onClick }) {
 
 function LeftPanel({ selectedDate, selectedTime, step }) {
     return (
-        <div className="flex flex-col gap-5 h-full">
-            {/* Brand */}
-            <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-col gap-[18px] h-full md:gap-5">
+            {/* Brand — hidden on mobile (compact header), unchanged on desktop */}
+            <div className="hidden items-center gap-3 md:flex">
                 <div className="w-10 h-10 rounded-full gold-gradient flex items-center justify-center font-bold text-lg shadow-lg"
                     style={{ color: "hsl(var(--midnight))" }}>
                     I
@@ -248,14 +316,17 @@ function LeftPanel({ selectedDate, selectedTime, step }) {
                 </span>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-display font-bold leading-tight"
+            <h2 className="min-w-0 text-[26px] md:text-3xl font-display font-bold leading-tight"
                 style={{ color: "hsl(var(--foreground))" }}>
                 Book Your{" "}
                 <span className="gold-text italic">Spa Experience</span>
             </h2>
 
-            {/* Meta info */}
-            <div className="space-y-2.5">
+            {/* Meta info — desktop: original icon+text rows, including the
+                selected date/time line (unchanged). Mobile: two compact chips
+                only; the date/time line is dropped since the sticky bar below
+                already shows it. */}
+            <div className="hidden md:block space-y-2.5">
                 <div className="flex items-center gap-2 text-sm"
                     style={{ color: "hsl(var(--muted-foreground))" }}>
                     <Clock className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
@@ -283,11 +354,25 @@ function LeftPanel({ selectedDate, selectedTime, step }) {
                 )}
             </div>
 
+            <div className="flex flex-wrap gap-2 md:hidden">
+                <span className="flex h-7 max-w-full items-center gap-1.5 rounded-[6px] border border-border bg-[#16213A] px-2.5 text-[12px] text-muted-foreground">
+                    <Clock className="h-3 w-3 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                    60–120 min sessions · 4PM to 4AM
+                </span>
+                {step >= 2 && (
+                    <span className="flex h-7 items-center gap-1.5 rounded-[6px] border border-border bg-[#16213A] px-2.5 text-[12px] text-muted-foreground">
+                        <Globe className="h-3 w-3 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                        Dubai Time (GST)
+                    </span>
+                )}
+            </div>
+
             {/* Divider */}
             <div className="border-t" style={{ borderColor: "hsl(var(--border))" }} />
 
-            {/* Description */}
-            <div className="space-y-3">
+            {/* Description — hidden on mobile entirely (compact header);
+                desktop (md:) keeps both paragraphs, unchanged. */}
+            <div className="hidden md:block space-y-3">
                 <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
                     Dubai's premier home spa concierge. Licensed therapists deliver luxury massages,
                     facials, and Royal Hammam rituals directly to your door.
@@ -299,8 +384,68 @@ function LeftPanel({ selectedDate, selectedTime, step }) {
             </div>
 
             {/* Gold accent line */}
-            <div className="mt-auto pt-6">
+            <div className="mt-auto pt-6 hidden md:block">
                 <div className="h-px w-full gold-gradient opacity-30 rounded-full" />
+            </div>
+        </div>
+    );
+}
+
+// ── Mobile step header (purely visual — reuses each step's existing heading
+//    text, just repositioned/restyled; adds "STEP n/4" chrome only) ─────────
+
+function MobileStepHeader({ title, step, titleClassName }) {
+    return (
+        <div className="mb-4 flex items-center justify-between gap-2 md:hidden">
+            <h3 className={cn("min-w-0 flex-1 truncate font-display leading-7 text-[#F3EFE6]", titleClassName || "text-[22px]")}>
+                {title}
+            </h3>
+            <span className="flex-shrink-0 whitespace-nowrap font-mono text-[11px] tracking-wide text-[#8390A8]">
+                STEP {step} / 4
+            </span>
+        </div>
+    );
+}
+
+// ── Mobile progress bar (purely visual) ──────────────────────────────────────
+
+function MobileProgressBar({ step }) {
+    const segments = ["Date", "Time", "Details", "Done"];
+    return (
+        <div className="mb-6 md:hidden">
+            <div className="flex items-center gap-1.5">
+                {segments.map((label, i) => {
+                    const isComplete = i < step || (i === 3 && step === 3);
+                    const isCurrent = i === step && step < 3;
+                    return (
+                        <div key={label} className="h-[3px] flex-1 rounded-full bg-[#24304B] overflow-hidden">
+                            <div
+                                className={cn(
+                                    "h-full rounded-full",
+                                    (isComplete || isCurrent) ? "bg-[#E8B65C] w-full" : "w-0"
+                                )}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5">
+                {segments.map((label, i) => {
+                    const isComplete = i < step || (i === 3 && step === 3);
+                    const isCurrent = i === step && step < 3;
+                    return (
+                        <div
+                            key={label}
+                            className={cn(
+                                "flex flex-1 items-center justify-center gap-1 text-[11px]",
+                                isCurrent ? "font-semibold text-[#F3EFE6]" : isComplete ? "text-[#E8B65C]" : "text-[#8390A8]"
+                            )}
+                        >
+                            {isComplete && <Check className="h-3 w-3" />}
+                            {label}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -308,8 +453,9 @@ function LeftPanel({ selectedDate, selectedTime, step }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export const BookingForm = () => {
+export const BookingForm = ({ preselectedServiceId } = {}) => {
     const [services, setServices] = useState([]);
+    const [servicesStatus, setServicesStatus] = useState("loading"); // loading | ready | error
     const [step, setStep] = useState(0);
     const [selectedDateObj, setSelectedDateObj] = useState(null);
     const [selectedTime, setSelectedTime] = useState(null);
@@ -318,6 +464,8 @@ export const BookingForm = () => {
     const {
         register,
         handleSubmit,
+        setValue,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm({
         mode: "onChange",
@@ -330,11 +478,33 @@ export const BookingForm = () => {
         },
     });
 
-    useEffect(() => {
+    const selectedServiceId = watch("service_id");
+
+    const loadServices = () => {
+        setServicesStatus("loading");
         axios.get("/api/guest/services")
-            .then(res => setServices(res.data))
-            .catch(() => toast.error("Failed to load services"));
+            .then(res => {
+                setServices(res.data);
+                setServicesStatus("ready");
+            })
+            .catch(() => {
+                setServicesStatus("error");
+                toast.error("Failed to load services");
+            });
+    };
+
+    useEffect(() => {
+        loadServices();
     }, []);
+
+    // "Book Now" on a service card (PopularServices) sets this in Welcome.jsx.
+    // Once the real service list has loaded, pre-fill the Service field with
+    // it — the customer still starts at the Date step, nothing else changes.
+    useEffect(() => {
+        if (preselectedServiceId && services.some(s => String(s.id) === String(preselectedServiceId))) {
+            setValue("service_id", String(preselectedServiceId), { shouldValidate: true });
+        }
+    }, [preselectedServiceId, services]);
 
     const onSubmit = async (data) => {
         try {
@@ -362,18 +532,61 @@ export const BookingForm = () => {
 
     // ── Step renders ───────────────────────────────────────────────────────────
 
+    const renderTimeSlotButton = (time) => {
+        const isSel = selectedTime?.value === time.value;
+        return (
+            <div key={time.value} className="contents md:flex md:gap-2">
+                <button
+                    type="button"
+                    onClick={() => setSelectedTime(time)}
+                    aria-pressed={isSel}
+                    className={cn(
+                        "flex-1 py-3 rounded-lg border text-sm font-medium transition-all hover:border-gold/50",
+                        // Mobile-only override (forced to win over the inline style below).
+                        "max-md:!flex-none max-md:!w-full max-md:!h-11 max-md:!py-0 max-md:!flex max-md:!items-center max-md:!justify-center",
+                        "max-md:![font-family:ui-monospace,SFMono-Regular,monospace] max-md:!text-[13px] max-md:!font-medium max-md:!rounded-[8px]",
+                        isSel
+                            ? "max-md:!bg-[#2A2110] max-md:!border-[1.5px] max-md:!border-[#E8B65C] max-md:!text-[#E8B65C]"
+                            : "max-md:!bg-[#16213A] max-md:!border-[#24304B] max-md:!text-[#F3EFE6]"
+                    )}
+                    style={{
+                        backgroundColor: isSel ? "hsl(var(--secondary))" : "transparent",
+                        borderColor: isSel ? "hsl(var(--border))" : "hsl(var(--gold) / 0.3)",
+                        color: isSel ? "hsl(var(--foreground))" : "hsl(var(--gold))",
+                    }}
+                >
+                    {time.label}
+                </button>
+                {isSel && (
+                    <button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        className="btn-gold shrink-0 px-4 sm:px-5 py-3 rounded-lg text-sm font-semibold hidden md:inline-flex"
+                    >
+                        Next
+                    </button>
+                )}
+            </div>
+        );
+    };
+
     const renderStep = () => {
 
         /* ── STEP 0: Date ── */
         if (step === 0) return (
-            <div>
-                <h3 className="text-center text-base font-bold mb-5"
+            <div className="min-w-0">
+                <MobileStepHeader title="Select a Date" step={1} />
+                <h3 className="hidden md:block text-center text-base font-bold mb-5"
                     style={{ color: "hsl(var(--foreground))" }}>
                     Select a Date
                 </h3>
-                <p className="text-center text-xs mb-4 text-muted-foreground">
+                <p className="hidden md:block text-center text-xs mb-4 text-muted-foreground">
                     ⚠️ Therapists are closed on <span className="text-gold font-medium">Tuesdays</span>
                 </p>
+                <div className="md:hidden mb-4 flex items-start gap-2 rounded-[10px] border border-[#24447A] bg-[#132544] px-3 py-2.5 text-[13px] text-[#6EA8F7]">
+                    <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <p>Therapists are closed on <span className="font-semibold">Tuesdays</span>.</p>
+                </div>
                 <MiniCalendar selectedDate={selectedDateObj} onSelect={(date) => {
                     setSelectedDateObj(date);
                     setSelectedTime(null);
@@ -383,7 +596,7 @@ export const BookingForm = () => {
                     onClick={() => selectedDateObj && setStep(1)}
                     disabled={!selectedDateObj}
                     className={cn(
-                        "btn-gold mt-6 w-full py-3 rounded-xl text-sm font-semibold tracking-wide",
+                        "btn-gold mt-6 w-full py-3 rounded-xl text-sm font-semibold tracking-wide hidden md:block",
                         !selectedDateObj && "opacity-40 cursor-not-allowed pointer-events-none"
                     )}
                 >
@@ -394,77 +607,78 @@ export const BookingForm = () => {
 
         /* ── STEP 1: Time ── */
         if (step === 1) return (
-            <div>
-                <BackBtn onClick={() => setStep(0)} />
-                <h3 className="text-lg font-bold mb-0.5" style={{ color: "hsl(var(--foreground))" }}>
+            <div className="min-w-0">
+                <BackBtn onClick={() => setStep(0)} className="hidden md:flex" />
+                <MobileStepHeader title="Select a Time" step={2} />
+
+                {/* Mobile summary chip */}
+                <div className="md:hidden mb-5 flex items-center gap-2 justify-between rounded-[10px] bg-[#16213A] px-3 py-2.5">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[12px] uppercase tracking-wide text-[#F3EFE6]">
+                        {format(selectedDateObj, "EEE, MMM d").toUpperCase()}
+                    </span>
+                    <button type="button" onClick={() => setStep(0)} className="flex-shrink-0 whitespace-nowrap text-[13px] font-semibold text-[#E8B65C]">
+                        Change
+                    </button>
+                </div>
+
+                <h3 className="hidden md:block text-lg font-bold mb-0.5" style={{ color: "hsl(var(--foreground))" }}>
                     {format(selectedDateObj, "EEEE")}
                 </h3>
-                <p className="text-sm mb-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                <p className="hidden md:block text-sm mb-1" style={{ color: "hsl(var(--muted-foreground))" }}>
                     {format(selectedDateObj, "MMMM d, yyyy")}
                 </p>
-                <div className="flex items-center gap-1.5 text-xs mb-5"
+                <div className="hidden md:flex items-center gap-1.5 text-xs mb-5"
                     style={{ color: "hsl(var(--muted-foreground))" }}>
                     <Globe className="h-3.5 w-3.5" />
                     <span>Dubai Time (GST) · 4PM to 4AM</span>
                 </div>
 
-                <p className="text-center font-semibold text-sm mb-1"
+                <p className="hidden md:block text-center font-semibold text-sm mb-1"
                     style={{ color: "hsl(var(--foreground))" }}>
                     Select a Time
                 </p>
-                <p className="text-center text-xs mb-4"
+                <p className="hidden md:block text-center text-xs mb-4"
                     style={{ color: "hsl(var(--muted-foreground))" }}>
                     Duration: Varies by service
                 </p>
 
                 {/* Custom scrollbar container */}
                 <style>{scrollbarStyles}</style>
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scroll">
-                    {ALL_TIME_SLOTS.map(time => {
-                        const isSel = selectedTime?.value === time.value;
-                        return (
-                            <div key={time.value} className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedTime(time)}
-                                    className="flex-1 py-3 rounded-lg border text-sm font-medium transition-all hover:border-gold/50"
-                                    style={{
-                                        backgroundColor: isSel ? "hsl(var(--secondary))" : "transparent",
-                                        borderColor: isSel ? "hsl(var(--border))" : "hsl(var(--gold) / 0.3)",
-                                        color: isSel ? "hsl(var(--foreground))" : "hsl(var(--gold))",
-                                    }}
-                                >
-                                    {time.label}
-                                </button>
-                                {isSel && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setStep(2)}
-                                        className="btn-gold shrink-0 px-4 sm:px-5 py-3 rounded-lg text-sm font-semibold"
-                                    >
-                                        Next
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
+                <div className="grid grid-cols-3 gap-2 md:grid-cols-1 md:gap-0 md:space-y-2 md:max-h-72 md:overflow-y-auto md:pr-1 md:custom-scroll">
+                    {/* Evening group header — mobile only, labels only, no change to slot data */}
+                    <div className="col-span-3 md:hidden mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8390A8]">
+                            <Sun className="h-3.5 w-3.5" /> Evening
+                        </span>
+                        <span className="text-[11px] text-[#8390A8]">4:00 PM – 11:30 PM</span>
+                    </div>
+                    {EVENING_SLOTS.map(renderTimeSlotButton)}
+
+                    {/* After-midnight group header — mobile only */}
+                    <div className="col-span-3 md:hidden mt-2 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8390A8]">
+                            <Moon className="h-3.5 w-3.5" /> After midnight
+                        </span>
+                        <span className="text-[11px] text-[#8390A8]">12:00 AM – 4:00 AM</span>
+                    </div>
+                    {AFTER_MIDNIGHT_SLOTS.map(renderTimeSlotButton)}
                 </div>
             </div>
         );
 
         /* ── STEP 2: Details ── */
         if (step === 2) return (
-            <form onSubmit={handleSubmit(onSubmit)}>
-                <BackBtn onClick={() => setStep(1)} />
-                <h3 className="text-lg font-bold mb-5" style={{ color: "hsl(var(--foreground))" }}>
+            <form id="guest-booking-form" onSubmit={handleSubmit(onSubmit)}>
+                <BackBtn onClick={() => setStep(1)} className="hidden md:flex" />
+                <MobileStepHeader title="Your Details" step={3} titleClassName="text-[20px]" />
+                <h3 className="hidden md:block text-lg font-bold mb-5" style={{ color: "hsl(var(--foreground))" }}>
                     Your Details
                 </h3>
 
                 <div className="space-y-4">
                     {/* Name */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5"
-                            style={{ color: "hsl(var(--foreground))" }}>
+                    <div className="min-w-0">
+                        <label className={labelCls}>
                             Name <span className="text-red-400">*</span>
                         </label>
                         <input {...register("guest_name", {
@@ -476,9 +690,8 @@ export const BookingForm = () => {
                     </div>
 
                     {/* Email */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5"
-                            style={{ color: "hsl(var(--foreground))" }}>
+                    <div className="min-w-0">
+                        <label className={labelCls}>
                             Email <span className="text-red-400">*</span>
                         </label>
                         <input {...register("guest_email", {
@@ -489,26 +702,32 @@ export const BookingForm = () => {
                         <ErrorMsg message={errors.guest_email?.message} />
                     </div>
 
-                    {/* Location radios */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2"
-                            style={{ color: "hsl(var(--foreground))" }}>
+                    {/* Location radios — same radios, restyled as wrapping chips on
+                        mobile (native input stays, visually hidden via sr-only). */}
+                    <div className="min-w-0">
+                        <label className={cn(labelCls, "md:mb-2")}>
                             Location <span className="text-red-400">*</span>
                         </label>
-                        <div className="space-y-2">
+                        <div className="space-y-2 md:space-y-2 max-md:!flex max-md:!flex-wrap max-md:!gap-2 max-md:!space-y-0">
                             {LOCATIONS.map(loc => (
                                 <label key={loc} htmlFor={`loc-${loc}`}
-                                    className="flex items-center gap-3 cursor-pointer group">
+                                    className={cn(
+                                        "flex items-center gap-3 cursor-pointer group",
+                                        "max-md:!h-9 max-md:!rounded-[8px] max-md:!border max-md:!border-[#24304B] max-md:!bg-[#16213A] max-md:!px-3 max-md:!gap-1.5",
+                                        "has-[:checked]:max-md:!bg-[#2A2110] has-[:checked]:max-md:!border-[#E8B65C]"
+                                    )}
+                                >
                                     <input
                                         {...register("location", { required: "Please select a location" })}
                                         type="radio" id={`loc-${loc}`} value={loc}
-                                        className="w-4 h-4 accent-[hsl(var(--gold))]"
+                                        className="w-4 h-4 accent-[hsl(var(--gold))] max-md:!sr-only"
                                     />
                                     <span className="flex items-center gap-1.5 text-sm transition-colors
-                                        group-hover:text-[hsl(var(--gold))]"
+                                        group-hover:text-[hsl(var(--gold))] max-md:!text-[14px] group-has-[:checked]:max-md:!text-[#E8B65C]"
                                         style={{ color: "hsl(var(--foreground))" }}>
-                                        <MapPin className="h-4 w-4 flex-shrink-0"
+                                        <MapPin className="h-4 w-4 flex-shrink-0 max-md:!hidden"
                                             style={{ color: "hsl(var(--gold))" }} />
+                                        <Check className="hidden h-4 w-4 flex-shrink-0 text-[#E8B65C] max-md:group-has-[:checked]:!inline" />
                                         {loc}
                                     </span>
                                 </label>
@@ -518,13 +737,12 @@ export const BookingForm = () => {
                     </div>
 
                     {/* Phone */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5"
-                            style={{ color: "hsl(var(--foreground))" }}>
+                    <div className="min-w-0">
+                        <label className={labelCls}>
                             Phone Number <span className="text-red-400">*</span>
                         </label>
                         <div className="flex gap-2">
-                            <div className="flex items-center gap-1.5 px-3 h-11 rounded-lg border text-sm whitespace-nowrap"
+                            <div className="flex h-11 flex-shrink-0 items-center gap-1.5 px-3 rounded-lg border text-sm whitespace-nowrap max-md:!h-12 max-md:!w-[84px] max-md:!justify-center max-md:!gap-1 max-md:!px-2 max-md:!rounded-[8px] max-md:!border-[#66779B] max-md:!bg-[#0B1222]"
                                 style={{
                                     backgroundColor: "hsl(var(--secondary))",
                                     borderColor: "hsl(var(--border))",
@@ -537,42 +755,70 @@ export const BookingForm = () => {
                                 validate: v => v.replace(/\D/g, "").length >= 9 || "At least 9 digits"
                             })}
                                 type="tel" placeholder="50 XXX XXXX"
-                                className={cn(inputCls, "flex-1 w-auto")} />
+                                className={cn(inputCls, "flex-1 min-w-0 w-auto")} />
                         </div>
                         <ErrorMsg message={errors.guest_phone?.message} />
                     </div>
 
-                    {/* Service */}
-                    {services.length > 0 && (
-                        <div>
-                            <label className="block text-sm font-medium mb-1.5"
-                                style={{ color: "hsl(var(--foreground))" }}>
-                                Service <span className="text-red-400">*</span>
-                            </label>
-                            <select {...register("service_id", { required: "Please select a service" })}
-                                className={cn(inputCls, "appearance-none cursor-pointer")}>
-                                <option value="">Select a treatment...</option>
-                                {services.map(s => (
-                                    <option key={s.id} value={String(s.id)}>{s.name}</option>
-                                ))}
-                            </select>
-                            <ErrorMsg message={errors.service_id?.message} />
-                        </div>
-                    )}
+                    {/* Service — always rendered (and always registered) so a
+                        slow/failed fetch can never leave this field out of
+                        react-hook-form's validation. */}
+                    <div className="min-w-0">
+                        <label className={labelCls}>
+                            Service <span className="text-red-400">*</span>
+                        </label>
+                        <select
+                            {...register("service_id", { required: "Please select a service" })}
+                            disabled={servicesStatus !== "ready"}
+                            className={cn(
+                                inputCls,
+                                "appearance-none cursor-pointer",
+                                servicesStatus !== "ready" && "cursor-not-allowed opacity-60"
+                            )}
+                        >
+                            {servicesStatus === "loading" && <option value="">Loading treatments…</option>}
+                            {servicesStatus === "error" && <option value="">Couldn't load treatments</option>}
+                            {servicesStatus === "ready" && (
+                                <>
+                                    <option value="">Select a treatment...</option>
+                                    {services.map(s => (
+                                        <option key={s.id} value={String(s.id)}>{s.name}</option>
+                                    ))}
+                                </>
+                            )}
+                        </select>
+                        {servicesStatus === "error" && (
+                            <button
+                                type="button"
+                                onClick={loadServices}
+                                className="mt-1.5 text-xs font-semibold text-[hsl(var(--gold))]"
+                            >
+                                Couldn't load treatments — tap to retry
+                            </button>
+                        )}
+                        <ErrorMsg message={errors.service_id?.message} />
+                    </div>
                 </div>
 
-                <p className="text-xs mt-4 leading-relaxed"
+                <p className="hidden md:block text-xs mt-4 leading-relaxed"
                     style={{ color: "hsl(var(--muted-foreground))" }}>
                     By proceeding, you confirm that you have read and agree to our terms and conditions.
                     No payment required now — our concierge will confirm via WhatsApp.
                 </p>
+                <div className="md:hidden mt-4 flex items-start gap-2 rounded-[10px] border border-[#1F5444] bg-[#0F2A24] px-3 py-2.5">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5 text-[#4CC79A]" />
+                    <p className="text-[13px] leading-[19px] text-[#A9B3C7]">
+                        By proceeding, you confirm that you have read and agree to our terms and conditions.
+                        No payment required now — our concierge will confirm via WhatsApp.
+                    </p>
+                </div>
 
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !selectedServiceId}
                     className={cn(
-                        "btn-gold mt-5 w-full py-3 rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2",
-                        isSubmitting && "opacity-50 cursor-not-allowed pointer-events-none"
+                        "btn-gold mt-5 w-full py-3 rounded-xl text-sm font-semibold tracking-wide flex items-center justify-center gap-2 hidden md:flex",
+                        (isSubmitting || !selectedServiceId) && "opacity-50 cursor-not-allowed pointer-events-none"
                     )}
                 >
                     {isSubmitting
@@ -585,47 +831,139 @@ export const BookingForm = () => {
 
         /* ── STEP 3: Confirmed ── */
         if (step === 3) return (
-            <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-3">
+            <div className="min-w-0 text-center">
+                <div className="mx-auto mb-4 hidden max-md:flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#0F2A24] border border-[#1F5444]">
+                    <CheckCircle2 className="h-9 w-9 text-[#4CC79A]" />
+                </div>
+                <div className="flex items-center justify-center gap-2 mb-3 md:flex max-md:hidden">
                     <CheckCircle2 className="h-6 w-6 text-green-400" />
                     <h3 className="text-lg font-bold" style={{ color: "hsl(var(--foreground))" }}>
                         Booking Confirmed!
                     </h3>
                 </div>
+                <h3 className="hidden max-md:block font-display text-[22px] mb-2" style={{ color: "hsl(var(--foreground))" }}>
+                    Booking Confirmed!
+                </h3>
                 <p className="text-sm mb-6" style={{ color: "hsl(var(--muted-foreground))" }}>
                     A confirmation email has been sent to your inbox.
                 </p>
 
-                <div className="rounded-xl border p-5 text-left space-y-3"
+                <div className="min-w-0 rounded-xl border p-5 text-left space-y-3 max-md:!space-y-0 max-md:!divide-y max-md:!divide-[#24304B]"
                     style={{
                         backgroundColor: "hsl(var(--card))",
                         borderColor: "hsl(var(--gold) / 0.2)",
                     }}>
-                    <h4 className="font-semibold text-sm flex items-center gap-2"
+                    <h4 className="min-w-0 font-semibold text-sm flex items-center gap-2 max-md:!pb-3"
                         style={{ color: "hsl(var(--foreground))" }}>
-                        <Sparkles className="h-4 w-4" style={{ color: "hsl(var(--gold))" }} />
-                        Infinity Home Spa
+                        <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: "hsl(var(--gold))" }} />
+                        <span className="min-w-0 truncate">Infinity Home Spa</span>
                     </h4>
                     {selectedDateObj && selectedTime && (
-                        <div className="flex items-center gap-2 text-sm font-medium"
+                        <div className="min-w-0 flex items-center gap-2 text-sm font-medium max-md:!py-3"
                             style={{ color: "hsl(var(--foreground))" }}>
                             <CalendarDays className="h-4 w-4 flex-shrink-0"
                                 style={{ color: "hsl(var(--muted-foreground))" }} />
-                            {selectedTime.label} · {format(selectedDateObj, "EEEE, MMMM d, yyyy")}
+                            <span className="min-w-0 truncate">
+                                {selectedTime.label} · {format(selectedDateObj, "EEEE, MMMM d, yyyy")}
+                            </span>
                         </div>
                     )}
-                    <div className="flex items-center gap-2 text-sm"
+                    <div className="min-w-0 flex items-center gap-2 text-sm max-md:!py-3"
                         style={{ color: "hsl(var(--muted-foreground))" }}>
                         <Globe className="h-4 w-4 flex-shrink-0" />
-                        Dubai Time (GST)
+                        <span className="min-w-0 truncate">Dubai Time (GST)</span>
                     </div>
                     {confirmedData?.location && (
-                        <div className="flex items-center gap-2 text-sm"
+                        <div className="min-w-0 flex items-center gap-2 text-sm max-md:!pt-3"
                             style={{ color: "hsl(var(--muted-foreground))" }}>
                             <MapPin className="h-4 w-4 flex-shrink-0"
                                 style={{ color: "hsl(var(--gold))" }} />
-                            {confirmedData.location}
+                            <span className="min-w-0 truncate">{confirmedData.location}</span>
                         </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ── Sticky mobile action bar — visual only, calls the exact same
+    //    handlers/state as the inline controls above. sticky (not fixed),
+    //    lives inside the card. Hidden at md: and up, and once confirmed. ──
+
+    const renderMobileActionBar = () => {
+        if (step > 2) return null;
+
+        const dateLabel = selectedDateObj ? format(selectedDateObj, "EEE, MMM d").toUpperCase() : null;
+        const timeLabel = step >= 1 && selectedTime ? selectedTime.label.toUpperCase() : null;
+
+        return (
+            <div className="sticky bottom-0 md:hidden -mx-4 sm:-mx-5 md:-mx-10 mt-6 border-t border-[#24304B] bg-[#111A2E] px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+                <div className="flex items-center gap-3">
+                    {step >= 1 && (
+                        <button
+                            type="button"
+                            onClick={() => setStep(step - 1)}
+                            aria-label="Back"
+                            className="flex h-11 w-11 flex-none items-center justify-center rounded-[8px] border border-[#24304B] text-[#F3EFE6]"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </button>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-[12px] uppercase tracking-wide text-[#8390A8]">
+                            {dateLabel || "Select a date"}
+                        </div>
+                        {timeLabel && (
+                            <div className="truncate font-mono text-[12px] uppercase tracking-wide text-[#F3EFE6]">
+                                {timeLabel}
+                            </div>
+                        )}
+                    </div>
+
+                    {step === 0 && (
+                        <button
+                            type="button"
+                            onClick={() => selectedDateObj && setStep(1)}
+                            disabled={!selectedDateObj}
+                            className={cn(
+                                "flex h-11 flex-none items-center gap-1.5 rounded-[8px] px-5 text-sm font-semibold",
+                                selectedDateObj ? "bg-[#E8B65C] text-[#1A1206]" : "bg-[#16213A] text-[#4E5A73]"
+                            )}
+                        >
+                            Next <ArrowRight className="h-4 w-4" />
+                        </button>
+                    )}
+
+                    {step === 1 && (
+                        <button
+                            type="button"
+                            onClick={() => selectedTime && setStep(2)}
+                            disabled={!selectedTime}
+                            className={cn(
+                                "flex h-11 flex-none items-center gap-1.5 rounded-[8px] px-5 text-sm font-semibold",
+                                selectedTime ? "bg-[#E8B65C] text-[#1A1206]" : "bg-[#16213A] text-[#4E5A73]"
+                            )}
+                        >
+                            Next <ArrowRight className="h-4 w-4" />
+                        </button>
+                    )}
+
+                    {step === 2 && (
+                        <button
+                            type="submit"
+                            form="guest-booking-form"
+                            disabled={isSubmitting || !selectedServiceId}
+                            className={cn(
+                                "flex h-11 flex-none items-center gap-1.5 rounded-[8px] px-5 text-sm font-semibold",
+                                !isSubmitting && selectedServiceId ? "bg-[#E8B65C] text-[#1A1206]" : "bg-[#16213A] text-[#4E5A73]"
+                            )}
+                        >
+                            {isSubmitting
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <>Confirm <ArrowRight className="h-4 w-4" /></>
+                            }
+                        </button>
                     )}
                 </div>
             </div>
@@ -637,7 +975,7 @@ export const BookingForm = () => {
     return (
         <section
             id="booking"
-            className="relative py-16 px-3 sm:py-24 sm:px-4"
+            className="relative scroll-mt-16 sm:scroll-mt-20 pt-10 pb-6 px-5 md:py-24 md:px-4"
             style={{ backgroundColor: "hsl(var(--background))" }}
         >
             {/* Subtle gold radial glow */}
@@ -651,9 +989,9 @@ export const BookingForm = () => {
 
             <div className="relative z-10 mx-auto max-w-4xl">
                 {/* Two-column card */}
-                <div className="glass-card-strong overflow-hidden grid md:grid-cols-2">
+                <div className="glass-card-strong overflow-hidden grid grid-cols-1 md:grid-cols-2 max-md:!rounded-[14px]">
                     {/* Left: Info */}
-                    <div className="p-6 sm:p-8 md:p-10 border-b md:border-b-0 md:border-r"
+                    <div className="min-w-0 p-4 md:p-10 border-b md:border-b-0 md:border-r max-md:!border-b-0 max-md:!pb-0"
                         style={{ borderColor: "hsl(var(--border))" }}>
                         <LeftPanel
                             selectedDate={selectedDateObj}
@@ -663,9 +1001,11 @@ export const BookingForm = () => {
                     </div>
 
                     {/* Right: Steps */}
-                    <div className="p-6 sm:p-8 md:p-10 overflow-y-auto max-h-[85vh] custom-scroll">
+                    <div className="min-w-0 p-4 md:p-10 md:overflow-y-auto md:max-h-[85vh] md:custom-scroll">
                         <style>{scrollbarStyles}</style>
+                        <MobileProgressBar step={step} />
                         {renderStep()}
+                        {renderMobileActionBar()}
                     </div>
                 </div>
             </div>

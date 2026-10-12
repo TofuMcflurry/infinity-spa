@@ -1,5 +1,5 @@
 import { Link } from "@inertiajs/react"
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Check } from "lucide-react";
 import { Button } from "@/Components/Landing/ui/button";
 import heroImage from "@/assets/hero-spa.jpg";
 
@@ -12,18 +12,18 @@ const points = [
 
 export const About = () => {
   return (
-    <section id="about" className="relative py-24">
-      <div className="container">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
+    <section id="about" className="relative scroll-mt-16 sm:scroll-mt-20 py-10 px-5 md:py-24 md:px-0">
+      <div className="md:container">
+        <div className="grid items-center gap-8 md:gap-12 lg:grid-cols-2">
           <div className="relative">
-            <div className="relative overflow-hidden rounded-3xl border border-primary/30 shadow-luxe">
+            <div className="relative overflow-hidden rounded-[12px] border border-primary/30 shadow-luxe md:rounded-3xl">
               <img
                 src={heroImage}
                 alt="Infinity Home Spa luxury treatment"
                 loading="lazy"
                 width={1920}
                 height={1080}
-                className="aspect-[4/5] w-full object-cover"
+                className="h-[220px] w-full object-cover md:aspect-[4/5] md:h-auto"
               />
               <div className="absolute inset-0 bg-gradient-to-tr from-background/60 to-transparent" />
             </div>
@@ -54,17 +54,20 @@ export const About = () => {
             <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               {points.map((p) => (
                 <li key={p} className="flex items-start gap-3 text-sm">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary hidden md:block" />
+                  <span className="mt-0.5 flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full border border-[#6B5428] bg-[#2A2110] md:hidden">
+                    <Check className="h-3 w-3 text-primary" />
+                  </span>
                   <span>{p}</span>
                 </li>
               ))}
             </ul>
 
-            <div className="mt-10 flex flex-wrap gap-4">
-              <Button variant="luxe" size="lg" asChild>
+            <div className="mt-10 grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4">
+              <Button variant="luxe" size="lg" className="h-12 rounded-[8px] md:h-11 md:rounded-md" asChild>
                 <a href="#booking">Book a Session</a>
               </Button>
-              <Button variant="outlineGold" size="lg" asChild>
+              <Button variant="outlineGold" size="lg" className="h-12 rounded-[8px] md:h-11 md:rounded-md" asChild>
                 <a href="#services">Explore Services</a>
               </Button>
             </div>

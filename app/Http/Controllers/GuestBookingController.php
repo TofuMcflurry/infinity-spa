@@ -11,9 +11,33 @@ class GuestBookingController extends Controller
 {
     public function services()
     {
+        // Guest (landing-page) bookings are always 60-minute sessions — the
+        // guest wizard has no duration picker, so only services with an
+        // active 60-minute variant can be shown/booked from this endpoint.
+        // `guest_variant` is that variant's duration/price; null means the
+        // service has no active 60-minute option and callers should hide it
+        // rather than fall back to a different duration.
         $services = Service::where('is_active', true)
+            ->whereNull('archived_at')
+            ->whereHas('variants', fn ($q) => $q->where('is_active', true))
+            ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('duration_minutes')])
             ->orderBy('name')
-            ->get(['id', 'name', 'duration_minutes', 'price']);
+            ->get()
+            ->map(function (Service $service) {
+                $sixtyMinVariant = $service->variants->firstWhere('duration_minutes', 60);
+
+                return [
+                    'id'            => $service->id,
+                    'name'          => $service->name,
+                    'description'   => $service->description,
+                    'rating'        => $service->rating !== null ? (float) $service->rating : null,
+                    'guest_variant' => $sixtyMinVariant ? [
+                        'duration_minutes' => (int) $sixtyMinVariant->duration_minutes,
+                        'price'             => (float) $sixtyMinVariant->price,
+                    ] : null,
+                ];
+            })
+            ->values();
 
         return response()->json($services);
     }
