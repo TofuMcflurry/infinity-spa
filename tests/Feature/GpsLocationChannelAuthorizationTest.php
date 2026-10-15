@@ -21,31 +21,41 @@ use Tests\TestCase;
  * routes/web.php) against the booking.{bookingId}.location channel
  * registered in routes/channels.php.
  *
- * phpunit.xml forces BROADCAST_CONNECTION=null for the suite as a whole,
- * and Laravel's NullBroadcaster::auth() is a no-op that never even consults
- * the registered channel callback — so testing against it would silently
- * pass regardless of what the authorization closure does.
+ * phpunit.xml forces BROADCAST_CONNECTION=null suite-wide (deliberately —
+ * it must stay that way so no other test can trigger a real outbound
+ * broadcast), and Laravel's NullBroadcaster::auth() is a no-op that never
+ * even consults the registered channel callback — so testing against it
+ * would silently pass regardless of what the authorization closure does.
  *
- * This suite needs the real 'reverb' driver instead — but that CANNOT be
- * set via a runtime config(['broadcasting.default' => 'reverb']) call in
- * setUp(). routes/channels.php registers its Broadcast::channel() closures
- * onto whichever connection is already the default *at boot time* (i.e.
- * 'null', per phpunit.xml); switching the config afterwards only makes the
- * BroadcastManager lazily construct a second, separate 'reverb' broadcaster
- * instance with an empty channel list, since registration and resolution
- * are keyed by connection instance, not re-applied on a config change. The
- * fix is to set BROADCAST_CONNECTION=reverb as a real environment variable
- * before the app boots — e.g.
- *   DB_CONNECTION=pgsql DB_DATABASE=infinity_spa_test BROADCAST_CONNECTION=reverb php artisan test --filter=GpsLocationChannelAuthorizationTest
- * — the same technique this project already uses to override DB_CONNECTION
- * for Postgres-only suites (phpunit.xml's <env> tags don't force-override
- * an already-set shell env var). authorizeChannel() itself only does local
- * HMAC signing with the existing REVERB_APP_KEY/SECRET from .env — no live
- * Reverb server connection is required for this.
+ * A plain runtime config(['broadcasting.default' => ...]) call in setUp()
+ * doesn't fix this either: Broadcast::channel() (called from
+ * routes/channels.php during boot) resolves and caches ONE default-driver
+ * instance the first time it's invoked, and registers every subsequent
+ * channel pattern onto that same instance. Changing the config afterwards
+ * just makes BroadcastManager lazily build a second, separate instance
+ * with an empty channel list — the real closures stay stranded on the
+ * original (null) instance.
+ *
+ * The fix used here: read the ALREADY-POPULATED null-driver instance's
+ * registered channels (the genuine routes/channels.php closures — never
+ * reimplemented) via reflection, and copy that exact state onto a fresh
+ * RedisBroadcaster, whose auth() (unlike Null's) genuinely calls
+ * verifyUserCanAccessChannel() against them. It reuses the already-isolated
+ * test Redis connection (config/database.php's 'default' Redis connection,
+ * pinned to a dedicated database index for this test environment) — no
+ * new credentials, no live Reverb/Pusher connection, and auth() never
+ * calls broadcast(), so no pub/sub message is ever published, not even to
+ * that isolated Redis db. The swapped instance lives only on this test's
+ * own (per-test, freshly booted) BroadcastManager, and is explicitly
+ * reverted in tearDown() as a defensive measure even though Laravel
+ * discards the whole app container between tests anyway.
  */
 class GpsLocationChannelAuthorizationTest extends TestCase
 {
     use RefreshDatabase;
+
+    private $originalBroadcasterDrivers = null;
+    private ?string $broadcastConnectionName = null;
 
     private User $admin;
     private User $customer;
@@ -76,6 +86,72 @@ class GpsLocationChannelAuthorizationTest extends TestCase
         $this->variant = ServiceVariant::create([
             'service_id' => $this->service->id, 'duration_minutes' => 60, 'price' => 300,
         ]);
+
+        $this->installRealAuthCapableBroadcaster();
+    }
+
+    protected function tearDown(): void
+    {
+        // Defensive restore — Laravel discards this whole app container
+        // (and its BroadcastManager) between tests regardless, but this
+        // keeps the swap explicitly scoped to this test class either way.
+        if ($this->originalBroadcasterDrivers !== null) {
+            $manager = app(\Illuminate\Broadcasting\BroadcastManager::class);
+            $driversProp = new \ReflectionProperty($manager, 'drivers');
+            $driversProp->setAccessible(true);
+            $driversProp->setValue($manager, $this->originalBroadcasterDrivers);
+        }
+
+        parent::tearDown();
+    }
+
+    /**
+     * Swap the cached default broadcaster (NullBroadcaster, whose auth() is
+     * a no-op) for a RedisBroadcaster carrying the SAME channel closures
+     * routes/channels.php already registered on it — copied via reflection,
+     * never reimplemented. This is scoped to this test's own BroadcastManager
+     * instance only; the global BROADCAST_CONNECTION=null setting in
+     * phpunit.xml is untouched for every other test class.
+     */
+    private function installRealAuthCapableBroadcaster(): void
+    {
+        $this->broadcastConnectionName = config('broadcasting.default');
+
+        $manager = app(\Illuminate\Broadcasting\BroadcastManager::class);
+
+        // Force resolution now, so routes/channels.php's registrations
+        // (already applied during app boot) are guaranteed present on it.
+        $nullBroadcaster = $manager->driver($this->broadcastConnectionName);
+
+        $channelsProp = new \ReflectionProperty($nullBroadcaster, 'channels');
+        $channelsProp->setAccessible(true);
+
+        $channelOptionsProp = new \ReflectionProperty($nullBroadcaster, 'channelOptions');
+        $channelOptionsProp->setAccessible(true);
+
+        $authCallbackProp = new \ReflectionProperty($nullBroadcaster, 'authenticatedUserCallback');
+        $authCallbackProp->setAccessible(true);
+
+        $bindingRegistrarProp = new \ReflectionProperty($nullBroadcaster, 'bindingRegistrar');
+        $bindingRegistrarProp->setAccessible(true);
+
+        $realBroadcaster = new \Illuminate\Broadcasting\Broadcasters\RedisBroadcaster(
+            app('redis')
+        );
+
+        $channelsProp->setValue($realBroadcaster, $channelsProp->getValue($nullBroadcaster));
+        $channelOptionsProp->setValue($realBroadcaster, $channelOptionsProp->getValue($nullBroadcaster));
+        $authCallbackProp->setValue($realBroadcaster, $authCallbackProp->getValue($nullBroadcaster));
+        $bindingRegistrarProp->setValue($realBroadcaster, $bindingRegistrarProp->getValue($nullBroadcaster));
+
+        $driversProp = new \ReflectionProperty($manager, 'drivers');
+        $driversProp->setAccessible(true);
+
+        $this->originalBroadcasterDrivers = $driversProp->getValue($manager);
+
+        $drivers = $this->originalBroadcasterDrivers;
+        $drivers[$this->broadcastConnectionName] = $realBroadcaster;
+        $driversProp->setValue($manager, $drivers);
     }
 
     private function makeBooking(array $overrides = []): Booking
