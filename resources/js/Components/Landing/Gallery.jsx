@@ -12,8 +12,8 @@ const images = [
 
 export const Gallery = () => {
   return (
-    <section id="gallery" className="relative border-y border-border/40 bg-card/40 py-24">
-      <div className="container">
+    <section id="gallery" className="relative scroll-mt-16 sm:scroll-mt-20 border-y border-border/40 bg-card/40 py-10 px-5 md:py-24 md:px-0">
+      <div className="md:container">
         <div className="mx-auto max-w-2xl text-center">
           <span className="gold-divider text-xs uppercase tracking-[0.3em] text-primary">
             Inside the Experience
@@ -23,7 +23,24 @@ export const Gallery = () => {
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Mobile: 2-column mosaic — same 4 images, same order. */}
+        <div className="mt-8 grid grid-cols-2 gap-2 md:hidden">
+          <div className="row-span-2 h-[328px] overflow-hidden rounded-[12px] border border-border/50">
+            <img src={images[0].src} alt={images[0].alt} loading="lazy" className="h-full w-full object-cover" />
+          </div>
+          <div className="h-[160px] overflow-hidden rounded-[12px] border border-border/50">
+            <img src={images[1].src} alt={images[1].alt} loading="lazy" className="h-full w-full object-cover" />
+          </div>
+          <div className="h-[160px] overflow-hidden rounded-[12px] border border-border/50">
+            <img src={images[2].src} alt={images[2].alt} loading="lazy" className="h-full w-full object-cover" />
+          </div>
+          <div className="col-span-2 h-[150px] overflow-hidden rounded-[12px] border border-border/50">
+            <img src={images[3].src} alt={images[3].alt} loading="lazy" className="h-full w-full object-cover" />
+          </div>
+        </div>
+
+        {/* Desktop/tablet (md: and up) — original grid, unchanged. */}
+        <div className="mt-14 hidden md:grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {images.map((img, i) => (
             <div
               key={img.src}

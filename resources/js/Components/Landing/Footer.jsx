@@ -3,8 +3,8 @@ import { Instagram, Facebook, Mail, Phone, MapPin } from "lucide-react";
 export const Footer = () => {
   return (
     <footer className="relative border-t border-border/50 bg-card/60">
-      <div className="container py-16">
-        <div className="grid gap-12 md:grid-cols-4">
+      <div className="container py-10 px-5 md:py-16 md:px-8">
+        <div className="grid gap-8 md:gap-12 md:grid-cols-4">
           <div className="md:col-span-2">
             <div className="font-display text-2xl font-semibold">
               <span className="text-gradient-gold">Infinity</span> Home Spa
@@ -19,7 +19,7 @@ export const Footer = () => {
                   key={i}
                   href="#"
                   aria-label="Social link"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background transition-smooth hover:border-primary hover:text-primary hover:shadow-gold"
+                  className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-border bg-background transition-smooth hover:border-primary hover:text-primary hover:shadow-gold md:rounded-full"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -27,44 +27,50 @@ export const Footer = () => {
             </div>
           </div>
 
-          <div>
-            <h4 className="font-display text-lg text-primary">Contact</h4>
-            <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <Phone className="mt-0.5 h-4 w-4 text-primary" />
-                +63 992 255 0176
-              </li>
-              <li className="flex items-start gap-2">
-                <Mail className="mt-0.5 h-4 w-4 text-primary" />
-                paislymi@amazon.com
-              </li>
-              <li className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 text-primary" />
-                Downtown Dubai, UAE
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-display text-lg text-primary">Explore</h4>
-            <ul className="mt-4 space-y-3 text-sm">
-              {[
-                ["Services", "#services"],
-                ["Booking", "#booking"],
-                ["Gallery", "#gallery"],
-                ["About", "#about"],
-              ].map(([l, h]) => (
-                <li key={l}>
-                  <a href={h} className="text-muted-foreground transition-smooth hover:text-primary">
-                    {l}
-                  </a>
+          {/* Mobile: Contact and Explore sit side by side as two columns.
+              md:contents removes this wrapper from the box model at md: and
+              up, so Contact/Explore become direct children of the 4-column
+              grid above — exactly the original structure, unchanged. */}
+          <div className="grid grid-cols-2 gap-6 md:contents">
+            <div>
+              <h4 className="font-display text-lg text-primary">Contact</h4>
+              <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <Phone className="mt-0.5 h-4 w-4 text-primary" />
+                  +63 992 255 0176
                 </li>
-              ))}
-            </ul>
+                <li className="flex items-start gap-2">
+                  <Mail className="mt-0.5 h-4 w-4 text-primary" />
+                  paislymi@amazon.com
+                </li>
+                <li className="flex items-start gap-2">
+                  <MapPin className="mt-0.5 h-4 w-4 text-primary" />
+                  Downtown Dubai, UAE
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-display text-lg text-primary">Explore</h4>
+              <ul className="mt-4 space-y-3 text-sm">
+                {[
+                  ["Services", "#services"],
+                  ["Booking", "#booking"],
+                  ["Gallery", "#gallery"],
+                  ["About", "#about"],
+                ].map(([l, h]) => (
+                  <li key={l}>
+                    <a href={h} className="text-muted-foreground transition-smooth hover:text-primary">
+                      {l}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-6 text-xs text-muted-foreground sm:flex-row">
+        <div className="mt-10 md:mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/50 pt-6 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} Infinity Home Spa. All rights reserved.</p>
           <p>Designed & Developed by Aisly Miles Pantig · Software Engineer</p>
         </div>
