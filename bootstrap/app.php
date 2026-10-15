@@ -4,6 +4,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('bookings:flag-stale-active-sessions')->everyFifteenMinutes();
     })
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust only the local Cloudflare tunnel process (cloudflared connects
+        // over loopback) so X-Forwarded-Proto: https is honored — otherwise
+        // Laravel thinks every request is plain HTTP (the tunnel's local hop
+        // to `php artisan serve` is HTTP even though the public side is TLS),
+        // and generates http:// Vite/asset URLs that browsers block as mixed
+        // content on an https:// page.
+        $middleware->trustProxies(
+            at: ['127.0.0.1', '::1'],
+            headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
