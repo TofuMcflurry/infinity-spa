@@ -447,42 +447,56 @@
 
 /* ── Customer Portal — light mode palette override ──────────────────────────
    Scoped to .customer-theme (root wrapper in CustomerLayout.jsx) so this
-   does not affect Admin/Therapist light mode or any dark mode appearance. */
+   does not affect Admin/Therapist light mode or any dark mode appearance.
+   Values below are the "Ivory" palette from the Claude Design mobile
+   handoff (docs/design/Customer Portal Mobile Prototype.zip →
+   theme-light.css), remapped onto these existing token names in place —
+   the handoff's own --theme-cta/--theme-cta-ink happen to equal the dark
+   theme's gold/navy exactly, so those two now also match dark mode. */
 [data-theme="light"] .customer-theme {
-  --theme-bg:           #FAF8F4;
+  --theme-bg:           #FAF7F1;
   --theme-card:         #FFFFFF;
-  --theme-card-hover:   #FAF8F4;
-  --theme-border:       #E8E2D6;
-  --theme-text:         #4B5468;
-  --theme-text-head:    #16203A;
-  --theme-text-2:       #4B5468;
-  --theme-text-muted:   #636A7E;
-  --theme-header-bg:    rgba(250,248,244,0.92);
-  --theme-btn-bg:       #F4F0E8;
+  --theme-card-hover:   #FDF8EE;
+  --theme-border:       #EBE3D4;
+  --theme-text:         #3D382F;
+  --theme-text-head:    #1F1C17;
+  --theme-text-2:       #5A5347;
+  --theme-text-muted:   #6F685B;
+  --theme-header-bg:    rgba(250,247,241,0.94);
+  --theme-btn-bg:       #F4EEE3;
   --theme-input-bg:     #FFFFFF;
-  --theme-notif-bg:     #FFFFFF;
-  --theme-sidebar-bg:   #F4F0E8;
-  --theme-skeleton:     #F4F0E8;
+  --theme-notif-bg:     #FAF7F1;
+  --theme-sidebar-bg:   #F4EEE3;
+  --theme-skeleton:     #EFE8DB;
   --theme-divider:      rgba(22,32,58,0.06);
 
-  /* Customer-only — approved navy-and-ivory palette additions. */
-  --theme-cta:              #D9A441;
-  --theme-cta-ink:          #16203A;
-  --theme-link:             #8A5E10;
-  --theme-tag-gold-bg:      #FBF3E2;
-  --theme-tag-gold-border:  #EBD3A0;
+  /* Customer-only — approved ivory-and-gold palette additions. */
+  --theme-cta:              #E2B764;
+  --theme-cta-ink:          #0B1120;
+  --theme-link:             #8A6420;
+  --theme-tag-gold-bg:      #FBF1DC;
+  --theme-tag-gold-border:  #F0DFB8;
   --theme-tag-pending-bg:   #FCF0DC;
   --theme-tag-pending-text: #8C5A00;
 
   /* Gold-compatible scrollbar thumb for the customer portal specifically
      (Notifications list, Booking Assistant) — slightly warmer than the
      generic light-mode neutral above, matching --theme-link. */
-  --theme-scrollbar-thumb: rgba(138, 94, 16, 0.25);
+  --theme-scrollbar-thumb: rgba(138, 100, 32, 0.25);
 }
 
 [data-theme="light"] .customer-theme .glass-card-strong {
-  background: #F4F0E8;
-  border-color: #E8E2D6;
+  background: #F4EEE3;
+  border-color: #EBE3D4;
+}
+
+/* Plain .glass-card (section/content cards) has no customer-scoped override
+   yet — the generic [data-theme="light"] .glass-card rule above is close but
+   cool-toned (border-slate-200), not the warm ivory border. Reusing the
+   tokens already set above keeps this in sync with them automatically. */
+[data-theme="light"] .customer-theme .glass-card {
+  background: var(--theme-card);
+  border-color: var(--theme-border);
 }
 
 /* ── Scrollbars (theme-aware) ─────────────────────────────────────────────

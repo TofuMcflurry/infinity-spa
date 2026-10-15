@@ -244,7 +244,7 @@ export default function Profile() {
     // ── Loading skeleton ──────────────────────────────────────────────────────
     if (loading) return (
         <AuthenticatedLayout>
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--theme-bg)' }}>
                 <Loader2 className="w-7 h-7 animate-spin text-gold" />
             </div>
         </AuthenticatedLayout>
@@ -254,7 +254,7 @@ export default function Profile() {
 
     return (
         <AuthenticatedLayout>
-            <div className="min-h-screen bg-background">
+            <div className="min-h-screen" style={{ background: 'var(--theme-bg)' }}>
 
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-40 glass-card-strong rounded-none border-x-0 border-t-0 px-5 pt-[env(safe-area-inset-top)] pb-4">
@@ -345,8 +345,8 @@ export default function Profile() {
                                 </div>
 
                                 <h2 className="font-display font-bold text-sm truncate w-full">{profile?.name}</h2>
-                                <p className="text-xs text-muted-foreground truncate w-full">{profile?.email}</p>
-                                <p className="text-[10px] text-muted-foreground mt-1.5">
+                                <p className="text-xs truncate w-full" style={{ color: 'var(--theme-text-muted)' }}>{profile?.email}</p>
+                                <p className="text-[10px] mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>
                                     {t.header.memberSince} {profile?.member_since}
                                 </p>
                             </div>
@@ -363,8 +363,11 @@ export default function Profile() {
                                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                                             isActive
                                                 ? 'gold-gradient text-primary-foreground shadow-lg shadow-gold/20'
-                                                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+                                                : ''
                                         }`}
+                                        style={!isActive ? { color: 'var(--theme-text-muted)' } : undefined}
+                                        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-head)'; } }}
+                                        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--theme-text-muted)'; } }}
                                     >
                                         <Icon className="w-4 h-4 flex-shrink-0" />
                                         <span className="flex-1 text-left">{label}</span>
@@ -392,7 +395,10 @@ export default function Profile() {
                                     {!editing ? (
                                         <button
                                             onClick={() => setEditing(true)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-xs text-muted-foreground transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-card-hover)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'var(--theme-btn-bg)'}
                                         >
                                             {t.profile.edit || 'Edit'}
                                         </button>
@@ -400,9 +406,12 @@ export default function Profile() {
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => { setEditing(false); setDraft({ name: profile.name, phone: profile.phone ?? '' }); }}
-                                                className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                                                className="p-1.5 rounded-lg transition-colors"
+                                                style={{ background: 'var(--theme-btn-bg)' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-card-hover)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'var(--theme-btn-bg)'}
                                             >
-                                                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                                                <X className="w-3.5 h-3.5" style={{ color: 'var(--theme-text-muted)' }} />
                                             </button>
                                             <button
                                                 onClick={handleSaveInfo}
@@ -422,17 +431,18 @@ export default function Profile() {
                                 <div className="space-y-4">
                                     {/* Name */}
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                                            <User className="w-4 h-4 text-muted-foreground" />
+                                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--theme-btn-bg)' }}>
+                                            <User className="w-4 h-4" style={{ color: 'var(--theme-text-muted)' }} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <label className="text-[11px] text-muted-foreground uppercase tracking-wider block mb-1">{t.profile.fullName}</label>
+                                            <label className="text-[11px] uppercase tracking-wider block mb-1" style={{ color: 'var(--theme-text-muted)' }}>{t.profile.fullName}</label>
                                             {editing ? (
                                                 <input
                                                     type="text"
                                                     value={draft.name}
                                                     onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                                                    className="w-full bg-secondary/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                    className="w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                    style={{ background: 'var(--theme-input-bg)', borderColor: 'var(--theme-border)' }}
                                                 />
                                             ) : (
                                                 <p className="text-sm font-medium">{profile?.name}</p>
@@ -442,29 +452,30 @@ export default function Profile() {
 
                                     {/* Email (read-only) */}
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                                            <Mail className="w-4 h-4 text-muted-foreground" />
+                                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--theme-btn-bg)' }}>
+                                            <Mail className="w-4 h-4" style={{ color: 'var(--theme-text-muted)' }} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <label className="text-[11px] text-muted-foreground uppercase tracking-wider block mb-1">{t.profile.email}</label>
-                                            <p className="text-sm font-medium text-muted-foreground">{profile?.email}</p>
+                                            <label className="text-[11px] uppercase tracking-wider block mb-1" style={{ color: 'var(--theme-text-muted)' }}>{t.profile.email}</label>
+                                            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-muted)' }}>{profile?.email}</p>
                                         </div>
                                     </div>
 
                                     {/* Phone */}
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                                            <Smartphone className="w-4 h-4 text-muted-foreground" />
+                                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--theme-btn-bg)' }}>
+                                            <Smartphone className="w-4 h-4" style={{ color: 'var(--theme-text-muted)' }} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <label className="text-[11px] text-muted-foreground uppercase tracking-wider block mb-1">{t.profile.phone}</label>
+                                            <label className="text-[11px] uppercase tracking-wider block mb-1" style={{ color: 'var(--theme-text-muted)' }}>{t.profile.phone}</label>
                                             {editing ? (
                                                 <input
                                                     type="tel"
                                                     value={draft.phone}
                                                     onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))}
                                                     placeholder="+971 50 000 0000"
-                                                    className="w-full bg-secondary/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                    className="w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                    style={{ background: 'var(--theme-input-bg)', borderColor: 'var(--theme-border)' }}
                                                 />
                                             ) : (
                                                 <p className="text-sm font-medium">{profile?.phone || '—'}</p>
@@ -488,7 +499,10 @@ export default function Profile() {
                                     {addresses.length < 3 && (
                                         <button
                                             onClick={openModal}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-xs text-muted-foreground transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-card-hover)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'var(--theme-btn-bg)'}
                                         >
                                             <Plus className="w-3.5 h-3.5" />
                                             {t.profile.addAddress}
@@ -506,7 +520,10 @@ export default function Profile() {
                                                 initial={{ opacity: 0, y: 8 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
-                                                className="flex items-center gap-3 p-4 bg-secondary/50 border border-white/8 rounded-xl group hover:border-white/15 transition-all"
+                                                className="flex items-center gap-3 p-4 rounded-xl group transition-all"
+                                                style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--theme-link)'}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--theme-border)'}
                                             >
                                                 <div className="w-9 h-9 rounded-lg bg-gold/10 flex items-center justify-center flex-shrink-0">
                                                     <Icon className="w-4 h-4 text-gold" />
@@ -523,7 +540,7 @@ export default function Profile() {
                                                             {addr.zone_name}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground mt-1">{addr.address}</p>
+                                                    <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>{addr.address}</p>
                                                 </div>
 
                                                 {/* Actions — visible on hover */}
@@ -557,8 +574,8 @@ export default function Profile() {
 
                                     {addresses.length === 0 && (
                                         <div className="flex flex-col items-center justify-center py-10 gap-3">
-                                            <MapPin className="w-8 h-8 text-muted-foreground" />
-                                            <p className="text-sm text-muted-foreground text-center">
+                                            <MapPin className="w-8 h-8" style={{ color: 'var(--theme-text-muted)' }} />
+                                            <p className="text-sm text-center" style={{ color: 'var(--theme-text-muted)' }}>
                                                 {t.profile.noAddresses || 'No addresses yet.'}<br />
                                                 {t.profile.addFirstLocation || 'Add your first location.'}
                                             </p>
@@ -587,16 +604,17 @@ export default function Profile() {
                                     ].map(({ key, label, icon: PIcon }) => (
                                         <div key={key} className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                                                    <PIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                                                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--theme-btn-bg)' }}>
+                                                    <PIcon className="w-3.5 h-3.5" style={{ color: 'var(--theme-text-muted)' }} />
                                                 </div>
                                                 <span className="text-sm">{label}</span>
                                             </div>
                                             <button
                                                 onClick={() => setPrefs(p => ({ ...p, [key]: !p[key] }))}
                                                 className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                                                    prefs[key] ? 'gold-gradient' : 'bg-secondary'
+                                                    prefs[key] ? 'gold-gradient' : ''
                                                 }`}
+                                                style={!prefs[key] ? { background: 'var(--theme-btn-bg)' } : undefined}
                                             >
                                                 <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
                                                     prefs[key] ? 'translate-x-[22px]' : 'translate-x-0.5'
@@ -619,28 +637,29 @@ export default function Profile() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <div className="flex items-center justify-between p-4 bg-secondary/50 border border-white/8 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                                         <div>
                                             <p className="text-sm font-medium">{t.profile.twoFactorAuth}</p>
-                                            <p className="text-xs text-muted-foreground">{t.profile.twoFactorDesc}</p>
+                                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{t.profile.twoFactorDesc}</p>
                                         </div>
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                            profile?.is_otp_enabled
-                                                ? 'bg-emerald-500/20 text-emerald-400'
-                                                : 'bg-secondary text-muted-foreground'
-                                        }`}>
+                                        <span
+                                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                                profile?.is_otp_enabled ? 'bg-emerald-500/20 text-emerald-400' : ''
+                                            }`}
+                                            style={!profile?.is_otp_enabled ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}
+                                        >
                                             {profile?.is_otp_enabled ? t.profile.enabled : t.profile.disabled}
                                         </span>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-4 bg-secondary/50 border border-white/8 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                                         <div>
                                             <p className="text-sm font-medium">{t.profile.accountType}</p>
-                                            <p className="text-xs text-muted-foreground capitalize">
+                                            <p className="text-xs capitalize" style={{ color: 'var(--theme-text-muted)' }}>
                                                 {profile?.role ?? 'customer'} {t.profile.accountTypeDesc}
                                             </p>
                                         </div>
-                                        <span className="text-xs text-muted-foreground capitalize">{profile?.role ?? 'customer'}</span>
+                                        <span className="text-xs capitalize" style={{ color: 'var(--theme-text-muted)' }}>{profile?.role ?? 'customer'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -664,32 +683,40 @@ export default function Profile() {
                                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="relative w-full max-w-md bg-card border border-white/10 rounded-2xl shadow-2xl z-10 overflow-hidden"
+                                className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-hidden"
+                                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
                             >
                                 {/* Modal Header */}
-                                <div className="flex items-center justify-between p-5 border-b border-white/8">
+                                <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--theme-border)' }}>
                                     <div className="flex items-center gap-3">
                                         {modalStep === 2 && (
                                             <button
                                                 onClick={() => { setModalStep(1); setSelectedZone(null); }}
-                                                className="p-1 rounded-lg hover:bg-secondary transition-colors"
+                                                className="p-1 rounded-lg transition-colors"
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-btn-bg)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                             >
-                                                <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                                                <ChevronLeft className="w-4 h-4" style={{ color: 'var(--theme-text-muted)' }} />
                                             </button>
                                         )}
                                         <h4 className="font-display font-semibold text-base">
                                             {modalStep === 1 ? (t.profile.selectZone || 'Select your zone') : (t.profile.enterAddress || 'Enter your address')}
                                         </h4>
                                     </div>
-                                    <button onClick={closeModal}>
-                                        <X className="w-4 h-4 text-muted-foreground hover:text-white transition-colors" />
+                                    <button
+                                        onClick={closeModal}
+                                        style={{ color: 'var(--theme-text-muted)' }}
+                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
+                                    >
+                                        <X className="w-4 h-4 transition-colors" />
                                     </button>
                                 </div>
 
                                 {/* Step 1 — Zone Selection */}
                                 {modalStep === 1 && (
                                     <div className="p-5 space-y-3">
-                                        <p className="text-xs text-muted-foreground mb-4">
+                                        <p className="text-xs mb-4" style={{ color: 'var(--theme-text-muted)' }}>
                                             {t.profile.selectZoneDesc || 'We currently serve these areas in Dubai. Select where you\'d like to receive services.'}
                                         </p>
 
@@ -702,28 +729,28 @@ export default function Profile() {
                                                         setModalStep(2);
                                                     }}
                                                     className="flex flex-col items-start p-3.5 rounded-xl border transition-all text-start"
-                                                    style={{ borderColor: '#1e2740', background: '#0f1629' }}
+                                                    style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-btn-bg)' }}
                                                     onMouseEnter={e => {
                                                         e.currentTarget.style.borderColor = '#e2b764';
                                                         e.currentTarget.style.background = 'rgba(226,183,100,0.05)';
                                                     }}
                                                     onMouseLeave={e => {
-                                                        e.currentTarget.style.borderColor = '#1e2740';
-                                                        e.currentTarget.style.background = '#0f1629';
+                                                        e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                        e.currentTarget.style.background = 'var(--theme-btn-bg)';
                                                     }}
                                                 >
                                                     <div className="w-7 h-7 rounded-lg bg-gold/10 flex items-center justify-center mb-2">
                                                         <MapPin className="w-3.5 h-3.5 text-gold" />
                                                     </div>
-                                                    <p className="text-sm font-semibold text-white">{zone.label}</p>
-                                                    <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">Dubai, UAE</p>
+                                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{zone.label}</p>
+                                                    <p className="text-[10px] mt-0.5 line-clamp-1" style={{ color: 'var(--theme-text-muted)' }}>Dubai, UAE</p>
                                                 </button>
                                             ))}
                                         </div>
 
                                         {/* Not in list */}
-                                        <div className="mt-4 p-4 rounded-xl border border-dashed border-white/10 text-center">
-                                            <p className="text-xs text-muted-foreground">
+                                        <div className="mt-4 p-4 rounded-xl border border-dashed text-center" style={{ borderColor: 'var(--theme-border)' }}>
+                                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                                                 {t.profile.notInArea || 'Not in any of these areas?'}
                                             </p>
                                             <p className="text-xs font-medium text-destructive mt-1">
@@ -744,7 +771,7 @@ export default function Profile() {
 
                                         {/* Label input */}
                                         <div>
-                                            <label className="text-[11px] text-muted-foreground uppercase tracking-wider block mb-1.5">
+                                            <label className="text-[11px] uppercase tracking-wider block mb-1.5" style={{ color: 'var(--theme-text-muted)' }}>
                                                 {t.profile.locationLabel || 'Location Label'}
                                             </label>
                                             <input
@@ -752,14 +779,15 @@ export default function Profile() {
                                                 value={addrLabel}
                                                 onChange={e => setAddrLabel(e.target.value)}
                                                 placeholder={t.profile.labelPlaceholder || 'e.g. Home, Studio, Office...'}
-                                                className="w-full bg-secondary/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                className="w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors"
+                                                style={{ background: 'var(--theme-input-bg)', borderColor: 'var(--theme-border)' }}
                                                 autoFocus
                                             />
                                         </div>
 
                                         {/* Exact address input */}
                                         <div>
-                                            <label className="text-[11px] text-muted-foreground uppercase tracking-wider block mb-1.5">
+                                            <label className="text-[11px] uppercase tracking-wider block mb-1.5" style={{ color: 'var(--theme-text-muted)' }}>
                                                 {t.profile.exactAddress || 'Exact Address'}
                                             </label>
                                             <textarea
@@ -767,7 +795,8 @@ export default function Profile() {
                                                 onChange={e => setAddrText(e.target.value)}
                                                 placeholder={t.profile.addressPlaceholder || 'e.g. Villa 23, Street 5B, Gate Village, DIFC'}
                                                 rows={3}
-                                                className="w-full bg-secondary/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors resize-none"
+                                                className="w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gold/50 transition-colors resize-none"
+                                                style={{ background: 'var(--theme-input-bg)', borderColor: 'var(--theme-border)' }}
                                             />
                                         </div>
 
@@ -776,7 +805,7 @@ export default function Profile() {
                                             onClick={handleAddAddress}
                                             disabled={!addrLabel.trim() || !addrText.trim() || savingAddress}
                                             className="w-full py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                            style={{ background: '#e2b764', color: '#0b1120' }}
+                                            style={{ background: 'var(--theme-cta)', color: 'var(--theme-cta-ink)' }}
                                         >
                                             {savingAddress
                                                 ? <Loader2 className="w-4 h-4 animate-spin" />
