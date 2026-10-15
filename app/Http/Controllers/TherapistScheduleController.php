@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
-use App\Models\RescheduleRequest;
 use App\Models\RestDayRequest;
 use App\Models\TherapistUnavailableSlot;
+use App\Services\RescheduleRequestService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -121,6 +121,17 @@ class TherapistScheduleController extends Controller
     }
 
     // POST /therapist/api/reschedule-request
+    //
+    // Request shape (requested_date + requested_time, kept separate) is
+    // unchanged from before — the existing Schedule.jsx RescheduleModal
+    // still sends exactly this, so it keeps working with no frontend
+    // change. Internally these are combined into the single
+    // requested_start_at instant the now-shared reschedule_requests table
+    // uses, and creation goes through RescheduleRequestService — the same
+    // service the customer flow uses — so this path now also enforces the
+    // approved booking-state eligibility rules it previously lacked
+    // entirely (any booking status, including completed/cancelled, used
+    // to be accepted here).
     public function storeRescheduleRequest(Request $request): JsonResponse
     {
         $request->validate([
@@ -132,24 +143,17 @@ class TherapistScheduleController extends Controller
 
         $booking   = Booking::findOrFail($request->booking_id);
         $therapist = auth()->user()->therapist;
-        abort_if($booking->therapist_id !== $therapist->id, 403);
+        abort_if(!$therapist || $booking->therapist_id !== $therapist->id, 403);
 
-        // Prevent duplicate pending request for same booking
-        $existing = RescheduleRequest::where('booking_id', $request->booking_id)
-            ->where('status', 'pending')
-            ->exists();
+        $requestedStartAt = Carbon::parse($request->requested_date . ' ' . $request->requested_time);
 
-        if ($existing) {
-            return response()->json(['message' => 'A pending reschedule request already exists for this booking.'], 409);
-        }
-
-        $reschedule = RescheduleRequest::create([
-            'booking_id'     => $request->booking_id,
-            'therapist_id'   => auth()->id(),
-            'requested_date' => $request->requested_date,
-            'requested_time' => $request->requested_time,
-            'reason'         => $request->reason,
-        ]);
+        $reschedule = RescheduleRequestService::create(
+            $booking,
+            auth()->user(),
+            RescheduleRequestService::ROLE_THERAPIST,
+            $requestedStartAt,
+            $request->reason
+        );
 
         return response()->json(['message' => 'Reschedule request submitted. Awaiting admin approval.', 'id' => $reschedule->id], 201);
     }

@@ -57,9 +57,51 @@ const translations = {
       securedPayment: 'Secured payment • 256-bit encryption',
     },
     messenger: {
-      title: 'Concierge',
+      title: 'Booking Assistant',
       online: 'Online',
-      placeholder: 'Message concierge...',
+      placeholder: 'Ask me anything...',
+      assistant: {
+        welcome: "Hi! I'm your Booking Assistant 🌿 I can help with booking steps, payments, your bookings, and tracking. Choose a topic below or type your question.",
+        fallback: "I'm not totally sure about that one yet. Here's what I can help with — tap a topic below, or ask me about booking, payment, tracking, cancellations, or vouchers.",
+        openLabel: 'Open booking assistant',
+        closeLabel: 'Close booking assistant',
+        sendLabel: 'Send',
+        linkLabels: {
+          bookings: 'Book a Session',
+          'my.bookings': 'View My Bookings',
+          therapists: 'Browse Therapists',
+        },
+        topics: {
+          howToBook: {
+            label: 'How do I book a session?',
+            answer: 'Booking takes 5 quick steps: pick a Service, choose a Therapist, set your Date & Address, select an available Time, then Pay. You can start right now from the Book a Session page.',
+          },
+          chooseTherapist: {
+            label: 'How do I choose a therapist?',
+            answer: 'After picking a service, Step 2 of booking shows you available therapists with their specialty, rating, and experience so you can choose who feels right for you.',
+          },
+          payment: {
+            label: 'What payment options do I have?',
+            answer: "You pay securely via Stripe — either a 20% downpayment now with the rest due on session day, or the full amount upfront. If you choose the downpayment, you'll pick Cash (pay your therapist on arrival) or Cashless (card/app) for the remaining balance.",
+          },
+          checkBookings: {
+            label: 'How do I check my bookings?',
+            answer: 'Open My Bookings to see every session — Pending, Completed, and Cancelled — along with its payment and downpayment status.',
+          },
+          tracking: {
+            label: 'Can I track my therapist?',
+            answer: "I can't check your specific booking, but here's how tracking works: once your therapist is on the way, your booking's status becomes En Route and a live map appears on My Bookings showing their location in real time, as long as location updates are being received. If the connection drops, you'll see their last known position instead.",
+          },
+          cancellation: {
+            label: "What's the cancellation policy?",
+            answer: "Cancel more than 24 hours before your session for a full refund of what you've paid. Cancelling within 24 hours of the session, or not showing up, forfeits the amount already paid.",
+          },
+          voucher: {
+            label: 'How do I use a voucher?',
+            answer: 'Enter your voucher code (like IHS-FREE-XXXX) during Step 5 - Payment of booking. A valid voucher can cover an eligible 60-minute service in full, so you pay nothing for that session.',
+          },
+        },
+      },
     },
     services: {
       title: 'Our Services',
@@ -244,9 +286,51 @@ const translations = {
       securedPayment: 'دفع آمن • تشفير 256 بت',
     },
     messenger: {
-      title: 'الكونسيرج',
+      title: 'مساعد الحجوزات',
       online: 'متصل',
-      placeholder: 'راسل الكونسيرج...',
+      placeholder: 'اسألني أي شيء...',
+      assistant: {
+        welcome: 'مرحباً! أنا مساعد الحجوزات 🌿 يمكنني مساعدتك في خطوات الحجز، طرق الدفع، حجوزاتك، وتتبع المعالج. اختر موضوعاً أدناه أو اكتب سؤالك.',
+        fallback: 'لست متأكداً من هذا السؤال حالياً. إليك ما يمكنني المساعدة به — اختر موضوعاً أدناه، أو اسألني عن الحجز، الدفع، التتبع، الإلغاء، أو القسائم.',
+        openLabel: 'فتح مساعد الحجوزات',
+        closeLabel: 'إغلاق مساعد الحجوزات',
+        sendLabel: 'إرسال',
+        linkLabels: {
+          bookings: 'احجز جلستك',
+          'my.bookings': 'عرض حجوزاتي',
+          therapists: 'تصفح المعالجين',
+        },
+        topics: {
+          howToBook: {
+            label: 'كيف أحجز جلسة؟',
+            answer: 'الحجز يتم بـ 5 خطوات سريعة: اختر الخدمة، اختر المعالج، حدد التاريخ والعنوان، اختر وقتاً متاحاً، ثم الدفع. يمكنك البدء الآن من صفحة احجز جلستك.',
+          },
+          chooseTherapist: {
+            label: 'كيف أختار المعالج؟',
+            answer: 'بعد اختيار الخدمة، تعرض لك الخطوة الثانية من الحجز المعالجين المتاحين مع تخصصهم وتقييمهم وخبرتهم لتختار من يناسبك.',
+          },
+          payment: {
+            label: 'ما هي طرق الدفع المتاحة؟',
+            answer: 'يمكنك الدفع بأمان عبر Stripe — إما دفعة مقدمة بنسبة ٢٠٪ الآن مع سداد الباقي يوم الجلسة، أو الدفع الكامل مقدماً. إذا اخترت الدفعة المقدمة، ستحدد الدفع نقداً (للمعالج عند الحضور) أو بدون نقد (بطاقة / تطبيق) للمبلغ المتبقي.',
+          },
+          checkBookings: {
+            label: 'كيف أتحقق من حجوزاتي؟',
+            answer: 'افتح صفحة حجوزاتي لرؤية جميع جلساتك — المعلقة، المكتملة، والملغاة — مع حالة الدفع والدفعة المقدمة لكل منها.',
+          },
+          tracking: {
+            label: 'هل يمكنني تتبع المعالج؟',
+            answer: "لا يمكنني معرفة حالة حجزك الخاص، ولكن هكذا يعمل التتبع: بمجرد أن يكون المعالج في الطريق، تتغير حالة حجزك إلى 'في الطريق' وتظهر خريطة مباشرة في صفحة حجوزاتي تُظهر موقعه في الوقت الفعلي، طالما يتم استقبال تحديثات الموقع. إذا انقطع الاتصال، سترى آخر موقع معروف له.",
+          },
+          cancellation: {
+            label: 'ما هي سياسة الإلغاء؟',
+            answer: 'الإلغاء قبل أكثر من ٢٤ ساعة من جلستك يعني استرداد كامل للمبلغ المدفوع. الإلغاء خلال ٢٤ ساعة من الجلسة، أو عدم الحضور، يؤدي إلى فقدان المبلغ المدفوع.',
+          },
+          voucher: {
+            label: 'كيف أستخدم القسيمة؟',
+            answer: 'أدخل رمز القسيمة (مثل IHS-FREE-XXXX) في الخطوة الخامسة - الدفع من الحجز. القسيمة الصالحة قد تغطي خدمة ٦٠ دقيقة بالكامل، فلا تدفع شيئاً لتلك الجلسة.',
+          },
+        },
+      },
     },
     services: {
       title: 'خدماتنا',

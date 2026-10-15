@@ -12,6 +12,7 @@ import { isToday, fmtDate, fmtTime, fmtDateTime, DUBAI_TZ } from '@/lib/utils';
 
 import { Button } from '@/Components/ui/button';
 import { BookingModal, BookingReviewModal } from '@/Pages/Therapist/Bookings';
+import { useTherapistGps } from '@/hooks/useTherapistGps';
 
 // ── CSRF + API helper — same pattern as Dashboard.jsx / Bookings.jsx ───────────
 function getCsrf() {
@@ -240,6 +241,14 @@ export default function Dashboard() {
     // or the button stays enabled here while the server still rejects it.
     const anyActiveBooking = bookings.find(b => ['en_route', 'arrived'].includes(b.status)) ?? null;
     const hasActiveSession = !!anyActiveBooking;
+
+    // GPS v1 (docs/architecture/GPS-ARCHITECTURE.md) — therapists run their
+    // active session from this page, not Therapist/Bookings.jsx, so the
+    // capture hook must also mount here. Reuses the bookings state already
+    // fetched above — no second API call. Scoped to en_route only (not
+    // arrived) to match the hook's own lifecycle contract.
+    const activeGpsBooking = anyActiveBooking?.status === 'en_route' ? anyActiveBooking : null;
+    useTherapistGps(activeGpsBooking);
 
     const todaysAccepted = bookings
         .filter(b => b.status === 'accepted' && isToday(b.scheduled_start))

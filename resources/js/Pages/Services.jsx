@@ -3,9 +3,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { router } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Clock, Star, ChevronRight, Loader2, Sparkles } from 'lucide-react';
+import { Clock, Star, ChevronRight, Loader2, Sparkles, Heart, AlertCircle } from 'lucide-react';
 
-// ── API helper ────────────────────────────────────────────────────────────────
+// ── API helpers ───────────────────────────────────────────────────────────────
+function getCsrf() {
+    const cookie = document.cookie.split('; ').find(r => r.startsWith('XSRF-TOKEN='));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+}
+
 async function apiFetch(url) {
     const res = await fetch(url, {
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -13,6 +18,30 @@ async function apiFetch(url) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+}
+
+async function apiWrite(url, method, body) {
+    const res = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': getCsrf(),
+        },
+        credentials: 'same-origin',
+        body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 419) {
+            throw new Error('Your session has expired. Please log in again.');
+        }
+        throw new Error(data.message || 'Something went wrong. Please try again.');
+    }
+
+    return res.status === 204 ? null : res.json();
 }
 
 // ── Category config ───────────────────────────────────────────────────────────
@@ -23,7 +52,7 @@ const CATEGORIES = [
 ];
 
 // ── Service Group Card ────────────────────────────────────────────────────────
-function ServiceGroupCard({ group, locale, onBook, index }) {
+function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishlisted, isTogglingWishlist, onToggleWishlist }) {
     const [selectedDuration, setSelectedDuration] = useState(null);
 
     const groupLabel = locale === 'ar' ? group.group_name_ar : group.group_name;
@@ -32,6 +61,12 @@ function ServiceGroupCard({ group, locale, onBook, index }) {
     const avgRating  = hasRating
         ? (group.durations.reduce((sum, d) => sum + Number(d.rating), 0) / group.durations.length).toFixed(1)
         : null;
+
+    const handleWishlistClick = (e) => {
+        e.stopPropagation();
+        if (isTogglingWishlist || !serviceId) return;
+        onToggleWishlist(serviceId);
+    };
 
     const handleBook = () => {
         // Pass selected service to booking page
@@ -67,6 +102,32 @@ function ServiceGroupCard({ group, locale, onBook, index }) {
                             style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
                             NEW
                         </span>
+                    )}
+
+                    {/* Wishlist heart toggle */}
+                    {serviceId && (
+                        <button
+                            type="button"
+                            onClick={handleWishlistClick}
+                            disabled={isTogglingWishlist}
+                            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                            aria-pressed={isWishlisted}
+                            className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            style={{
+                                background: isWishlisted ? 'rgba(226,183,100,0.15)' : '#141d33',
+                                border: `1px solid ${isWishlisted ? '#e2b764' : '#1e2740'}`,
+                            }}
+                        >
+                            {isTogglingWishlist ? (
+                                <Loader2 size={13} className="animate-spin" style={{ color: '#e2b764' }} />
+                            ) : (
+                                <Heart
+                                    size={13}
+                                    fill={isWishlisted ? '#e2b764' : 'none'}
+                                    style={{ color: isWishlisted ? '#e2b764' : '#64748b' }}
+                                />
+                            )}
+                        </button>
                     )}
                 </div>
 
@@ -170,13 +231,59 @@ export default function Services() {
     const [error,           setError]           = useState(null);
     const [activeCategory,  setActiveCategory]  = useState('all');
 
-    // ── Fetch grouped services ────────────────────────────────────────────────
+    // service_id -> wishlist row id, for services currently saved by this customer
+    const [wishlistMap,        setWishlistMap]        = useState({});
+    const [pendingWishlistIds, setPendingWishlistIds]  = useState(() => new Set());
+    const [wishlistError,      setWishlistError]       = useState(null);
+
+    // ── Fetch grouped services + current wishlist state (single request each) ──
     useEffect(() => {
-        apiFetch('/api/services')
-            .then(setServices)
+        Promise.all([
+            apiFetch('/api/services'),
+            apiFetch('/api/wishlist').catch(() => []), // wishlist state is non-critical to the page
+        ])
+            .then(([servicesData, wishlistData]) => {
+                setServices(servicesData);
+                const map = {};
+                wishlistData.forEach(row => { map[row.service_id] = row.id; });
+                setWishlistMap(map);
+            })
             .catch(e => setError(e.message))
             .finally(() => setLoading(false));
     }, []);
+
+    // ── Toggle wishlist save/remove for a service ─────────────────────────────
+    const handleToggleWishlist = async (serviceId) => {
+        if (pendingWishlistIds.has(serviceId)) return; // guard against rapid repeated clicks
+
+        setPendingWishlistIds(prev => new Set(prev).add(serviceId));
+        setWishlistError(null);
+
+        const wasWishlisted = wishlistMap[serviceId] != null;
+
+        try {
+            if (wasWishlisted) {
+                await apiWrite(`/api/wishlist/${wishlistMap[serviceId]}`, 'DELETE');
+                setWishlistMap(prev => {
+                    const next = { ...prev };
+                    delete next[serviceId];
+                    return next;
+                });
+            } else {
+                const data = await apiWrite('/api/wishlist', 'POST', { service_id: serviceId });
+                setWishlistMap(prev => ({ ...prev, [serviceId]: data.wishlist.id }));
+            }
+        } catch (err) {
+            // keep previous heart state on failure
+            setWishlistError(err.message);
+        } finally {
+            setPendingWishlistIds(prev => {
+                const next = new Set(prev);
+                next.delete(serviceId);
+                return next;
+            });
+        }
+    };
 
     // ── Filter by category ────────────────────────────────────────────────────
     const filtered = activeCategory === 'all'
@@ -205,6 +312,18 @@ export default function Services() {
                 </header>
 
                 <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+                    {/* ── Wishlist error banner ── */}
+                    {wishlistError && (
+                        <div className="flex items-center gap-3 p-3 mb-4 rounded-xl text-sm"
+                            style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', color: '#f87171' }}>
+                            <AlertCircle size={16} className="flex-shrink-0" />
+                            <span className="flex-1">{wishlistError}</span>
+                            <button onClick={() => setWishlistError(null)} className="text-xs underline flex-shrink-0">
+                                Dismiss
+                            </button>
+                        </div>
+                    )}
 
                     {/* ── Category Filters ── */}
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
@@ -256,15 +375,22 @@ export default function Services() {
                                 transition={{ duration: 0.2 }}
                                 className="space-y-4"
                             >
-                                {filtered.map((group, i) => (
-                                    <ServiceGroupCard
-                                        key={group.group_name}
-                                        group={group}
-                                        locale={locale}
-                                        index={i}
-                                        onBook={() => router.visit(route('bookings'))}
-                                    />
-                                ))}
+                                {filtered.map((group, i) => {
+                                    const serviceId = group.durations[0]?.service_id ?? null;
+                                    return (
+                                        <ServiceGroupCard
+                                            key={group.group_name}
+                                            group={group}
+                                            locale={locale}
+                                            index={i}
+                                            onBook={() => router.visit(route('bookings'))}
+                                            serviceId={serviceId}
+                                            isWishlisted={serviceId != null && wishlistMap[serviceId] != null}
+                                            isTogglingWishlist={serviceId != null && pendingWishlistIds.has(serviceId)}
+                                            onToggleWishlist={handleToggleWishlist}
+                                        />
+                                    );
+                                })}
                             </motion.div>
                         </AnimatePresence>
                     )}

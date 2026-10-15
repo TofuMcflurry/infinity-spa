@@ -6,8 +6,12 @@ use App\Models\Booking;
 use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
+use App\Notifications\BookingNotification;
+use App\Services\RescheduleRequestService;
+use App\Services\TherapistAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
@@ -151,7 +155,7 @@ class BookingController extends Controller
             }
 
             if ($therapistId) {
-                $slotResult = $this->getTherapistSlotStatus(
+                $slotResult = TherapistAvailabilityService::getTherapistSlotStatus(
                     $therapistId,
                     $slotDateTime,
                     $variant->duration_minutes,
@@ -179,7 +183,7 @@ class BookingController extends Controller
                     }
                 }
             } else {
-                $isAvail    = $this->hasAvailableTherapist(
+                $isAvail    = TherapistAvailabilityService::hasAvailableTherapist(
                     $slotDateTime,
                     $variant->duration_minutes,
                     $zoneName,
@@ -278,46 +282,69 @@ class BookingController extends Controller
         }
 
         // ── Therapist conflict check ──────────────────────────────────────────
-        if ($this->hasConflict(
-            $therapist->id,
-            $timeBlocks['travel_start'],
-            $timeBlocks['buffer_end']
-        )) {
-            return response()->json([
-                'message' => 'Sorry, this slot is no longer available.',
-            ], 409);
-        }
+        // Locks the therapist's own row for the duration of the conflict
+        // check + insert — the same DB::transaction + lockForUpdate pattern
+        // already used throughout TherapistBookingController/AdminBookingController,
+        // applied to the therapist row as a stand-in resource lock (the
+        // booking being created doesn't exist yet, so there is no booking
+        // row to lock). This serializes concurrent booking-creation attempts
+        // for this therapist, so a second request's hasConflict() check can
+        // never run against the same not-yet-committed state the first
+        // request already passed — it blocks until the first transaction
+        // commits (or rolls back), then re-evaluates against the real,
+        // post-commit set of bookings.
+        $booking = DB::transaction(function () use (
+            $therapist, $timeBlocks, $request, $variant,
+            $isVoucherCovered, $downpaymentAmount, $remainingAmount, $slotDatetime
+        ) {
+            Therapist::where('id', $therapist->id)->lockForUpdate()->firstOrFail();
 
-        $booking = Booking::create([
-            'customer_id'        => auth()->id(),
-            'therapist_id'       => $request->therapist_id,
-            'service_id'         => $variant->service_id,
-            'service_variant_id' => $variant->id,
-            'location'           => $request->location,
-            'zone_name'          => $request->zone_name,
-            'scheduled_start'    => $slotDatetime,
-            'scheduled_end'      => $timeBlocks['scheduled_end'],
-            'travel_start'       => $timeBlocks['travel_start'],
-            'buffer_end'         => $timeBlocks['buffer_end'],
-            'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
-            'payment_type'       => $request->input('payment_type', 'downpayment'),
-            // A voucher-covered booking has nothing to pay via Stripe, so it
-            // skips 'pending_payment' and is marked paid immediately — but
-            // still awaits therapist approval like any other paid booking,
-            // the same end state the Stripe webhook reaches for a paid booking.
-            'status'             => $isVoucherCovered ? 'pending' : 'pending_payment',
-            'downpayment_amount' => $downpaymentAmount,
-            'remaining_amount'   => $remainingAmount,
-            'downpayment_status' => 'pending',
-            'payment_status'     => $isVoucherCovered ? 'paid' : 'pending',
-            'paid_amount'        => $isVoucherCovered ? 0 : null,
-            'voucher_code'       => $request->voucher_code,
-            'is_voucher_covered' => $isVoucherCovered,
-        ]);
+            if (TherapistAvailabilityService::hasConflict(
+                $therapist->id,
+                $timeBlocks['travel_start'],
+                $timeBlocks['buffer_end']
+            )) {
+                abort(409, 'Sorry, this slot is no longer available.');
+            }
+
+            return Booking::create([
+                'customer_id'        => auth()->id(),
+                'therapist_id'       => $request->therapist_id,
+                'service_id'         => $variant->service_id,
+                'service_variant_id' => $variant->id,
+                'location'           => $request->location,
+                'zone_name'          => $request->zone_name,
+                'scheduled_start'    => $slotDatetime,
+                'scheduled_end'      => $timeBlocks['scheduled_end'],
+                'travel_start'       => $timeBlocks['travel_start'],
+                'buffer_end'         => $timeBlocks['buffer_end'],
+                'payment_method'     => $request->payment_method ?? ($isVoucherCovered ? 'cash' : null),
+                'payment_type'       => $request->input('payment_type', 'downpayment'),
+                // A voucher-covered booking has nothing to pay via Stripe, so it
+                // skips 'pending_payment' and is marked paid immediately — but
+                // still awaits therapist approval like any other paid booking,
+                // the same end state the Stripe webhook reaches for a paid booking.
+                'status'             => $isVoucherCovered ? 'pending' : 'pending_payment',
+                'downpayment_amount' => $downpaymentAmount,
+                'remaining_amount'   => $remainingAmount,
+                'downpayment_status' => 'pending',
+                'payment_status'     => $isVoucherCovered ? 'paid' : 'pending',
+                'paid_amount'        => $isVoucherCovered ? 0 : null,
+                'voucher_code'       => $request->voucher_code,
+                'is_voucher_covered' => $isVoucherCovered,
+            ]);
+        });
+
+        // Booking::create() above is a single, already-committed insert — the
+        // row exists by the time we reach here, so it's safe to notify now.
+        // Only the assigned therapist is notified; the customer is never
+        // notified for their own booking-created action.
+        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        $booking->therapist->user->notify(new BookingNotification($booking, 'booking_pending'));
 
         return response()->json([
             'message' => 'Booking submitted!',
-            'booking' => $booking->load('service', 'serviceVariant', 'therapist.user'),
+            'booking' => $booking,
         ], 201);
     }
 
@@ -350,16 +377,66 @@ class BookingController extends Controller
         ]);
     }
 
+    // ── Customer Reschedule Request ─────────────────────────────────────────
+    // Only ever records a preference for admin review — never moves the
+    // booking itself, never changes its status, never sends the final
+    // "rescheduled" notification. The actual move only ever happens later
+    // through BookingRescheduleService::reschedule(), via the admin
+    // approval step (not implemented yet). Client may only send the
+    // requested time and an optional reason — requester identity always
+    // comes from the authenticated session, never the request body.
+    public function rescheduleRequest(Request $request, Booking $booking)
+    {
+        abort_if(auth()->id() !== $booking->customer_id, 403);
+
+        $request->validate([
+            'requested_start_at' => 'required|date|after:now',
+            'reason'             => 'nullable|string|max:500',
+        ]);
+
+        $reschedule = RescheduleRequestService::create(
+            $booking,
+            auth()->user(),
+            RescheduleRequestService::ROLE_CUSTOMER,
+            Carbon::parse($request->requested_start_at),
+            $request->reason
+        );
+
+        return response()->json([
+            'message' => 'Reschedule request submitted. Awaiting admin review.',
+            'request' => [
+                'id'                 => $reschedule->id,
+                'booking_id'         => $booking->id,
+                'booking_ref'        => 'IHS-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT),
+                'requested_start_at' => $reschedule->requested_start_at->toIso8601String(),
+                'status'             => $reschedule->status,
+            ],
+        ], 201);
+    }
+
     // ── My Bookings ───────────────────────────────────────────────────────────
     public function myBookings()
     {
         $customerId = auth()->id();
 
-        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user'])
+        $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'rescheduleRequests', 'rescheduleProposals'])
             ->where('customer_id', $customerId)
             ->orderByDesc('scheduled_start')
             ->get()
-            ->map(fn($b) => [
+            ->map(function ($b) {
+                // Most recent request regardless of outcome — drives the
+                // "Reschedule Pending / Approved / Rejected" badge. Only a
+                // 'pending' one blocks submitting another (see
+                // RescheduleRequestService::create()'s own duplicate check).
+                $latestRequest = $b->rescheduleRequests->sortByDesc('created_at')->first();
+                // Most recent admin-initiated proposal — drives the
+                // "Schedule Change Proposed" response UI
+                // (docs/design/INFINITY-HOME-SPA-UI-HANDOFF.md §8.5). Only a
+                // 'pending' one blocks submitting a new plain request (see
+                // RescheduleRequestService::create()'s cross-flow guard).
+                $latestProposal = $b->rescheduleProposals->sortByDesc('created_at')->first();
+
+                return [
                 'id'               => $b->id,
                 'service'          => $b->service->name,
                 'service_id'       => $b->service_id,
@@ -373,6 +450,7 @@ class BookingController extends Controller
                 'date_short'       => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('M d, Y'),
                 'time'             => Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai')->format('g:i A'),
                 'time_end'         => Carbon::parse($b->scheduled_end)->timezone('Asia/Dubai')->format('g:i A'),
+                'scheduled_start'  => $b->scheduled_start?->toIso8601String(),
                 'duration'         => $b->serviceVariant->duration_minutes ?? $b->service->duration_minutes,
                 'price'            => $b->serviceVariant->price ?? $b->service->price,
                 'location'         => $b->location,
@@ -380,15 +458,47 @@ class BookingController extends Controller
                 'payment_method'   => $b->payment_method,
                 'status'           => $b->status,
                 'rejection_reason' => $b->rejection_reason,
-                'can_review'       => $this->canReview($b, $customerId),
-                'hours_until_session' => now('Asia/Dubai')
-                    ->diffInHours(Carbon::parse($b->scheduled_start)->timezone('Asia/Dubai'), false),
+                'can_review'       => $this->canReview($b, auth()->id()),
+                // Mirrors RescheduleRequestService::ELIGIBLE_STATUSES — only
+                // used to decide whether to show the "Request Reschedule"
+                // action; the backend re-checks this itself on submit.
+                'reschedule_eligible' => in_array($b->status, RescheduleRequestService::ELIGIBLE_STATUSES, true)
+                    && $latestRequest?->status !== 'pending'
+                    && $latestProposal?->status !== 'pending',
+                'reschedule_request' => $latestRequest ? [
+                    'id'                 => $latestRequest->id,
+                    'status'             => $latestRequest->status,
+                    'requested_start_at' => $latestRequest->requested_start_at?->toIso8601String(),
+                    'requested_start_at_fmt' => $latestRequest->requested_start_at
+                        ?->timezone('Asia/Dubai')->format('M d, Y g:i A'),
+                    'resolved_start_at'  => $latestRequest->resolved_start_at?->toIso8601String(),
+                    'resolved_start_at_fmt' => $latestRequest->resolved_start_at
+                        ?->timezone('Asia/Dubai')->format('M d, Y g:i A'),
+                    'reason'             => $latestRequest->reason,
+                    'admin_notes'        => $latestRequest->admin_notes,
+                ] : null,
+                'reschedule_proposal' => $latestProposal ? [
+                    'id'                      => $latestProposal->id,
+                    'status'                  => $latestProposal->status,
+                    'proposed_start_at'       => $latestProposal->proposed_start_at?->toIso8601String(),
+                    'proposed_start_at_fmt'   => $latestProposal->proposed_start_at
+                        ?->timezone('Asia/Dubai')->format('M d, Y g:i A'),
+                    'admin_reason'            => $latestProposal->admin_reason,
+                    'expires_at'              => $latestProposal->expires_at?->toIso8601String(),
+                    'customer_response_note'  => $latestProposal->customer_response_note,
+                ] : null,
                 'hours_until_session' => Carbon::parse($b->scheduled_start)
                     ->timezone('Asia/Dubai')
-                    ->diffInHours(now('Asia/Dubai'), false), 
-                'cancellation_reason' => $b->cancellation_reason, // ← idagdag ito
+                    ->diffInHours(now('Asia/Dubai'), false),
+                'cancellation_reason' => $b->cancellation_reason,
                 'payment_type'        => $b->payment_type,
                 'payment_status'      => $b->payment_status,
+                // The one field that means "amount actually confirmed
+                // collected" (set only by the Stripe webhook, or 0 for a
+                // voucher-covered booking) — never downpayment_amount,
+                // which is a legacy name repurposed at creation time and
+                // never resynced afterward (payment audit findings A1/A5).
+                'paid_amount'         => $b->paid_amount,
                 'downpayment_amount'  => $b->downpayment_amount,
                 'remaining_amount'    => $b->remaining_amount,
                 'downpayment_status'  => $b->downpayment_status,
@@ -399,7 +509,8 @@ class BookingController extends Controller
                 'cancelled_at'        => $b->cancelled_at
                     ? Carbon::parse($b->cancelled_at)->timezone('Asia/Dubai')->format('M d, Y g:i A')
                     : null,
-            ]);
+                ];
+            });
 
         return response()->json([
             // FIX 1: Show pending_payment in pending tab too
@@ -411,94 +522,6 @@ class BookingController extends Controller
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
-
-    private function getTherapistSlotStatus(
-        int    $therapistId,
-        Carbon $slotDatetime,
-        int    $duration,
-        string $zoneName
-    ): array {
-        $therapist     = Therapist::with('zones')->findOrFail($therapistId);
-        $travelMinutes = $therapist->getTravelTime($zoneName);
-
-        $thisBlocks = Booking::computeTimeBlocks(
-            $slotDatetime->toDateTimeString(),
-            $duration,
-            $travelMinutes
-        );
-
-        $activeBookings = Booking::where('therapist_id', $therapistId)
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->get(['travel_start', 'scheduled_start', 'scheduled_end', 'buffer_end']);
-
-        foreach ($activeBookings as $booking) {
-            $existingTravelStart = Carbon::parse($booking->travel_start);
-            $existingBufferEnd   = Carbon::parse($booking->buffer_end);
-            $existingStart       = Carbon::parse($booking->scheduled_start);
-            $existingEnd         = Carbon::parse($booking->scheduled_end);
-
-            $overlaps = $thisBlocks['travel_start']->lte($existingBufferEnd)
-                && $thisBlocks['buffer_end']->gte($existingTravelStart);
-
-            if (!$overlaps) continue;
-
-            if ($slotDatetime->gte($existingStart) && $slotDatetime->lt($existingEnd)) {
-                return ['available' => false, 'reason' => 'booked'];
-            }
-
-            if ($slotDatetime->lt($existingStart)) {
-                return ['available' => false, 'reason' => 'travel'];
-            }
-
-            return ['available' => false, 'reason' => 'buffer'];
-        }
-
-        return ['available' => true, 'reason' => null];
-    }
-
-    private function hasAvailableTherapist(
-        Carbon $slotDatetime,
-        int    $duration,
-        string $zoneName,
-        string $dayName
-    ): bool {
-        $therapists = Therapist::with('zones')
-            ->where('is_active', true)
-            ->where('day_off', '!=', $dayName)
-            ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
-            ->get();
-
-        foreach ($therapists as $therapist) {
-            $travelMinutes = $therapist->getTravelTime($zoneName);
-            $timeBlocks    = Booking::computeTimeBlocks(
-                $slotDatetime->toDateTimeString(),
-                $duration,
-                $travelMinutes
-            );
-
-            if (!$this->hasConflict(
-                $therapist->id,
-                $timeBlocks['travel_start'],
-                $timeBlocks['buffer_end']
-            )) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function hasConflict(
-        int    $therapistId,
-        Carbon $travelStart,
-        Carbon $bufferEnd
-    ): bool {
-        return Booking::where('therapist_id', $therapistId)
-            ->whereIn('status', ['pending_payment', 'pending', 'accepted'])
-            ->where('travel_start', '<=', $bufferEnd)
-            ->where('buffer_end',   '>=', $travelStart)
-            ->exists();
-    }
 
     private function canReview(Booking $booking, int $customerId): bool
     {

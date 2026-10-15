@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "concurrently --names \"vite,reverb,laravel\" --prefix-colors \"cyan,yellow,green\" \"vite\" \"php artisan reverb:start --debug\" \"php artisan serve\""
+        "dev": "vite"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",
@@ -56,9 +56,11 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "framer-motion": "^12.38.0",
+        "leaflet": "^1.9.4",
         "lucide-react": "^0.577.0",
         "react-day-picker": "^9.14.0",
         "react-hook-form": "^7.73.1",
+        "react-leaflet": "^4.2.1",
         "recharts": "^3.8.1",
         "sonner": "^2.0.7",
         "tailwind-merge": "^3.5.0",

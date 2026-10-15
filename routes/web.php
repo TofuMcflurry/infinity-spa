@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerDashboardController;
 use App\Http\Controllers\DownpaymentController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\GuestBookingController;
 use App\Http\Controllers\StripePaymentController;
 use Illuminate\Foundation\Application;
@@ -41,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/therapists',   fn() => Inertia::render('Therapists'))->name('therapists');
         Route::get('/my-profile',   fn() => Inertia::render('Profile'))->name('my.profile');
         Route::get('/services',     fn() => Inertia::render('Services'))->name('services');
+        Route::get('/wishlist',     fn() => Inertia::render('Wishlist'))->name('wishlist');
     });
 
     Route::prefix('api')->group(function () {
@@ -51,6 +53,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/available-therapists',         [BookingController::class, 'getAvailableTherapists'])->name('api.available-therapists');
         Route::post('/bookings',                    [BookingController::class, 'store'])->name('api.bookings.store');
         Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'paymentStatus'])->name('api.bookings.payment-status');
+        Route::post('/bookings/{booking}/reschedule-request', [BookingController::class, 'rescheduleRequest'])->name('api.bookings.reschedule-request');
+        Route::post('/reschedule-proposals/{reschedule_proposal}/accept',  [App\Http\Controllers\RescheduleProposalController::class, 'accept'])->name('api.reschedule-proposals.accept');
+        Route::post('/reschedule-proposals/{reschedule_proposal}/counter', [App\Http\Controllers\RescheduleProposalController::class, 'counter'])->name('api.reschedule-proposals.counter');
+        Route::post('/reschedule-proposals/{reschedule_proposal}/cancel',  [App\Http\Controllers\RescheduleProposalController::class, 'cancel'])->name('api.reschedule-proposals.cancel');
         Route::get('/my-bookings',                  [BookingController::class, 'myBookings'])->name('api.my-bookings');
         Route::post('/stripe/checkout',              [StripePaymentController::class, 'createCheckoutSession'])->name('api.stripe.checkout');
         Route::get('/reviews/check',                [ReviewController::class, 'checkEligibility'])->name('api.reviews.check');
@@ -61,6 +67,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
         Route::delete('/addresses/{address}',       [AddressController::class, 'destroy'])->name('api.addresses.destroy');
         Route::post('/addresses/{address}/default', [AddressController::class, 'setDefault'])->name('api.addresses.default');
+        Route::get('/wishlist',                     [WishlistController::class, 'index'])->name('api.wishlist');
+        Route::post('/wishlist',                    [WishlistController::class, 'store'])->name('api.wishlist.store');
+        Route::delete('/wishlist/{wishlist}',       [WishlistController::class, 'destroy'])->name('api.wishlist.destroy');
         Route::get('/profile-data',                 [CustomerProfileController::class, 'show'])->name('api.profile');
         Route::post('/profile-update',              [CustomerProfileController::class, 'update'])->name('api.profile.update');
         Route::post('/profile-avatar',              [CustomerProfileController::class, 'uploadAvatar'])->name('api.profile.avatar');
@@ -96,6 +105,9 @@ Route::middleware(['auth', 'verified', 'therapist'])
             Route::post('/bookings/{booking}/start',        [TherapistBookingController::class, 'start'])->name('bookings.start');   // ← NEW
             Route::post('/bookings/{booking}/arrived',      [TherapistBookingController::class, 'arrived'])->name('bookings.arrived');
             Route::post('/bookings/{booking}/complete',     [TherapistBookingController::class, 'complete'])->name('bookings.complete');
+
+            // ── GPS v1 (ingestion only — see docs/architecture/GPS-ARCHITECTURE.md) ─
+            Route::post('/bookings/{booking}/location',     [App\Http\Controllers\TherapistLocationController::class, 'update'])->name('bookings.location');
 
             // ── Profile ───────────────────────────────────────────────────────
             Route::get('/profile',                          [TherapistBookingController::class, 'profile'])->name('profile');
@@ -187,6 +199,17 @@ Route::middleware(['auth', 'admin'])
             Route::get('/cancelled-history',[App\Http\Controllers\Admin\AdminBookingController::class, 'cancelledHistory'])->name('cancelled-history');
             Route::get('/stats',            [App\Http\Controllers\Admin\AdminBookingController::class, 'stats'])->name('stats');
             Route::post('/mark-refund-sent',[App\Http\Controllers\Admin\AdminBookingController::class, 'markRefundSent'])->name('mark-refund-sent');
+            Route::post('/{booking}/reschedule', [App\Http\Controllers\Admin\AdminBookingController::class, 'reschedule'])->name('reschedule');
+            Route::get('/{booking}/reschedule-availability', [App\Http\Controllers\Admin\AdminBookingController::class, 'rescheduleAvailability'])->name('reschedule-availability');
+
+            // ── Reschedule Proposal (admin → customer) ─────────────────────────
+            Route::post('/{booking}/reschedule-proposal', [App\Http\Controllers\Admin\AdminBookingController::class, 'proposeReschedule'])->name('reschedule-proposal');
+            Route::get('/reschedule-proposals', [App\Http\Controllers\Admin\AdminBookingController::class, 'rescheduleProposals'])->name('reschedule-proposals');
+
+            // ── Reschedule Request review (customer/therapist submitted) ──────
+            Route::get('/reschedule-requests',                         [App\Http\Controllers\Admin\AdminBookingController::class, 'rescheduleRequests'])->name('reschedule-requests');
+            Route::post('/reschedule-requests/{reschedule_request}/approve', [App\Http\Controllers\Admin\AdminBookingController::class, 'approveRescheduleRequest'])->name('reschedule-requests.approve');
+            Route::post('/reschedule-requests/{reschedule_request}/reject',  [App\Http\Controllers\Admin\AdminBookingController::class, 'rejectRescheduleRequest'])->name('reschedule-requests.reject');
 
             // ── Stale Active Session review ──────────────────────────────────
             Route::get('/stale',                    [App\Http\Controllers\Admin\AdminBookingController::class, 'staleBookings'])->name('stale');

@@ -97,6 +97,20 @@ class Booking extends Model
         return $this->belongsTo(ServiceVariant::class);
     }
 
+    // Every reschedule preference ever submitted for this booking, by
+    // either the customer or the assigned therapist — see RescheduleRequest.
+    public function rescheduleRequests()
+    {
+        return $this->hasMany(RescheduleRequest::class);
+    }
+
+    // Every admin-initiated reschedule offer ever sent for this booking —
+    // see RescheduleProposal.
+    public function rescheduleProposals()
+    {
+        return $this->hasMany(RescheduleProposal::class);
+    }
+
     // ── Status helpers ──────────────────────────────
 
     public function isPending(): bool

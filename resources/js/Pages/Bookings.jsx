@@ -75,6 +75,8 @@ export default function Bookings() {
     const [voucherError,      setVoucherError]      = useState(null);
     const [validatingVoucher, setValidatingVoucher]  = useState(false);
 
+    const [preselectApplied, setPreselectApplied] = useState(false);
+
     const TOTAL_STEPS = 5;
     const stepLabels  = [t.stepService, t.stepTherapist, t.stepDateLocation, t.stepTime, t.stepPayment];
 
@@ -181,6 +183,33 @@ export default function Bookings() {
             .catch(() => setError('Failed to load services.'))
             .finally(() => setLoadingServices(false));
     }, []);
+
+    // ── Preselect service + skip to Step 2 when arriving from the Wishlist
+    // page's "Book Now" (?service_id=<Service.id> in the URL). Runs once,
+    // after services finish loading, and defaults to that service's first
+    // (shortest/cheapest) duration since steps 4-5 require a chosen variant.
+    // Normal entry from the Services page (no query param) is untouched. ─────
+    useEffect(() => {
+        if (preselectApplied || services.length === 0) return;
+
+        const wishlistServiceId = new URLSearchParams(window.location.search).get('service_id');
+        if (!wishlistServiceId) {
+            setPreselectApplied(true);
+            return;
+        }
+
+        const targetId = Number(wishlistServiceId);
+        const group = services.find(g => g.durations.some(d => d.service_id === targetId));
+
+        if (group && group.durations.length > 0) {
+            const duration = group.durations[0];
+            setSelectedGroup(group);
+            setSelectedService({ ...duration, name: `${group.group_name} ${duration.duration_minutes} min`, group_name: group.group_name });
+            setStep(2);
+        }
+
+        setPreselectApplied(true);
+    }, [services, preselectApplied]);
 
     // ── Fetch addresses ───────────────────────────────────────────────────────
     useEffect(() => {
