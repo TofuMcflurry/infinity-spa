@@ -423,12 +423,12 @@ export default function Bookings() {
     
     return (
         <AuthenticatedLayout>
-            <div className="min-h-screen bg-background">
+            <div className="min-h-screen" style={{ background: 'var(--theme-bg)' }}>
 
                 {/* ── Header / Stepper ── */}
                 <header className="sticky top-0 z-40 glass-card-strong rounded-none border-x-0 border-t-0 px-5 pt-[env(safe-area-inset-top)] pb-4">
                     <div className="pt-3 max-w-4xl mx-auto">
-                        <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-xl font-bold">
+                        <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-xl font-bold" style={{ color: 'var(--theme-text-head)' }}>
                             {t.title}
                         </motion.h1>
                         <div className="flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide">
@@ -436,16 +436,18 @@ export default function Bookings() {
                                 <div key={i} className="flex items-center gap-1.5 flex-shrink-0">
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                                         step > i + 1   ? 'gold-gradient text-primary-foreground' :
-                                        step === i + 1 ? 'border-2 border-gold text-gold' :
-                                                         'bg-secondary text-muted-foreground'
-                                    }`}>
+                                        step === i + 1 ? 'border-2 border-gold text-gold' : ''
+                                    }`}
+                                        style={step <= i ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}>
                                         {step > i + 1 ? <Check className="w-3.5 h-3.5" /> : i + 1}
                                     </div>
-                                    <span className={`text-xs hidden sm:inline whitespace-nowrap ${step === i + 1 ? 'text-gold font-medium' : 'text-muted-foreground'}`}>
+                                    <span className={`text-xs hidden sm:inline whitespace-nowrap ${step === i + 1 ? 'text-gold font-medium' : ''}`}
+                                        style={step !== i + 1 ? { color: 'var(--theme-text-muted)' } : undefined}>
                                         {label}
                                     </span>
                                     {i < TOTAL_STEPS - 1 && (
-                                        <div className={`w-5 sm:w-8 h-px transition-all ${step > i + 1 ? 'bg-gold/60' : 'bg-border'}`} />
+                                        <div className="w-5 sm:w-8 h-px transition-all"
+                                            style={{ background: step > i + 1 ? 'rgba(226,183,100,0.6)' : 'var(--theme-border)' }} />
                                     )}
                                 </div>
                             ))}
@@ -481,10 +483,10 @@ export default function Bookings() {
                                 {/* ════════ STEP 1: Service ════════ */}
                                 {step === 1 && (
                                     <div className="space-y-6">
-                                        <p className="text-sm mb-2" style={{ color: '#94a3b8' }}>{t.selectService}</p>
+                                        <p className="text-sm mb-2" style={{ color: 'var(--theme-text-2)' }}>{t.selectService}</p>
                                         {loadingServices ? (
                                             <div className="flex items-center justify-center py-16">
-                                                <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#e2b764' }} />
+                                                <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--theme-cta)' }} />
                                             </div>
                                         ) : (
                                             <>
@@ -495,26 +497,26 @@ export default function Bookings() {
                                                             <button key={group.group_name}
                                                                 onClick={() => { setSelectedGroup(isActive ? null : group); setSelectedService(null); }}
                                                                 className="relative p-5 rounded-2xl border text-start transition-all"
-                                                                style={{ borderColor: isActive ? '#e2b764' : '#1e2740', background: isActive ? 'rgba(226,183,100,0.08)' : '#0f1629' }}
-                                                                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = '#2a3a5c'; e.currentTarget.style.background = '#141d33'; }}}
-                                                                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = '#1e2740'; e.currentTarget.style.background = '#0f1629'; }}}
+                                                                style={{ borderColor: isActive ? '#e2b764' : 'var(--theme-border)', background: isActive ? 'rgba(226,183,100,0.08)' : 'var(--theme-card)' }}
+                                                                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
+                                                                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
                                                             >
                                                                 {isActive && (
                                                                     <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
-                                                                        <Check className="w-3 h-3" style={{ color: '#0b1120' }} />
+                                                                        <Check className="w-3 h-3" style={{ color: 'var(--theme-cta-ink)' }} />
                                                                     </div>
                                                                 )}
-                                                                <h4 className="font-display font-semibold text-base text-white mb-3 pr-6">{group.group_name}</h4>
+                                                                <h4 className="font-display font-semibold text-base mb-3 pr-6" style={{ color: 'var(--theme-text-head)' }}>{group.group_name}</h4>
                                                                 <div className="flex flex-wrap gap-1.5 mb-4">
                                                                     {group.durations.map(d => (
-                                                                        <span key={d.id} className="text-[10px] px-2.5 py-1 rounded-full font-medium" style={{ background: '#141d33', color: '#94a3b8' }}>
+                                                                        <span key={d.id} className="text-[10px] px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
                                                                             {d.duration_minutes} {t.minutes_suffix}
                                                                         </span>
                                                                     ))}
                                                                 </div>
                                                                 <div className="flex items-center justify-between">
-                                                                    <span className="text-[11px]" style={{ color: '#64748b' }}>{t.from}</span>
-                                                                    <span className="font-display font-bold text-base" style={{ color: '#e2b764' }}>AED {Number(group.min_price).toLocaleString()}</span>
+                                                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{t.from}</span>
+                                                                    <span className="font-display font-bold text-base" style={{ color: 'var(--theme-link)' }}>AED {Number(group.min_price).toLocaleString()}</span>
                                                                 </div>
                                                             </button>
                                                         );
@@ -522,8 +524,8 @@ export default function Bookings() {
                                                 </div>
 
                                                 {selectedGroup && (
-                                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border p-5" style={{ borderColor: '#1e2740', background: '#080d1a' }}>
-                                                        <p className="text-sm font-medium text-white mb-4">Choose duration — <span style={{ color: '#e2b764' }}>{selectedGroup.group_name}</span></p>
+                                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
+                                                        <p className="text-sm font-medium mb-4" style={{ color: 'var(--theme-text-head)' }}>Choose duration — <span style={{ color: 'var(--theme-link)' }}>{selectedGroup.group_name}</span></p>
                                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                             {selectedGroup.durations.map(duration => {
                                                                 const isSelected = selectedService?.id === duration.id;
@@ -531,25 +533,25 @@ export default function Bookings() {
                                                                     <button key={duration.id}
                                                                         onClick={() => setSelectedService({ ...duration, name: `${selectedGroup.group_name} ${duration.duration_minutes} min`, group_name: selectedGroup.group_name })}
                                                                         className="relative p-4 rounded-xl border text-start transition-all"
-                                                                        style={{ borderColor: isSelected ? '#e2b764' : '#1e2740', background: isSelected ? 'rgba(226,183,100,0.1)' : '#0f1629' }}
-                                                                        onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#2a3a5c'; e.currentTarget.style.background = '#141d33'; }}}
-                                                                        onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#1e2740'; e.currentTarget.style.background = '#0f1629'; }}}
+                                                                        style={{ borderColor: isSelected ? '#e2b764' : 'var(--theme-border)', background: isSelected ? 'rgba(226,183,100,0.1)' : 'var(--theme-card)' }}
+                                                                        onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
+                                                                        onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
                                                                     >
                                                                         {isSelected && (
                                                                             <div className="absolute top-3 right-3 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
-                                                                                <Check className="w-2.5 h-2.5" style={{ color: '#0b1120' }} />
+                                                                                <Check className="w-2.5 h-2.5" style={{ color: 'var(--theme-cta-ink)' }} />
                                                                             </div>
                                                                         )}
                                                                         <div className="flex items-center gap-2 mb-2">
-                                                                            <Clock className="w-4 h-4" style={{ color: '#e2b764' }} />
-                                                                            <span className="text-base font-display font-bold text-white">{duration.duration_minutes} {t.minutes_suffix}</span>
+                                                                            <Clock className="w-4 h-4" style={{ color: 'var(--theme-link)' }} />
+                                                                            <span className="text-base font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>{duration.duration_minutes} {t.minutes_suffix}</span>
                                                                         </div>
-                                                                        <p className="text-lg font-display font-bold" style={{ color: '#e2b764' }}>AED {Number(duration.price).toLocaleString()}</p>
+                                                                        <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>AED {Number(duration.price).toLocaleString()}</p>
                                                                         <div className="flex items-center gap-1 mt-2">
                                                                             {[1,2,3,4,5].map(s => (
-                                                                                <Star key={s} size={10} style={{ color: Number(duration.rating) > 0 ? '#e2b764' : '#1e2740', fill: Number(duration.rating) > 0 ? '#e2b764' : '#1e2740' }} />
+                                                                                <Star key={s} size={10} style={{ color: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)', fill: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)' }} />
                                                                             ))}
-                                                                            <span className="text-[10px] ml-1" style={{ color: '#64748b' }}>{Number(duration.rating) > 0 ? duration.rating : t.new_rating}</span>
+                                                                            <span className="text-[10px] ml-1" style={{ color: 'var(--theme-text-muted)' }}>{Number(duration.rating) > 0 ? duration.rating : t.new_rating}</span>
                                                                         </div>
                                                                     </button>
                                                                 );
@@ -566,20 +568,27 @@ export default function Bookings() {
                                 {step === 2 && (
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <p className="text-sm text-muted-foreground flex-1">{t.selectTherapist}</p>
+                                            <p className="text-sm flex-1" style={{ color: 'var(--theme-text-2)' }}>{t.selectTherapist}</p>
                                             <div className="flex gap-1.5">
-                                                {['all', 'male', 'female'].map((g) => (
-                                                    <button key={g} onClick={() => setGenderFilter(g)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${genderFilter === g ? 'gold-gradient text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}>
-                                                        {g === 'all' ? t.genderAll : g === 'male' ? t.genderMale : t.genderFemale}
-                                                    </button>
-                                                ))}
+                                                {['all', 'male', 'female'].map((g) => {
+                                                    const isActive = genderFilter === g;
+                                                    return (
+                                                        <button key={g} onClick={() => setGenderFilter(g)}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive ? 'gold-gradient text-primary-foreground' : ''}`}
+                                                            style={!isActive ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}
+                                                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-card-hover)'; }}
+                                                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                                                        >
+                                                            {g === 'all' ? t.genderAll : g === 'male' ? t.genderMale : t.genderFemale}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                         {loadingTherapists ? (
                                             <div className="flex items-center justify-center py-16">
                                                 <Loader2 className="w-6 h-6 animate-spin text-gold" />
-                                                <span className="ml-3 text-sm text-muted-foreground">{t.findingTherapists}</span>
+                                                <span className="ml-3 text-sm" style={{ color: 'var(--theme-text-2)' }}>{t.findingTherapists}</span>
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -594,14 +603,14 @@ export default function Bookings() {
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <h4 className="font-display font-semibold text-sm">{therapist.name}</h4>
-                                                                    <p className="text-xs text-muted-foreground truncate">{therapist.specialty}</p>
+                                                                    <p className="text-xs truncate" style={{ color: 'var(--theme-text-muted)' }}>{therapist.specialty}</p>
                                                                     <div className="flex items-center gap-2 mt-1">
                                                                         <Star className="w-3 h-3 text-gold fill-gold" />
                                                                         <span className="text-xs font-medium">{getDisplayRating(therapist.rating).toFixed(1)}</span>
-                                                                        <span className="text-[10px] text-muted-foreground">{therapist.experience_years} yrs</span>
-                                                                        <span className="text-[10px] text-muted-foreground">{therapist.gender === 'male' ? '♂' : '♀'}</span>
+                                                                        <span className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>{therapist.experience_years} yrs</span>
+                                                                        <span className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>{therapist.gender === 'male' ? '♂' : '♀'}</span>
                                                                     </div>
-                                                                    {therapist.day_off && <p className="text-[10px] text-muted-foreground mt-1">Day off: {therapist.day_off}</p>}
+                                                                    {therapist.day_off && <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>Day off: {therapist.day_off}</p>}
                                                                 </div>
                                                             </div>
                                                         </button>
@@ -626,7 +635,21 @@ export default function Bookings() {
                                                     if (date.getDay() === 2) return true;
                                                     return false;
                                                 }}
-                                                className={cn('pointer-events-auto w-full')} />
+                                                className={cn('pointer-events-auto w-full')}
+                                                classNames={{
+                                                    // The shared Calendar component hardcodes bg-white/10 + text-white
+                                                    // for "today", which is invisible on the Customer Ivory card
+                                                    // (white-on-near-white). --theme-text-head resolves to #ffffff in
+                                                    // dark mode (matching the original text-white exactly) and to the
+                                                    // correct dark ink tone in light mode; --theme-btn-bg gives a
+                                                    // solid, visible circle in both themes (the --theme-* tokens are
+                                                    // plain hex, so a translucent bg-white/10-style overlay isn't
+                                                    // reliably expressible via Tailwind's arbitrary-value opacity
+                                                    // modifier). Overridden here, not in calendar.jsx, so this stays
+                                                    // scoped to the Customer booking wizard only.
+                                                    today:     'bg-[var(--theme-btn-bg)] text-[var(--theme-text-head)] font-semibold rounded-full',
+                                                    day_today: 'bg-[var(--theme-btn-bg)] text-[var(--theme-text-head)] font-semibold rounded-full',
+                                                }} />
                                         </div>
                                         <div className="glass-card p-5 flex flex-col">
                                             <h4 className="font-display font-semibold text-base mb-4">{t.location}</h4>
@@ -636,12 +659,12 @@ export default function Bookings() {
                                                  <div className="flex flex-col items-center justify-center py-6 gap-4">
                                                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
                                                         style={{ background: 'rgba(226,183,100,0.08)' }}>
-                                                        <MapPin size={28} style={{ color: '#64748b' }} />
+                                                        <MapPin size={28} style={{ color: 'var(--theme-text-muted)' }} />
                                                     </div>
-                                                    
+
                                                     <div className="text-center">
-                                                        <p className="text-sm font-medium text-white mb-1">No addresses yet</p>
-                                                        <p className="text-xs" style={{ color: '#64748b' }}>
+                                                        <p className="text-sm font-medium mb-1" style={{ color: 'var(--theme-text-head)' }}>No addresses yet</p>
+                                                        <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                                                             Add your location to continue booking
                                                         </p>
                                                     </div>
@@ -653,7 +676,7 @@ export default function Bookings() {
                                                         style={{
                                                             background: 'rgba(226,183,100,0.1)',
                                                             border: '1px solid rgba(226,183,100,0.25)',
-                                                            color: '#e2b764'
+                                                            color: 'var(--theme-link)'
                                                         }}
                                                     >
                                                         <Plus size={16} />
@@ -665,9 +688,9 @@ export default function Bookings() {
                                                         onClick={() => router.visit(route('my.profile'))}
                                                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all"
                                                         style={{
-                                                            background: '#141d33',
-                                                            border: '1px solid #1e2740',
-                                                            color: '#94a3b8'
+                                                            background: 'var(--theme-btn-bg)',
+                                                            border: '1px solid var(--theme-border)',
+                                                            color: 'var(--theme-text-2)'
                                                         }}
                                                     >
                                                         <Building2 size={14} />
@@ -681,17 +704,23 @@ export default function Bookings() {
                                                         const Icon = LOCATION_ICONS[addr.label] ?? MapPin;
                                                         return (
                                                             <button key={addr.id} onClick={() => setSelectedAddress(addr)}
-                                                                className={`w-full flex items-center gap-4 p-4 rounded-xl text-start transition-all border ${isActive ? 'bg-gold/10 border-gold/40' : 'bg-secondary border-transparent hover:bg-secondary/80'}`}>
-                                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isActive ? 'border-gold' : 'border-muted-foreground/40'}`}>
+                                                                className={`w-full flex items-center gap-4 p-4 rounded-xl text-start transition-all border ${isActive ? 'bg-gold/10 border-gold/40' : 'border-transparent'}`}
+                                                                style={!isActive ? { background: 'var(--theme-btn-bg)' } : undefined}
+                                                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-card-hover)'; }}
+                                                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                                                            >
+                                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isActive ? 'border-gold' : ''}`}
+                                                                    style={!isActive ? { borderColor: 'var(--theme-text-muted)' } : undefined}>
                                                                     {isActive && <div className="w-2.5 h-2.5 rounded-full gold-gradient" />}
                                                                 </div>
-                                                                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-gold' : 'text-muted-foreground'}`} />
+                                                                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-gold' : ''}`}
+                                                                    style={!isActive ? { color: 'var(--theme-text-muted)' } : undefined} />
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className={`text-sm font-semibold ${isActive ? 'gold-text' : ''}`}>
                                                                         {addr.label}
-                                                                        {addr.is_default && <span className="ml-2 text-[10px] text-muted-foreground font-normal">Default</span>}
+                                                                        {addr.is_default && <span className="ml-2 text-[10px] font-normal" style={{ color: 'var(--theme-text-muted)' }}>Default</span>}
                                                                     </p>
-                                                                    <p className="text-xs text-muted-foreground truncate">{addr.address}</p>
+                                                                    <p className="text-xs truncate" style={{ color: 'var(--theme-text-muted)' }}>{addr.address}</p>
                                                                 </div>
                                                             </button>
                                                         );
@@ -705,7 +734,7 @@ export default function Bookings() {
                                 {/* ════════ STEP 4: Time ════════ */}
                                 {step === 4 && (
                                     <div className="glass-card p-7">
-                                        <p className="text-xs text-muted-foreground mb-1">
+                                        <p className="text-xs mb-1" style={{ color: 'var(--theme-text-muted)' }}>
                                             {formattedDate} • {selectedAddress?.label} • {selectedTherapist?.name}
                                         </p>
                                         <h4 className="font-display font-semibold text-lg mb-6">When would you like your session?</h4>
@@ -713,7 +742,7 @@ export default function Bookings() {
                                         {loadingSlots ? (
                                             <div className="flex items-center justify-center py-16">
                                                 <Loader2 className="w-6 h-6 animate-spin text-gold" />
-                                                <span className="ml-3 text-sm text-muted-foreground">{t.checkingAvail}</span>
+                                                <span className="ml-3 text-sm" style={{ color: 'var(--theme-text-2)' }}>{t.checkingAvail}</span>
                                             </div>
                                         ) : (() => {
                                             const evening   = availableSlots.filter(s => parseInt(s.time.split(':')[0]) >= 16);
@@ -726,20 +755,20 @@ export default function Bookings() {
                                                 let btnStyle = {};
                                                 if (isSelected) {
                                                     btnClass += ' cursor-pointer';
-                                                    btnStyle = { background: 'linear-gradient(135deg,#e2b764,#c9963f)', border: '1.5px solid transparent', color: '#0b1120' };
+                                                    btnStyle = { background: 'linear-gradient(135deg,#e2b764,#c9963f)', border: '1.5px solid transparent', color: 'var(--theme-cta-ink)' };
                                                 } else if (isAvailable) {
                                                     btnClass += ' cursor-pointer';
-                                                    btnStyle = { background: '#111827', border: '1.5px solid #1e293b', color: '#94a3b8' };
+                                                    btnStyle = { background: 'var(--theme-btn-bg)', border: '1.5px solid var(--theme-border)', color: 'var(--theme-text-2)' };
                                                 } else {
                                                     btnClass += ' cursor-not-allowed';
-                                                    btnStyle = { background: '#0a0e1a', border: '1.5px solid #0f172a', color: '#1e293b' };
+                                                    btnStyle = { background: 'var(--theme-bg)', border: '1.5px solid var(--theme-border)', color: 'var(--theme-text-muted)' };
                                                 }
                                                 const dotColor = isSelected ? '#92400e' : isAvailable ? '#1d4ed8' : '#0f172a';
                                                 return (
                                                     <button key={slot.datetime} onClick={() => isAvailable && setSelectedTime(slot.datetime)} disabled={!isAvailable}
                                                         className={btnClass} style={btnStyle}
                                                         onMouseEnter={e => { if (isAvailable && !isSelected) { e.currentTarget.style.borderColor = '#e2b764'; e.currentTarget.style.color = '#e2b764'; }}}
-                                                        onMouseLeave={e => { if (isAvailable && !isSelected) { e.currentTarget.style.borderColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8'; }}}
+                                                        onMouseLeave={e => { if (isAvailable && !isSelected) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.color = 'var(--theme-text-2)'; }}}
                                                     >
                                                         <span>{slot.label}</span>
                                                         <div className="w-1.5 h-1.5 rounded-full" style={{ background: dotColor }} />
@@ -765,7 +794,7 @@ export default function Bookings() {
                                                             </div>
                                                         </div>
                                                     )}
-                                                    <div className="flex items-center gap-5 pt-4 flex-wrap" style={{ borderTop: '1px solid #0f172a' }}>
+                                                    <div className="flex items-center gap-5 pt-4 flex-wrap" style={{ borderTop: '1px solid var(--theme-border)' }}>
                                                         {[
                                                             { dot: '#1d4ed8', label: 'Available' },
                                                             { dot: '#0f172a', label: 'Unavailable', border: '1px solid #1e293b' },
@@ -773,7 +802,7 @@ export default function Bookings() {
                                                         ].map(({ dot, label, border }) => (
                                                             <div key={label} className="flex items-center gap-2">
                                                                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: dot, border }} />
-                                                                <span className="text-[11px] text-muted-foreground">{label}</span>
+                                                                <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>{label}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -790,10 +819,10 @@ export default function Bookings() {
                                         {/* ── Booking Summary ── */}
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
                                             className="rounded-2xl border overflow-hidden"
-                                            style={{ borderColor: '#1e2740', background: '#080d1a' }}>
-                                            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: '#1e2740' }}>
-                                                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Booking Summary</span>
-                                                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(226,183,100,0.1)', color: '#e2b764' }}>
+                                            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
+                                            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--theme-border)' }}>
+                                                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--theme-text-muted)' }}>Booking Summary</span>
+                                                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(226,183,100,0.1)', color: 'var(--theme-link)' }}>
                                                     Review before paying
                                                 </span>
                                             </div>
@@ -805,89 +834,89 @@ export default function Bookings() {
                                                     { label: t.summaryLocation,  value: selectedAddress?.label,  sub: selectedAddress?.address },
                                                 ].map(({ label, value, sub }) => (
                                                     <div key={label} className="flex justify-between items-start gap-4 text-sm">
-                                                        <span className="text-muted-foreground flex-shrink-0">{label}</span>
+                                                        <span className="flex-shrink-0" style={{ color: 'var(--theme-text-muted)' }}>{label}</span>
                                                         <div className="text-right">
-                                                            <p className="font-medium text-white">{value ?? '—'}</p>
-                                                            {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+                                                            <p className="font-medium" style={{ color: 'var(--theme-text-head)' }}>{value ?? '—'}</p>
+                                                            {sub && <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{sub}</p>}
                                                         </div>
                                                     </div>
                                                 ))}
 
                                                 {/* ── Price breakdown ── */}
-                                                <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: '#1e2740' }}>
+                                                <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: 'var(--theme-border)' }}>
                                                     {appliedVoucher ? (
                                                         <>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Total</span>
-                                                                <span className="font-medium line-through" style={{ color: '#64748b' }}>AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Total</span>
+                                                                <span className="font-medium line-through" style={{ color: 'var(--theme-text-muted)' }}>AED {Number(selectedService?.price).toLocaleString()}</span>
                                                             </div>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Voucher Applied</span>
-                                                                <span className="font-medium" style={{ color: '#4ade80' }}>-AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Voucher Applied</span>
+                                                                <span className="font-medium" style={{ color: 'var(--theme-success)' }}>-AED {Number(selectedService?.price).toLocaleString()}</span>
                                                             </div>
                                                             <div className="flex justify-between items-center pt-1">
-                                                                <span className="text-sm font-semibold" style={{ color: '#e2e8f0' }}>You Pay</span>
-                                                                <span className="font-display font-bold text-lg" style={{ color: '#4ade80' }}>AED 0.00</span>
+                                                                <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>You Pay</span>
+                                                                <span className="font-display font-bold text-lg" style={{ color: 'var(--theme-success)' }}>AED 0.00</span>
                                                             </div>
                                                         </>
                                                     ) : selectedPaymentType === 'full' ? (
                                                         <>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Total</span>
-                                                                <span className="font-medium text-white">AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Total</span>
+                                                                <span className="font-medium" style={{ color: 'var(--theme-text-head)' }}>AED {Number(selectedService?.price).toLocaleString()}</span>
                                                             </div>
                                                             <div className="flex justify-between items-center">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="text-sm" style={{ color: '#64748b' }}>You Pay Now</span>
-                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>100% · Due now</span>
+                                                                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>You Pay Now</span>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: 'var(--theme-link)' }}>100% · Due now</span>
                                                                 </div>
-                                                                <span className="font-display font-bold text-lg" style={{ color: '#e2b764' }}>AED {fullAmt}</span>
+                                                                <span className="font-display font-bold text-lg" style={{ color: 'var(--theme-link)' }}>AED {fullAmt}</span>
                                                             </div>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Remaining</span>
-                                                                <span className="font-medium" style={{ color: '#4ade80' }}>AED 0.00 <span className="text-xs">— Fully Paid</span></span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Remaining</span>
+                                                                <span className="font-medium" style={{ color: 'var(--theme-success)' }}>AED 0.00 <span className="text-xs">— Fully Paid</span></span>
                                                             </div>
                                                         </>
                                                     ) : (
                                                         <>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Total</span>
-                                                                <span className="font-medium text-white">AED {Number(selectedService?.price).toLocaleString()}</span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Total</span>
+                                                                <span className="font-medium" style={{ color: 'var(--theme-text-head)' }}>AED {Number(selectedService?.price).toLocaleString()}</span>
                                                             </div>
                                                             <div className="flex justify-between items-center">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="text-sm" style={{ color: '#64748b' }}>Downpayment</span>
-                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>20% · Due now</span>
+                                                                    <span className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>Downpayment</span>
+                                                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'rgba(226,183,100,0.15)', color: 'var(--theme-link)' }}>20% · Due now</span>
                                                                 </div>
-                                                                <span className="font-display font-bold text-lg" style={{ color: '#e2b764' }}>AED {downpaymentAmt}</span>
+                                                                <span className="font-display font-bold text-lg" style={{ color: 'var(--theme-link)' }}>AED {downpaymentAmt}</span>
                                                             </div>
                                                             <div className="flex justify-between text-sm">
-                                                                <span style={{ color: '#64748b' }}>Remaining</span>
-                                                                <span className="font-medium" style={{ color: '#94a3b8' }}>AED {remainingAmt} <span className="text-xs">(on session day)</span></span>
+                                                                <span style={{ color: 'var(--theme-text-muted)' }}>Remaining</span>
+                                                                <span className="font-medium" style={{ color: 'var(--theme-text-2)' }}>AED {remainingAmt} <span className="text-xs">(on session day)</span></span>
                                                             </div>
                                                         </>
                                                     )}
                                                 </div>
 
                                                 {/* ── Voucher code ── */}
-                                                <div className="mt-4 pt-4 border-t" style={{ borderColor: '#1e2740' }}>
+                                                <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
                                                     {appliedVoucher ? (
                                                         <div className="flex items-center justify-between gap-3 p-3 rounded-xl"
                                                             style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)' }}>
                                                             <div className="flex items-center gap-2 min-w-0">
-                                                                <Check size={15} className="flex-shrink-0" style={{ color: '#4ade80' }} />
+                                                                <Check size={15} className="flex-shrink-0" style={{ color: 'var(--theme-success)' }} />
                                                                 <div className="min-w-0">
-                                                                    <p className="text-xs font-semibold" style={{ color: '#4ade80' }}>Voucher Applied</p>
-                                                                    <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>{appliedVoucher.code}</p>
+                                                                    <p className="text-xs font-semibold" style={{ color: 'var(--theme-success)' }}>Voucher Applied</p>
+                                                                    <p className="text-[11px] truncate" style={{ color: 'var(--theme-text-2)' }}>{appliedVoucher.code}</p>
                                                                 </div>
                                                             </div>
-                                                            <button onClick={handleRemoveVoucher} className="text-xs font-medium underline flex-shrink-0" style={{ color: '#64748b' }}>
+                                                            <button onClick={handleRemoveVoucher} className="text-xs font-medium underline flex-shrink-0" style={{ color: 'var(--theme-text-muted)' }}>
                                                                 Remove
                                                             </button>
                                                         </div>
                                                     ) : (
                                                         <>
-                                                            <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>Have a voucher code?</p>
+                                                            <p className="text-xs font-medium mb-2" style={{ color: 'var(--theme-text-2)' }}>Have a voucher code?</p>
                                                             <div className="flex gap-2">
                                                                 <input
                                                                     type="text"
@@ -895,7 +924,7 @@ export default function Bookings() {
                                                                     onChange={(e) => { setVoucherCode(e.target.value); setVoucherError(null); }}
                                                                     placeholder="IHS-FREE-XXXX"
                                                                     className="flex-1 px-3 py-2.5 rounded-xl border text-sm transition-all focus:outline-none"
-                                                                    style={{ background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' }}
+                                                                    style={{ background: 'var(--theme-input-bg)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-head)' }}
                                                                 />
                                                                 <button
                                                                     onClick={handleApplyVoucher}
@@ -903,7 +932,7 @@ export default function Bookings() {
                                                                     className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-shrink-0"
                                                                     style={{
                                                                         background: 'linear-gradient(135deg, #b7882a, #e2b764)',
-                                                                        color: '#0b1120',
+                                                                        color: 'var(--theme-cta-ink)',
                                                                         opacity: (validatingVoucher || !voucherCode.trim()) ? 0.5 : 1,
                                                                         cursor: (validatingVoucher || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
                                                                     }}
@@ -913,7 +942,7 @@ export default function Bookings() {
                                                                 </button>
                                                             </div>
                                                             {voucherError && (
-                                                                <p className="text-xs mt-2 flex items-center gap-1.5" style={{ color: '#f87171' }}>
+                                                                <p className="text-xs mt-2 flex items-center gap-1.5 text-destructive">
                                                                     <AlertCircle size={12} className="flex-shrink-0" /> {voucherError}
                                                                 </p>
                                                             )}
@@ -927,17 +956,17 @@ export default function Bookings() {
                                         {!appliedVoucher && (
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                                             className="rounded-2xl border overflow-hidden"
-                                            style={{ borderColor: 'rgba(226,183,100,0.25)', background: 'linear-gradient(135deg, #0d1528 0%, #0a0f1e 100%)' }}>
+                                            style={{ borderColor: 'rgba(226,183,100,0.25)', background: 'linear-gradient(135deg, var(--theme-card-hover) 0%, var(--theme-bg) 100%)' }}>
 
                                             {/* Header */}
                                             <div className="px-5 py-4 border-b flex items-center gap-3" style={{ borderColor: 'rgba(226,183,100,0.1)' }}>
                                                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                    style={{ background: 'rgba(226,183,100,0.12)', color: '#e2b764' }}>
+                                                    style={{ background: 'rgba(226,183,100,0.12)', color: 'var(--theme-link)' }}>
                                                     <CreditCard size={15} />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-display font-semibold text-white">Pay with Stripe</p>
-                                                    <p className="text-[11px]" style={{ color: '#64748b' }}>Choose how much to pay now to confirm your booking</p>
+                                                    <p className="text-sm font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Pay with Stripe</p>
+                                                    <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>Choose how much to pay now to confirm your booking</p>
                                                 </div>
                                             </div>
 
@@ -951,30 +980,30 @@ export default function Bookings() {
                                                         <button key={type.id} onClick={() => setSelectedPaymentType(type.id)}
                                                             className="w-full flex items-center gap-4 p-4 rounded-xl border text-start transition-all"
                                                             style={{
-                                                                borderColor: isActive ? '#e2b764' : '#1e2740',
+                                                                borderColor: isActive ? '#e2b764' : 'var(--theme-border)',
                                                                 background:  isActive ? 'rgba(226,183,100,0.08)' : 'transparent',
                                                             }}
                                                             onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                                                             onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                                         >
                                                             <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                                                                style={{ borderColor: isActive ? '#e2b764' : '#2a3555' }}>
+                                                                style={{ borderColor: isActive ? '#e2b764' : 'var(--theme-border)' }}>
                                                                 {isActive && <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#e2b764' }} />}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <span className="text-sm font-semibold font-display text-white">{type.label}</span>
-                                                                <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{type.sub}</p>
+                                                                <span className="text-sm font-semibold font-display" style={{ color: 'var(--theme-text-head)' }}>{type.label}</span>
+                                                                <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{type.sub}</p>
                                                             </div>
-                                                            <span className="font-display font-bold text-base flex-shrink-0" style={{ color: '#e2b764' }}>AED {type.amount}</span>
+                                                            <span className="font-display font-bold text-base flex-shrink-0" style={{ color: 'var(--theme-link)' }}>AED {type.amount}</span>
                                                         </button>
                                                     );
                                                 })}
 
                                                 <div className="flex items-start gap-2 p-3 rounded-xl"
                                                     style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.12)' }}>
-                                                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
-                                                    <p className="text-[11px] leading-relaxed" style={{ color: '#94a3b8' }}>
-                                                        Cancel <span className="text-white font-medium">before 24hrs</span> for a full refund. Cancelling within 24hrs or a no-show forfeits the amount paid.
+                                                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-link)' }} />
+                                                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--theme-text-2)' }}>
+                                                        Cancel <span className="font-medium" style={{ color: 'var(--theme-text-head)' }}>before 24hrs</span> for a full refund. Cancelling within 24hrs or a no-show forfeits the amount paid.
                                                     </p>
                                                 </div>
                                             </div>
@@ -985,10 +1014,10 @@ export default function Bookings() {
                                         {!appliedVoucher && selectedPaymentType === 'downpayment' && (
                                         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
                                             className="rounded-2xl border overflow-hidden"
-                                            style={{ borderColor: '#1e2740', background: '#080d1a' }}>
-                                            <div className="px-5 py-4 border-b" style={{ borderColor: '#1e2740' }}>
-                                                <p className="text-sm font-display font-semibold text-white">Session Day Payment</p>
-                                                <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>How will you pay the remaining AED {remainingAmt}?</p>
+                                            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
+                                            <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                                                <p className="text-sm font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Session Day Payment</p>
+                                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>How will you pay the remaining AED {remainingAmt}?</p>
                                             </div>
                                             <div className="p-5 space-y-3">
                                                 {PAYMENT_METHODS.map((method) => {
@@ -998,25 +1027,25 @@ export default function Bookings() {
                                                         <button key={method.id} onClick={() => setSelectedPayment(method.id)}
                                                             className="w-full flex items-center gap-4 p-4 rounded-xl border text-start transition-all"
                                                             style={{
-                                                                borderColor: isActive ? 'rgba(226,183,100,0.4)' : '#1e2740',
+                                                                borderColor: isActive ? 'rgba(226,183,100,0.4)' : 'var(--theme-border)',
                                                                 background:  isActive ? 'rgba(226,183,100,0.06)' : 'transparent',
                                                             }}
                                                             onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                                                             onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                                                         >
                                                             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
-                                                                style={{ background: isActive ? 'rgba(226,183,100,0.15)' : '#141d33', color: isActive ? '#e2b764' : '#64748b' }}>
+                                                                style={{ background: isActive ? 'rgba(226,183,100,0.15)' : 'var(--theme-btn-bg)', color: isActive ? '#e2b764' : 'var(--theme-text-muted)' }}>
                                                                 <Icon size={18} />
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="text-sm font-semibold font-display text-white">{method.label}</span>
-                                                                    <span className="text-[10px]" style={{ color: '#64748b' }}>{method.sub}</span>
+                                                                    <span className="text-sm font-semibold font-display" style={{ color: 'var(--theme-text-head)' }}>{method.label}</span>
+                                                                    <span className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>{method.sub}</span>
                                                                 </div>
-                                                                <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{method.desc}</p>
+                                                                <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{method.desc}</p>
                                                             </div>
                                                             <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                                                                style={{ borderColor: isActive ? '#e2b764' : '#2a3555' }}>
+                                                                style={{ borderColor: isActive ? '#e2b764' : 'var(--theme-border)' }}>
                                                                 {isActive && <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#e2b764' }} />}
                                                             </div>
                                                         </button>
@@ -1080,23 +1109,23 @@ export default function Bookings() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
-                            style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                            style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
                         >
                             {/* Header */}
                             <div className="sticky top-0 p-5 border-b flex items-center justify-between"
-                                style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                                 <div>
-                                    <h3 className="font-display font-semibold text-lg text-white">
+                                    <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--theme-text-head)' }}>
                                         Add New Address
                                     </h3>
-                                    <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                                         Fill in your location details
                                     </p>
                                 </div>
                                 <button
                                     onClick={() => setShowAddAddressModal(false)}
                                     className="p-1.5 rounded-lg transition-colors"
-                                    style={{ color: '#64748b' }}
+                                    style={{ color: 'var(--theme-text-muted)' }}
                                 >
                                     <X size={18} />
                                 </button>
@@ -1107,7 +1136,7 @@ export default function Bookings() {
                                 
                                 {/* 1. Address Type / Label */}
                                 <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
                                         Address Type *
                                     </label>
                                     <div className="grid grid-cols-3 gap-2">
@@ -1115,30 +1144,32 @@ export default function Bookings() {
                                             { value: 'Home', icon: '🏠', label: 'Home' },
                                             { value: 'Office', icon: '🏢', label: 'Office' },
                                             { value: 'Hotel', icon: '🏨', label: 'Hotel' },
-                                        ].map((type) => (
-                                            <button
-                                                key={type.value}
-                                                type="button"
-                                                onClick={() => setNewAddress({ ...newAddress, label: type.value })}
-                                                className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-sm font-medium transition-all ${
-                                                    newAddress.label === type.value
-                                                        ? 'gold-gradient text-primary-foreground'
-                                                        : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                                                }`}
-                                            >
-                                                <span className="text-lg">{type.icon}</span>
-                                                <span>{type.label}</span>
-                                            </button>
-                                        ))}
+                                        ].map((type) => {
+                                            const isActive = newAddress.label === type.value;
+                                            return (
+                                                <button
+                                                    key={type.value}
+                                                    type="button"
+                                                    onClick={() => setNewAddress({ ...newAddress, label: type.value })}
+                                                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'gold-gradient text-primary-foreground' : ''}`}
+                                                    style={!isActive ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}
+                                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-card-hover)'; }}
+                                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                                                >
+                                                    <span className="text-lg">{type.icon}</span>
+                                                    <span>{type.label}</span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
                                 {/* 2. Service Area (Zone) */}
                                 <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
                                         Service Area / Zone *
                                     </label>
-                                    <p className="text-[10px] mb-3" style={{ color: '#64748b' }}>
+                                    <p className="text-[10px] mb-3" style={{ color: 'var(--theme-text-muted)' }}>
                                         We currently serve these areas in Dubai
                                     </p>
                                     <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-gold">
@@ -1151,34 +1182,31 @@ export default function Bookings() {
                                             { name: 'Dubai Internet City', location: 'Dubai, UAE' },
                                             { name: 'Dubai Design District', location: 'Dubai, UAE' },
                                             { name: 'DIFC', location: 'Dubai, UAE' },
-                                        ].map((zone) => (
-                                            <button
-                                                key={zone.name}
-                                                type="button"
-                                                onClick={() => {
-                                                    console.log('✅ Selected zone:', zone.name);
-                                                    setNewAddress({ ...newAddress, zone_name: zone.name });
-                                                }}
-                                                className={`text-left p-3 rounded-xl border transition-all ${
-                                                    newAddress.zone_name === zone.name
-                                                        ? 'border-gold bg-gold/10'
-                                                        : 'border-secondary bg-secondary hover:border-gold/30'
-                                                }`}
-                                            >
-                                                <p className="text-sm font-semibold" style={{ color: newAddress.zone_name === zone.name ? '#e2b764' : '#e2e8f0' }}>
-                                                    {zone.name}
-                                                </p>
-                                                <p className="text-[10px] mt-0.5" style={{ color: '#64748b' }}>
-                                                    {zone.location}
-                                                </p>
-                                            </button>
-                                        ))}
+                                        ].map((zone) => {
+                                            const isActive = newAddress.zone_name === zone.name;
+                                            return (
+                                                <button
+                                                    key={zone.name}
+                                                    type="button"
+                                                    onClick={() => setNewAddress({ ...newAddress, zone_name: zone.name })}
+                                                    className={`text-left p-3 rounded-xl border transition-all ${isActive ? 'border-gold bg-gold/10' : ''}`}
+                                                    style={!isActive ? { borderColor: 'var(--theme-border)', background: 'var(--theme-btn-bg)' } : undefined}
+                                                >
+                                                    <p className="text-sm font-semibold" style={{ color: isActive ? 'var(--theme-link)' : 'var(--theme-text-head)' }}>
+                                                        {zone.name}
+                                                    </p>
+                                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                                        {zone.location}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
                                 {/* 3. Full Address Details */}
                                 <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: '#94a3b8' }}>
+                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
                                         Complete Address *
                                     </label>
                                     <textarea
@@ -1188,12 +1216,12 @@ export default function Bookings() {
                                         rows={3}
                                         className="w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none resize-none"
                                         style={{
-                                            background: '#141d33',
-                                            borderColor: '#1e2740',
-                                            color: '#e2e8f0',
+                                            background: 'var(--theme-input-bg)',
+                                            borderColor: 'var(--theme-border)',
+                                            color: 'var(--theme-text-head)',
                                         }}
                                     />
-                                    <p className="text-[10px] mt-1.5" style={{ color: '#64748b' }}>
+                                    <p className="text-[10px] mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>
                                         Example: "Boulevard Plaza Tower 1, Sheikh Mohammed Boulevard, Downtown Dubai"
                                     </p>
                                 </div>
@@ -1201,16 +1229,16 @@ export default function Bookings() {
                                 {/* Preview Section */}
                                 {(newAddress.label || newAddress.zone_name || newAddress.address) && (
                                     <div className="mt-2 p-3 rounded-xl" style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.1)' }}>
-                                        <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#e2b764' }}>
+                                        <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--theme-link)' }}>
                                             Address Preview
                                         </p>
                                         <div className="flex items-start gap-2">
-                                            <MapPin size={14} style={{ color: '#e2b764' }} />
+                                            <MapPin size={14} style={{ color: 'var(--theme-link)' }} />
                                             <div>
-                                                <p className="text-sm font-medium text-white">
+                                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
                                                     {newAddress.label || '___'} {newAddress.zone_name ? `· ${newAddress.zone_name}` : ''}
                                                 </p>
-                                                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                     {newAddress.address || 'Your complete address will appear here'}
                                                 </p>
                                             </div>
@@ -1221,14 +1249,14 @@ export default function Bookings() {
 
                             {/* Footer */}
                             <div className="sticky bottom-0 p-5 border-t flex gap-3"
-                                style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                                 <button
                                     onClick={() => {
                                         setShowAddAddressModal(false);
                                         setNewAddress({ label: '', address: '', zone_name: '' });
                                     }}
                                     className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
-                                    style={{ background: '#141d33', color: '#94a3b8' }}
+                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
                                 >
                                     Cancel
                                 </button>
@@ -1238,7 +1266,7 @@ export default function Bookings() {
                                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                                     style={{
                                         background: 'linear-gradient(135deg, #b7882a, #e2b764)',
-                                        color: '#0b1120',
+                                        color: 'var(--theme-cta-ink)',
                                         opacity: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 0.5 : 1,
                                         cursor: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 'not-allowed' : 'pointer',
                                     }}

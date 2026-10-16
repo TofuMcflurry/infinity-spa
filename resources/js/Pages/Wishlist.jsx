@@ -63,15 +63,15 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.3, delay: index * 0.05 }}
             className="rounded-2xl border overflow-hidden transition-all"
-            style={{ borderColor: '#1e2740', background: '#0f1629', opacity: isUnavailable ? 0.75 : 1 }}
+            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)', opacity: isUnavailable ? 0.75 : 1 }}
         >
             {/* Image */}
-            <div className="h-40 relative overflow-hidden" style={{ background: '#141d33' }}>
+            <div className="h-40 relative overflow-hidden" style={{ background: 'var(--theme-btn-bg)' }}>
                 {imageUrl ? (
                     <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <Heart size={28} style={{ color: '#1e2740' }} />
+                        <Heart size={28} style={{ color: 'var(--theme-border)' }} />
                     </div>
                 )}
 
@@ -104,20 +104,20 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
             {/* Body */}
             <div className="p-5 pb-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-display font-bold text-lg text-white leading-tight">
+                    <h3 className="font-display font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                         {name ?? 'Service'}
                     </h3>
                     {rating > 0 && (
                         <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                            <Star size={13} style={{ color: '#e2b764', fill: '#e2b764' }} />
-                            <span className="text-sm font-semibold" style={{ color: '#e2b764' }}>
+                            <Star size={13} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
+                            <span className="text-sm font-semibold" style={{ color: 'var(--theme-link)' }}>
                                 {rating.toFixed(1)}
                             </span>
                         </div>
                     )}
                 </div>
 
-                <p className="text-sm leading-relaxed mb-4" style={{ color: '#64748b' }}>
+                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--theme-text-muted)' }}>
                     {service?.description ?? 'Premium spa service delivered to your location.'}
                 </p>
 
@@ -132,9 +132,9 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
                                     onClick={() => setSelectedDuration(isSelected ? null : v)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border"
                                     style={{
-                                        borderColor: isSelected ? '#e2b764' : '#1e2740',
-                                        background:  isSelected ? 'rgba(226,183,100,0.12)' : '#141d33',
-                                        color:       isSelected ? '#e2b764' : '#94a3b8',
+                                        borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
+                                        background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
+                                        color:       isSelected ? 'var(--theme-link)' : 'var(--theme-text-2)',
                                     }}
                                 >
                                     <Clock size={11} />
@@ -147,7 +147,7 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
                         })}
                     </div>
                 ) : (
-                    <p className="text-xs mb-4" style={{ color: '#64748b' }}>
+                    <p className="text-xs mb-4" style={{ color: 'var(--theme-text-muted)' }}>
                         No durations currently available.
                     </p>
                 )}
@@ -163,14 +163,14 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
                             <div className="flex items-center justify-between py-3 px-4 rounded-xl mb-3"
                                 style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.15)' }}>
                                 <div>
-                                    <p className="text-[11px] uppercase tracking-wider mb-0.5" style={{ color: '#64748b' }}>
+                                    <p className="text-[11px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                                         Selected
                                     </p>
-                                    <p className="text-sm font-semibold text-white">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
                                         {selectedDuration.duration_minutes} min session
                                     </p>
                                 </div>
-                                <p className="text-xl font-display font-bold" style={{ color: '#e2b764' }}>
+                                <p className="text-xl font-display font-bold" style={{ color: 'var(--theme-link)' }}>
                                     AED {Number(selectedDuration.price).toLocaleString()}
                                 </p>
                             </div>
@@ -182,9 +182,9 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
             {/* Footer */}
             <div className="px-5 pb-5 flex items-center justify-between gap-3">
                 {minPrice !== null && !selectedDuration ? (
-                    <p className="text-xs" style={{ color: '#64748b' }}>
+                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                         Starting from{' '}
-                        <span className="font-bold" style={{ color: '#e2b764' }}>
+                        <span className="font-bold" style={{ color: 'var(--theme-link)' }}>
                             AED {minPrice.toLocaleString()}
                         </span>
                     </p>
@@ -197,8 +197,8 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
                     disabled={isUnavailable}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
-                        background:  isUnavailable ? '#141d33' : '#e2b764',
-                        color:       isUnavailable ? '#64748b' : '#0b1120',
+                        background:  isUnavailable ? 'var(--theme-btn-bg)' : 'var(--theme-cta)',
+                        color:       isUnavailable ? 'var(--theme-text-muted)' : 'var(--theme-cta-ink)',
                         boxShadow:   isUnavailable ? 'none' : '0 4px 15px rgba(226,183,100,0.25)',
                     }}
                     onMouseEnter={e => { if (!isUnavailable) e.currentTarget.style.boxShadow = '0 4px 20px rgba(226,183,100,0.4)'; }}
@@ -268,21 +268,22 @@ export default function Wishlist() {
 
     return (
         <AuthenticatedLayout>
-            <div className="min-h-screen" style={{ background: '#0b1120', color: '#cbd5e1' }}>
+            <div className="min-h-screen" style={{ background: 'var(--theme-bg)', color: 'var(--theme-text)' }}>
 
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
-                    style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}>
+                    style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
                         <motion.h1
                             initial={{ opacity: 0, y: -8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="font-display text-xl font-bold text-white flex items-center gap-2"
+                            className="font-display text-xl font-bold flex items-center gap-2"
+                            style={{ color: 'var(--theme-text-head)' }}
                         >
-                            <Heart size={20} style={{ color: '#e2b764' }} fill="#e2b764" />
+                            <Heart size={20} style={{ color: 'var(--theme-link)' }} fill="var(--theme-link)" />
                             My Wishlist
                         </motion.h1>
-                        <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                             Services you've saved for later
                         </p>
                     </div>
@@ -292,8 +293,7 @@ export default function Wishlist() {
 
                     {/* ── Remove error banner ── */}
                     {removeError && (
-                        <div className="flex items-center gap-3 p-3 mb-4 rounded-xl text-sm"
-                            style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', color: '#f87171' }}>
+                        <div className="flex items-center gap-3 p-3 mb-4 rounded-xl text-sm bg-destructive/10 border border-destructive/25 text-destructive">
                             <AlertCircle size={16} className="flex-shrink-0" />
                             <span className="flex-1">{removeError}</span>
                             <button onClick={() => setRemoveError(null)} className="text-xs underline flex-shrink-0">
@@ -305,30 +305,30 @@ export default function Wishlist() {
                     {/* ── Content ── */}
                     {loading ? (
                         <div className="flex items-center justify-center py-24">
-                            <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#e2b764' }} />
+                            <Loader2 className="w-7 h-7 animate-spin" style={{ color: 'var(--theme-cta)' }} />
                         </div>
                     ) : error ? (
                         <div className="flex flex-col items-center justify-center py-24 gap-3">
-                            <AlertCircle size={28} style={{ color: '#f87171' }} />
-                            <p className="text-sm" style={{ color: '#f87171' }}>{error}</p>
+                            <AlertCircle size={28} className="text-destructive" />
+                            <p className="text-sm text-destructive">{error}</p>
                             <button
                                 onClick={loadWishlist}
                                 className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                                style={{ background: '#141d33', color: '#e2b764', border: '1px solid #1e2740' }}
+                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-link)', border: '1px solid var(--theme-border)' }}
                             >
                                 Try Again
                             </button>
                         </div>
                     ) : items.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-                            <HeartOff size={32} style={{ color: '#1e2740' }} />
-                            <p className="text-sm" style={{ color: '#64748b' }}>
+                            <HeartOff size={32} style={{ color: 'var(--theme-border)' }} />
+                            <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>
                                 No services in your wishlist yet.
                             </p>
                             <button
                                 onClick={() => router.visit(route('services'))}
                                 className="mt-1 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
-                                style={{ background: '#e2b764', color: '#0b1120', boxShadow: '0 4px 15px rgba(226,183,100,0.25)' }}
+                                style={{ background: 'var(--theme-cta)', color: 'var(--theme-cta-ink)', boxShadow: '0 4px 15px rgba(226,183,100,0.25)' }}
                             >
                                 Browse Services
                                 <ChevronRight size={14} />

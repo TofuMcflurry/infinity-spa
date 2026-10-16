@@ -34,6 +34,7 @@
   --theme-tag-gold-border:  rgba(226,183,100,0.2);
   --theme-tag-pending-bg:   rgba(148,163,184,0.1);
   --theme-tag-pending-text: #94a3b8;
+  --theme-success:          #4ade80;
 
   /* Muted navy/gray — default (dark) scrollbar thumb. Track is always
      transparent so it reads as "soft" against whatever surface it sits
@@ -478,6 +479,10 @@
   --theme-tag-gold-border:  #F0DFB8;
   --theme-tag-pending-bg:   #FCF0DC;
   --theme-tag-pending-text: #8C5A00;
+  /* Deep AA-safe green for success text/icons on ivory — #4ade80 (used in
+     dark mode) has too little contrast on a light card. Sourced from the
+     Claude Design handoff's own "Confirmed" status ink (theme-light.css). */
+  --theme-success:          #0F7A55;
 
   /* Gold-compatible scrollbar thumb for the customer portal specifically
      (Notifications list, Booking Assistant) — slightly warmer than the
