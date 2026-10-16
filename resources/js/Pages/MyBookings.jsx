@@ -40,10 +40,10 @@ async function apiFetch(url, options = {}) {
 
 // ── Tab config ─────────────────────────────────────────────────────────────
 const TABS = [
-    { key: 'upcoming',  label: 'Upcoming',  icon: Calendar,     color: '#10b981' },
-    { key: 'pending',   label: 'Pending',   icon: AlertCircle,  color: '#e2b764' },
-    { key: 'completed', label: 'Completed', icon: CheckCircle2, color: '#60a5fa' },
-    { key: 'cancelled', label: 'Cancelled', icon: XCircle,      color: '#f87171' },
+    { key: 'upcoming',  label: 'Upcoming',  icon: Calendar,     color: 'var(--theme-success)' },
+    { key: 'pending',   label: 'Pending',   icon: AlertCircle,  color: 'var(--theme-link)' },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2, color: 'var(--theme-info)' },
+    { key: 'cancelled', label: 'Cancelled', icon: XCircle,      color: 'var(--theme-danger)' },
 ];
 
 const CANCEL_REASONS = [
@@ -445,13 +445,13 @@ function AcceptProposalModal({ booking, proposal, onClose, onAccepted }) {
 // ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
     const config = {
-        accepted:        { label: 'Confirmed',          bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.3)',  color: '#10b981' },
-        pending:         { label: 'Awaiting Therapist', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
-        pending_payment: { label: 'Awaiting Payment',   bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: '#e2b764' },
-        completed:       { label: 'Completed',        bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.3)',  color: '#60a5fa' },
-        rejected:        { label: 'Rejected',         bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: '#f87171' },
-        cancelled:       { label: 'Cancelled',        bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: '#f87171' },
-    }[status] ?? { label: status, bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.3)', color: '#94a3b8' };
+        accepted:        { label: 'Confirmed',          bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.3)',  color: 'var(--theme-success)' },
+        pending:         { label: 'Awaiting Therapist', bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: 'var(--theme-link)' },
+        pending_payment: { label: 'Awaiting Payment',   bg: 'rgba(226,183,100,0.1)', border: 'rgba(226,183,100,0.3)', color: 'var(--theme-link)' },
+        completed:       { label: 'Completed',        bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.3)',  color: 'var(--theme-info)' },
+        rejected:        { label: 'Rejected',         bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: 'var(--theme-danger)' },
+        cancelled:       { label: 'Cancelled',        bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.3)', color: 'var(--theme-danger)' },
+    }[status] ?? { label: status, bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.3)', color: 'var(--theme-text-2)' };
 
     return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
@@ -474,22 +474,22 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
     // settlement for a downpayment-type booking.
     const pay = computePaymentSummary(booking);
     const downpaymentStatusConfig = {
-        paid_full:        { label: PAYMENT_STATUS_LABELS.paid_full + ' ✅',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
-        deposit_paid:      { label: PAYMENT_STATUS_LABELS.deposit_paid + ' ✅', color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
-        awaiting_payment:  { label: 'Awaiting Payment',            color: '#e2b764', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
-        no_proof:          { label: 'Awaiting transfer',           color: '#e2b764', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
-        submitted:         { label: 'Under review',                color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)'  },
-        verified:          { label: 'Verified ✅',                  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)'  },
-    }[pay.statusKey] ?? { label: pay.statusKey, color: '#94a3b8', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
+        paid_full:        { label: PAYMENT_STATUS_LABELS.paid_full + ' ✅',    color: 'var(--theme-success)', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
+        deposit_paid:      { label: PAYMENT_STATUS_LABELS.deposit_paid + ' ✅', color: 'var(--theme-success)', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)' },
+        awaiting_payment:  { label: 'Awaiting Payment',            color: 'var(--theme-link)', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
+        no_proof:          { label: 'Awaiting transfer',           color: 'var(--theme-link)', bg: 'rgba(226,183,100,0.08)', border: 'rgba(226,183,100,0.2)' },
+        submitted:         { label: 'Under review',                color: 'var(--theme-info)', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)'  },
+        verified:          { label: 'Verified ✅',                  color: 'var(--theme-success)', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.2)'  },
+    }[pay.statusKey] ?? { label: pay.statusKey, color: 'var(--theme-text-2)', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.2)' };
 
     // Refund/forfeit outcomes come from `downpayment_status` directly and
     // take priority over the live payment-status label once cancelled.
     if (booking.downpayment_status === 'refunded') {
         downpaymentStatusConfig.label = 'Refunded';
-        downpaymentStatusConfig.color = '#10b981';
+        downpaymentStatusConfig.color = 'var(--theme-success)';
     } else if (booking.downpayment_status === 'forfeited') {
         downpaymentStatusConfig.label = 'Forfeited';
-        downpaymentStatusConfig.color = '#f87171';
+        downpaymentStatusConfig.color = 'var(--theme-danger)';
         downpaymentStatusConfig.bg = 'rgba(248,113,113,0.08)';
         downpaymentStatusConfig.border = 'rgba(248,113,113,0.2)';
     }
@@ -512,19 +512,19 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                 animate={{ opacity: 1, scale: 1,    y: 0  }}
                 exit={{ opacity: 0,  scale: 0.95, y: 20  }}
                 className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-hidden max-h-[90vh] flex flex-col"
-                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
             >
                 {/* ── Header ── */}
                 <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0"
-                    style={{ borderColor: '#1e2740', background: 'linear-gradient(135deg, #141d33 0%, #0a0f1e 100%)' }}>
+                    style={{ borderColor: 'var(--theme-border)', background: 'linear-gradient(135deg, var(--theme-btn-bg) 0%, var(--theme-bg) 100%)' }}>
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                             style={{ background: 'rgba(226,183,100,0.15)' }}>
-                            <Receipt size={15} style={{ color: '#e2b764' }} />
+                            <Receipt size={15} style={{ color: 'var(--theme-link)' }} />
                         </div>
                         <div>
-                            <h3 className="font-display font-bold text-white text-sm">Booking Details</h3>
-                            <p className="text-[11px] font-mono" style={{ color: '#e2b764' }}>{bookingRef}</p>
+                            <h3 className="font-display font-bold text-sm" style={{ color: 'var(--theme-text-head)' }}>Booking Details</h3>
+                            <p className="text-[11px] font-mono" style={{ color: 'var(--theme-link)' }}>{bookingRef}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -532,9 +532,9 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <button
                             onClick={onClose}
                             className="p-1.5 rounded-lg transition-colors"
-                            style={{ color: '#64748b' }}
-                            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                            style={{ color: 'var(--theme-text-muted)' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
                         >
                             <X size={16} />
                         </button>
@@ -556,19 +556,19 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
 
                     {/* ── Session Info ── */}
                     <div className="rounded-xl p-4 space-y-3"
-                        style={{ background: '#141d33', border: '1px solid #1e2740' }}>
+                        style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                         <p className="text-[10px] uppercase tracking-wider font-semibold mb-3"
-                            style={{ color: '#64748b' }}>Session Info</p>
+                            style={{ color: 'var(--theme-text-muted)' }}>Session Info</p>
 
                         {/* Therapist avatar + service */}
                         <div className="flex items-center gap-3 mb-3">
                             <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-display font-bold flex-shrink-0"
-                                style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}>
+                                style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: 'var(--theme-cta-ink)' }}>
                                 {booking.therapist_avatar}
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-white">{booking.service}</p>
-                                <p className="text-xs" style={{ color: '#94a3b8' }}>{booking.therapist}</p>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</p>
+                                <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>{booking.therapist}</p>
                             </div>
                         </div>
 
@@ -582,10 +582,10 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         ].map(({ icon: Icon, label, value }) => (
                             <div key={label} className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    <Icon size={11} style={{ color: '#64748b' }} />
-                                    <span className="text-[11px]" style={{ color: '#64748b' }}>{label}</span>
+                                    <Icon size={11} style={{ color: 'var(--theme-text-muted)' }} />
+                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{label}</span>
                                 </div>
-                                <span className="text-[11px] font-medium text-right text-white">{value ?? '—'}</span>
+                                <span className="text-[11px] font-medium text-right" style={{ color: 'var(--theme-text-head)' }}>{value ?? '—'}</span>
                             </div>
                         ))}
                     </div>
@@ -599,22 +599,22 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                                 🎁
                             </div>
                             <div>
-                                <p className="text-sm font-semibold" style={{ color: '#4ade80' }}>Redeemed via Loyalty Voucher</p>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--theme-success)' }}>Redeemed via Loyalty Voucher</p>
                                 {booking.voucher_code && (
-                                    <p className="text-[11px] font-mono mt-0.5" style={{ color: '#94a3b8' }}>Voucher: {booking.voucher_code}</p>
+                                    <p className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--theme-text-2)' }}>Voucher: {booking.voucher_code}</p>
                                 )}
                             </div>
                         </div>
                     ) : (
                     <>
                     <div className="rounded-xl p-4 space-y-2.5"
-                        style={{ background: '#141d33', border: '1px solid #1e2740' }}>
+                        style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                         <p className="text-[10px] uppercase tracking-wider font-semibold mb-3"
-                            style={{ color: '#64748b' }}>Payment Breakdown</p>
+                            style={{ color: 'var(--theme-text-muted)' }}>Payment Breakdown</p>
 
                         <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#94a3b8' }}>Total Amount</span>
-                            <span className="text-sm font-display font-bold" style={{ color: '#e2b764' }}>
+                            <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Total Amount</span>
+                            <span className="text-sm font-display font-bold" style={{ color: 'var(--theme-link)' }}>
                                 AED {Number(booking.price).toLocaleString()}
                             </span>
                         </div>
@@ -622,14 +622,14 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         {booking.payment_type === 'full' ? (
                             <>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>Total Paid</span>
-                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? '#10b981' : '#e2b764' }}>
+                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Total Paid</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? 'var(--theme-success)' : 'var(--theme-link)' }}>
                                         {pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>Remaining</span>
-                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? '#10b981' : '#e2b764' }}>
+                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Remaining</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? 'var(--theme-success)' : 'var(--theme-link)' }}>
                                         {pay.isPaid ? 'AED 0.00 — Fully Paid' : formatAed(pay.remaining)}
                                     </span>
                                 </div>
@@ -637,23 +637,23 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         ) : booking.downpayment_amount && (
                             <>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>20% Downpayment</span>
-                                    <span className="text-[11px] font-semibold text-white">
+                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>20% Downpayment</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: 'var(--theme-text-head)' }}>
                                         AED {Number(booking.downpayment_amount).toFixed(2)}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>Remaining (on session)</span>
-                                    <span className="text-[11px] font-semibold text-white">
+                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Remaining (on session)</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: 'var(--theme-text-head)' }}>
                                         AED {Number(booking.remaining_amount).toFixed(2)}
                                     </span>
                                 </div>
                             </>
                         )}
 
-                        <div className="flex justify-between items-center pt-2 border-t" style={{ borderColor: '#1e2740' }}>
-                            <span className="text-[11px]" style={{ color: '#94a3b8' }}>Session Payment</span>
-                            <span className="text-[11px] font-semibold text-white capitalize">
+                        <div className="flex justify-between items-center pt-2 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                            <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Session Payment</span>
+                            <span className="text-[11px] font-semibold capitalize" style={{ color: 'var(--theme-text-head)' }}>
                                 {booking.payment_method}
                             </span>
                         </div>
@@ -671,7 +671,7 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <div className="rounded-xl p-4 space-y-3"
                             style={{ background: downpaymentStatusConfig.bg, border: `1px solid ${downpaymentStatusConfig.border}` }}>
                             <p className="text-[10px] uppercase tracking-wider font-semibold"
-                                style={{ color: '#64748b' }}>Downpayment Status</p>
+                                style={{ color: 'var(--theme-text-muted)' }}>Downpayment Status</p>
 
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full flex-shrink-0"
@@ -689,7 +689,7 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                                     <button
                                         onClick={() => setShowProof(true)}
                                         className="relative w-full rounded-xl overflow-hidden border transition-all group"
-                                        style={{ border: '1px solid #1e2740' }}
+                                        style={{ border: '1px solid var(--theme-border)' }}
                                     >
                                         <img
                                             src={`${window.location.origin}${booking.downpayment_proof}`}
@@ -757,8 +757,8 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <div className="rounded-xl p-4 space-y-2"
                             style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}>
                             <p className="text-[10px] uppercase tracking-wider font-semibold"
-                                style={{ color: '#64748b' }}>Cancellation</p>
-                            <p className="text-xs font-semibold capitalize" style={{ color: '#f87171' }}>
+                                style={{ color: 'var(--theme-text-muted)' }}>Cancellation</p>
+                            <p className="text-xs font-semibold capitalize" style={{ color: 'var(--theme-danger)' }}>
                                 {booking.cancellation_type === 'refunded'  && '✅ Refunded — cancelled before 24hrs'}
                                 {booking.cancellation_type === 'forfeited' && '❌ Forfeited — cancelled within 24hrs'}
                                 {booking.cancellation_type === 'no_show'   && '❌ Forfeited — no show'}
@@ -766,7 +766,7 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                                 {booking.cancellation_type === 'therapist' && '🚫 Cancelled by Therapist — your therapist was unable to fulfill this booking'}
                             </p>
                             {booking.cancelled_at && (
-                                <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+                                <p className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>
                                     Cancelled on {booking.cancelled_at}
                                 </p>
                             )}
@@ -778,8 +778,8 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <div className="rounded-xl p-4"
                             style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}>
                             <p className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-                                style={{ color: '#64748b' }}>Rejection Reason</p>
-                            <p className="text-xs" style={{ color: '#f87171' }}>{booking.rejection_reason}</p>
+                                style={{ color: 'var(--theme-text-muted)' }}>Rejection Reason</p>
+                            <p className="text-xs" style={{ color: 'var(--theme-danger)' }}>{booking.rejection_reason}</p>
                         </div>
                     )}
 
@@ -792,9 +792,9 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <div className="rounded-xl p-4"
                             style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}>
                             <p className="text-[10px] uppercase tracking-wider font-semibold mb-2"
-                                style={{ color: '#64748b' }}>Reschedule Request Rejected</p>
+                                style={{ color: 'var(--theme-text-muted)' }}>Reschedule Request Rejected</p>
                             {booking.reschedule_request.admin_notes && (
-                                <p className="text-xs" style={{ color: '#f87171' }}>
+                                <p className="text-xs" style={{ color: 'var(--theme-danger)' }}>
                                     Reason from the team: {booking.reschedule_request.admin_notes}
                                 </p>
                             )}
@@ -803,7 +803,7 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
 
                     {/* ── Booked on ── */}
                     <div className="text-center pt-2">
-                        <p className="text-[11px]" style={{ color: '#64748b' }}>
+                        <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
                             Booked on {booking.created_at ?? booking.date_short}
                         </p>
                     </div>
@@ -811,11 +811,11 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
 
                 {/* ── Footer ── */}
                 <div className="px-5 pb-5 pt-3 border-t flex-shrink-0"
-                    style={{ borderColor: '#1e2740' }}>
+                    style={{ borderColor: 'var(--theme-border)' }}>
                     <button
                         onClick={onClose}
                         className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
-                        style={{ background: '#141d33', color: '#94a3b8', border: '1px solid #1e2740' }}
+                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}
                     >
                         Close
                     </button>
@@ -836,20 +836,20 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             className="rounded-2xl border p-5 md:p-6 transition-all"
-            style={{ background: '#0f1629', borderColor: '#1e2740' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#2a3a5c'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#1e2740'}
+            style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--theme-link)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--theme-border)'}
         >
             {/* Top row */}
             <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-display font-bold flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: '#0b1120' }}>
+                        style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: 'var(--theme-cta-ink)' }}>
                         {booking.therapist_avatar}
                     </div>
                     <div>
-                        <h4 className="font-display font-semibold text-white text-base">{booking.service}</h4>
-                        <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: '#94a3b8' }}>
+                        <h4 className="font-display font-semibold text-base" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h4>
+                        <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--theme-text-2)' }}>
                             <User size={12} /> {booking.therapist}
                         </p>
                     </div>
@@ -861,49 +861,49 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#141d33' }}>
-                        <Calendar size={13} style={{ color: '#e2b764' }} />
+                        style={{ background: 'var(--theme-btn-bg)' }}>
+                        <Calendar size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>Date</p>
-                        <p className="text-xs font-medium text-white">{booking.date_short}</p>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Date</p>
+                        <p className="text-xs font-medium" style={{ color: 'var(--theme-text-head)' }}>{booking.date_short}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#141d33' }}>
-                        <Clock size={13} style={{ color: '#e2b764' }} />
+                        style={{ background: 'var(--theme-btn-bg)' }}>
+                        <Clock size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>Time</p>
-                        <p className="text-xs font-medium text-white">{booking.time}</p>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Time</p>
+                        <p className="text-xs font-medium" style={{ color: 'var(--theme-text-head)' }}>{booking.time}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#141d33' }}>
-                        <MapPin size={13} style={{ color: '#e2b764' }} />
+                        style={{ background: 'var(--theme-btn-bg)' }}>
+                        <MapPin size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>Location</p>
-                        <p className="text-xs font-medium text-white truncate">{booking.location?.split(' - ')[0]}</p>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Location</p>
+                        <p className="text-xs font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{booking.location?.split(' - ')[0]}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#141d33' }}>
+                        style={{ background: 'var(--theme-btn-bg)' }}>
                         {booking.is_voucher_covered
                             ? <span style={{ fontSize: 13 }}>🎁</span>
                             : booking.payment_method === 'cash'
-                                ? <Banknote size={13} style={{ color: '#e2b764' }} />
-                                : <CreditCard size={13} style={{ color: '#e2b764' }} />
+                                ? <Banknote size={13} style={{ color: 'var(--theme-link)' }} />
+                                : <CreditCard size={13} style={{ color: 'var(--theme-link)' }} />
                         }
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider" style={{ color: '#64748b' }}>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
                             {booking.is_voucher_covered ? 'Voucher' : 'Payment'}
                         </p>
-                        <p className="text-xs font-medium text-white capitalize">
+                        <p className="text-xs font-medium capitalize" style={{ color: 'var(--theme-text-head)' }}>
                             {booking.is_voucher_covered ? 'Redeemed' : booking.payment_method}
                         </p>
                     </div>
@@ -938,9 +938,9 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                                 : '1px solid rgba(226,183,100,0.2)',
                     }}>
                     <span style={{
-                        color: booking.downpayment_status === 'verified'  ? '#10b981'
-                             : booking.downpayment_status === 'submitted' ? '#60a5fa'
-                             : '#e2b764'
+                        color: booking.downpayment_status === 'verified'  ? 'var(--theme-success)'
+                             : booking.downpayment_status === 'submitted' ? 'var(--theme-info)'
+                             : 'var(--theme-link)'
                     }}>
                         {/* Audit A5: "Downpayment" wording only applies to a
                             genuine downpayment-type booking — a full-payment
@@ -957,7 +957,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         )}
                     </span>
                     {booking.downpayment_amount && (
-                        <span className="ml-auto font-bold" style={{ color: '#e2b764' }}>
+                        <span className="ml-auto font-bold" style={{ color: 'var(--theme-link)' }}>
                             AED {booking.downpayment_amount}
                         </span>
                     )}
@@ -969,7 +969,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             {tab === 'pending' && booking.status === 'pending' && (booking.payment_status === 'paid' || booking.is_voucher_covered) && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
                     style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)' }}>
-                    <span style={{ color: '#60a5fa' }}>⏳ Awaiting therapist confirmation</span>
+                    <span style={{ color: 'var(--theme-info)' }}>⏳ Awaiting therapist confirmation</span>
                 </div>
             )}
 
@@ -1003,8 +1003,8 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             {booking.reschedule_request && pendingReschedule && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2 text-xs"
                     style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)' }}>
-                    <CalendarClock size={13} style={{ color: '#60a5fa' }} />
-                    <span style={{ color: '#60a5fa' }}>
+                    <CalendarClock size={13} style={{ color: 'var(--theme-info)' }} />
+                    <span style={{ color: 'var(--theme-info)' }}>
                         Reschedule requested for {booking.reschedule_request.requested_start_at_fmt} · awaiting admin review
                     </span>
                 </div>
@@ -1017,11 +1017,11 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             {booking.reschedule_request?.status === 'rejected' && (
                 <div className="mb-4 px-3 py-2 rounded-xl flex items-start gap-2 text-xs"
                     style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}>
-                    <CalendarClock size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#f87171' }} />
+                    <CalendarClock size={13} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-danger)' }} />
                     <div>
-                        <p style={{ color: '#f87171' }} className="font-semibold">Reschedule Request Rejected</p>
+                        <p style={{ color: 'var(--theme-danger)' }} className="font-semibold">Reschedule Request Rejected</p>
                         {booking.reschedule_request.admin_notes && (
-                            <p style={{ color: '#f87171' }} className="mt-0.5">
+                            <p style={{ color: 'var(--theme-danger)' }} className="mt-0.5">
                                 Reason from the team: {booking.reschedule_request.admin_notes}
                             </p>
                         )}
@@ -1030,21 +1030,21 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             )}
 
             {/* Price + Actions row */}
-            <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: '#1e2740' }}>
+            <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
                 {booking.is_voucher_covered ? (
                     <div className="flex items-center gap-2">
                         <span style={{ fontSize: 16 }}>🎁</span>
                         <div>
-                            <p className="text-xs font-semibold" style={{ color: '#4ade80' }}>Redeemed via Loyalty Voucher</p>
+                            <p className="text-xs font-semibold" style={{ color: 'var(--theme-success)' }}>Redeemed via Loyalty Voucher</p>
                             {booking.voucher_code && (
-                                <p className="text-[10px] font-mono" style={{ color: '#64748b' }}>{booking.voucher_code}</p>
+                                <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>{booking.voucher_code}</p>
                             )}
                         </div>
                     </div>
                 ) : (
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: '#64748b' }}>Total</p>
-                        <p className="text-lg font-display font-bold" style={{ color: '#e2b764' }}>
+                        <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>Total</p>
+                        <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>
                             AED {booking.price}
                         </p>
                     </div>
@@ -1057,7 +1057,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                             onClick={() => onRequestReschedule?.(booking)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
                             style={{
-                                color:      '#60a5fa',
+                                color:      'var(--theme-info)',
                                 background: 'rgba(96,165,250,0.05)',
                                 border:     '1px solid rgba(96,165,250,0.3)',
                             }}
@@ -1075,7 +1075,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                             onClick={() => onCancel?.(booking)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
                             style={{
-                                color:      '#f87171',
+                                color:      'var(--theme-danger)',
                                 background: 'rgba(248,113,113,0.05)',
                                 border:     '1px solid rgba(248,113,113,0.3)',
                             }}
@@ -1092,15 +1092,15 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         <button
                             onClick={() => router.visit(route('bookings'))}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all border"
-                            style={{ borderColor: '#1e2740', color: '#cbd5e1' }}
+                            style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)';
-                                e.currentTarget.style.color = '#e2b764';
+                                e.currentTarget.style.color = 'var(--theme-link)';
                                 e.currentTarget.style.background = 'rgba(226,183,100,0.05)';
                             }}
                             onMouseLeave={e => {
-                                e.currentTarget.style.borderColor = '#1e2740';
-                                e.currentTarget.style.color = '#cbd5e1';
+                                e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                e.currentTarget.style.color = 'var(--theme-text)';
                                 e.currentTarget.style.background = 'transparent';
                             }}
                         >
@@ -1116,7 +1116,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                             style={{
                                 background: 'rgba(226,183,100,0.1)',
                                 border:     '1px solid rgba(226,183,100,0.3)',
-                                color:      '#e2b764',
+                                color:      'var(--theme-link)',
                             }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(226,183,100,0.2)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'rgba(226,183,100,0.1)'}
@@ -1135,9 +1135,9 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                     <button
                         onClick={() => onViewDetails?.(booking)}
                         className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-                        style={{ background: '#141d33', color: '#64748b' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#e2b764'; e.currentTarget.style.color = '#0b1120'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#141d33'; e.currentTarget.style.color = '#64748b'; }}
+                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#e2b764'; e.currentTarget.style.color = 'var(--theme-cta-ink)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-muted)'; }}
                     >
                         <ChevronRight size={16} />
                     </button>
@@ -1204,7 +1204,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
         }
     };
 
-    const inputStyle = { background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' };
+    const inputStyle = { background: 'var(--theme-btn-bg)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-head)' };
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -1219,17 +1219,17 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
-                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
             >
                 {/* Header */}
                 <div className="sticky top-0 p-5 border-b flex items-center justify-between"
-                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                    style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                     <div>
-                        <h3 className="font-display font-semibold text-lg text-white">
+                        <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--theme-text-head)' }}>
                             {step === 'success' ? 'Request Submitted' : 'Request Reschedule'}
                         </h3>
                         {step !== 'success' && (
-                            <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                                 {booking.service} • Currently {booking.date_short} at {booking.time}
                             </p>
                         )}
@@ -1242,7 +1242,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                         )}
                     </div>
                     {step !== 'success' && (
-                        <button onClick={() => !submitting && onClose()} className="p-1.5 rounded-lg" style={{ color: '#64748b' }}>
+                        <button onClick={() => !submitting && onClose()} className="p-1.5 rounded-lg" style={{ color: 'var(--theme-text-muted)' }}>
                             <X size={18} />
                         </button>
                     )}
@@ -1252,7 +1252,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 {step === 'choose' && (
                     <div className="p-5 space-y-5">
                         <div>
-                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Quick suggestions</p>
+                            <p className="text-xs font-medium mb-3" style={{ color: 'var(--theme-text-2)' }}>Quick suggestions</p>
                             <div className="grid grid-cols-3 gap-2">
                                 {suggestions.map(s => {
                                     const isActive = selectedDate === s.date && selectedTime === s.time;
@@ -1262,12 +1262,12 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                                             onClick={() => applySuggestion(s)}
                                             className="p-3 rounded-xl border text-center transition-all"
                                             style={{
-                                                borderColor: isActive ? '#60a5fa' : '#1e2740',
-                                                background:  isActive ? 'rgba(96,165,250,0.1)' : '#141d33',
+                                                borderColor: isActive ? 'var(--theme-info)' : 'var(--theme-border)',
+                                                background:  isActive ? 'rgba(96,165,250,0.1)' : 'var(--theme-btn-bg)',
                                             }}
                                         >
-                                            <p className="text-[11px] font-semibold" style={{ color: isActive ? '#60a5fa' : '#cbd5e1' }}>{s.caption}</p>
-                                            <p className="text-[10px] mt-1" style={{ color: '#64748b' }}>{s.label}</p>
+                                            <p className="text-[11px] font-semibold" style={{ color: isActive ? 'var(--theme-info)' : 'var(--theme-text)' }}>{s.caption}</p>
+                                            <p className="text-[10px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{s.label}</p>
                                         </button>
                                     );
                                 })}
@@ -1275,7 +1275,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                         </div>
 
                         <div>
-                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Or pick a date & time</p>
+                            <p className="text-xs font-medium mb-3" style={{ color: 'var(--theme-text-2)' }}>Or pick a date & time</p>
                             <div className="grid grid-cols-2 gap-3">
                                 <input
                                     type="date"
@@ -1299,7 +1299,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                         </div>
 
                         <div>
-                            <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>Reason (optional)</p>
+                            <p className="text-xs font-medium mb-3" style={{ color: 'var(--theme-text-2)' }}>Reason (optional)</p>
                             <textarea
                                 value={reason}
                                 onChange={e => setReason(e.target.value)}
@@ -1317,37 +1317,37 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 {step === 'review' && (
                     <div className="p-5 space-y-5">
                         <div className="space-y-3">
-                            <div className="p-4 rounded-xl" style={{ background: '#141d33', border: '1px solid #1e2740' }}>
-                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Current Schedule</p>
-                                <p className="text-sm font-semibold text-white">{booking.date_short} at {booking.time}</p>
+                            <div className="p-4 rounded-xl" style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-muted)' }}>Current Schedule</p>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{booking.date_short} at {booking.time}</p>
                             </div>
                             <div className="flex justify-center">
-                                <ArrowRight size={16} className="rotate-90" style={{ color: '#64748b' }} />
+                                <ArrowRight size={16} className="rotate-90" style={{ color: 'var(--theme-text-muted)' }} />
                             </div>
                             <div className="p-4 rounded-xl" style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.3)' }}>
-                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#60a5fa' }}>Requested Schedule</p>
-                                <p className="text-sm font-semibold" style={{ color: '#60a5fa' }}>{requestedLabel}</p>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--theme-info)' }}>Requested Schedule</p>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--theme-info)' }}>{requestedLabel}</p>
                             </div>
                         </div>
 
                         {reason.trim() && (
                             <div>
-                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#64748b' }}>Your Reason</p>
-                                <p className="text-sm" style={{ color: '#cbd5e1' }}>{reason.trim()}</p>
+                                <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-muted)' }}>Your Reason</p>
+                                <p className="text-sm" style={{ color: 'var(--theme-text)' }}>{reason.trim()}</p>
                             </div>
                         )}
 
                         <div className="flex items-start gap-3 p-4 rounded-xl"
                             style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
-                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
-                            <p className="text-xs" style={{ color: '#94a3b8' }}>
+                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-link)' }} />
+                            <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>
                                 This is your preferred time, not a confirmed one. Our team will review it and may confirm a nearby time instead.
                             </p>
                         </div>
 
                         {error && (
                             <div className="flex items-center gap-2 p-3 rounded-xl text-sm"
-                                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--theme-danger)' }}>
                                 <AlertCircle size={14} /> {error}
                             </div>
                         )}
@@ -1358,16 +1358,16 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 {step === 'success' && (
                     <div className="p-8 flex flex-col items-center text-center gap-3">
                         <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.12)' }}>
-                            <CalendarClock size={26} style={{ color: '#60a5fa' }} />
+                            <CalendarClock size={26} style={{ color: 'var(--theme-info)' }} />
                         </div>
-                        <p className="font-display font-semibold text-white">Your request is pending review</p>
-                        <p className="text-sm" style={{ color: '#94a3b8' }}>
+                        <p className="font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Your request is pending review</p>
+                        <p className="text-sm" style={{ color: 'var(--theme-text-2)' }}>
                             We'll notify you once an admin confirms the new schedule for {requestedLabel}.
                         </p>
                         <button
                             onClick={onSubmitted}
                             className="mt-2 w-full py-2.5 rounded-xl text-sm font-bold"
-                            style={{ background: '#e2b764', color: '#0b1120' }}
+                            style={{ background: '#e2b764', color: 'var(--theme-cta-ink)' }}
                         >
                             Done
                         </button>
@@ -1377,12 +1377,12 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 {/* Footer */}
                 {step !== 'success' && (
                     <div className="sticky bottom-0 p-5 border-t flex gap-3"
-                        style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                        style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                         <button
                             onClick={() => step === 'review' ? setStep('choose') : onClose()}
                             disabled={submitting}
                             className="flex-1 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5"
-                            style={{ background: '#141d33', color: '#94a3b8' }}>
+                            style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
                             {step === 'review' && <ChevronLeft size={14} />}
                             {step === 'review' ? 'Back' : 'Close'}
                         </button>
@@ -1393,7 +1393,7 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                             style={{
                                 background: 'rgba(96,165,250,0.15)',
                                 border:     '1px solid rgba(96,165,250,0.4)',
-                                color:      '#60a5fa',
+                                color:      'var(--theme-info)',
                             }}>
                             {submitting
                                 ? <Loader2 size={14} className="animate-spin" />
@@ -1420,18 +1420,18 @@ function EmptyState({ tab }) {
     return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ background: '#141d33' }}>
-                <Icon size={28} style={{ color: '#2a3a5c' }} />
+                style={{ background: 'var(--theme-btn-bg)' }}>
+                <Icon size={28} style={{ color: 'var(--theme-border)' }} />
             </div>
             <div className="text-center">
-                <p className="font-display font-semibold text-white mb-1">{config.msg}</p>
-                <p className="text-sm" style={{ color: '#64748b' }}>{config.sub}</p>
+                <p className="font-display font-semibold mb-1" style={{ color: 'var(--theme-text-head)' }}>{config.msg}</p>
+                <p className="text-sm" style={{ color: 'var(--theme-text-muted)' }}>{config.sub}</p>
             </div>
             {tab === 'upcoming' && (
                 <button
                     onClick={() => router.visit(route('bookings'))}
                     className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm"
-                    style={{ background: '#e2b764', color: '#0b1120' }}
+                    style={{ background: '#e2b764', color: 'var(--theme-cta-ink)' }}
                 >
                     <Sparkles size={16} />
                     Book a Session
@@ -1583,14 +1583,14 @@ export default function MyBookings() {
 
     return (
         <AuthenticatedLayout>
-            <div className="min-h-screen" style={{ background: '#0b1120', color: '#cbd5e1' }}>
+            <div className="min-h-screen" style={{ background: 'var(--theme-bg)', color: 'var(--theme-text)' }}>
 
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
-                    style={{ background: 'rgba(11,17,32,0.8)', borderColor: '#1e2740' }}>
+                    style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="h-16 flex items-center">
-                            <h1 className="text-xl font-display font-semibold text-white">My Bookings</h1>
+                            <h1 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>My Bookings</h1>
                         </div>
                         <div className="flex gap-1 pb-0 overflow-x-auto scrollbar-hide">
                             {TABS.map(tab => {
@@ -1602,15 +1602,15 @@ export default function MyBookings() {
                                         key={tab.key}
                                         onClick={() => setActiveTab(tab.key)}
                                         className="relative flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all flex-shrink-0"
-                                        style={{ color: active ? tab.color : '#64748b' }}
+                                        style={{ color: active ? tab.color : 'var(--theme-text-muted)' }}
                                     >
                                         <Icon size={15} />
                                         {tab.label}
                                         {count > 0 && (
                                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
                                                 style={{
-                                                    background: active ? `${tab.color}20` : '#1e2740',
-                                                    color:      active ? tab.color : '#64748b',
+                                                    background: active ? `${tab.color}20` : 'var(--theme-border)',
+                                                    color:      active ? tab.color : 'var(--theme-text-muted)',
                                                 }}>
                                                 {count}
                                             </span>
@@ -1633,7 +1633,7 @@ export default function MyBookings() {
                 <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     {loading ? (
                         <div className="flex items-center justify-center py-20">
-                            <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#e2b764' }} />
+                            <Loader2 className="w-7 h-7 animate-spin" style={{ color: 'var(--theme-cta)' }} />
                         </div>
                     ) : (
                         <AnimatePresence mode="wait">
@@ -1708,14 +1708,14 @@ export default function MyBookings() {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                                 className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
-                                style={{ background: '#0f1629', border: '1px solid #1e2740' }}
+                                style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
                             >
                                 {/* Header */}
                                 <div className="sticky top-0 p-5 border-b flex items-center justify-between"
-                                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                    style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                                     <div>
-                                        <h3 className="font-display font-semibold text-lg text-white">Cancel Booking</h3>
-                                        <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
+                                        <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--theme-text-head)' }}>Cancel Booking</h3>
+                                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                                             {cancelBooking.service} • {cancelBooking.date_short} at {cancelBooking.time}
                                         </p>
                                         {/* §8.9 — the one addition this flow gets when opened
@@ -1727,7 +1727,7 @@ export default function MyBookings() {
                                         )}
                                     </div>
                                     <button onClick={() => !cancelling && setShowCancelModal(false)}
-                                        className="p-1.5 rounded-lg" style={{ color: '#64748b' }}>
+                                        className="p-1.5 rounded-lg" style={{ color: 'var(--theme-text-muted)' }}>
                                         <X size={18} />
                                     </button>
                                 </div>
@@ -1749,10 +1749,10 @@ export default function MyBookings() {
                                             return (
                                                 <div className="flex items-start gap-3 p-4 rounded-xl"
                                                     style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.2)' }}>
-                                                    <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#e2b764' }} />
+                                                    <AlertCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-link)' }} />
                                                     <div>
-                                                        <p className="text-sm font-semibold" style={{ color: '#e2b764' }}>No charge</p>
-                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-link)' }}>No charge</p>
+                                                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                             Payment hasn't been completed yet — no amount will be charged.
                                                         </p>
                                                     </div>
@@ -1764,10 +1764,10 @@ export default function MyBookings() {
                                             return withinGrace ? (
                                                 <div className="flex items-start gap-3 p-4 rounded-xl"
                                                     style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                                                    <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
+                                                    <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-success)' }} />
                                                     <div>
-                                                        <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Voucher will be restored</p>
-                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-success)' }}>Voucher will be restored</p>
+                                                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                             Your session is more than 24 hours away. Your voucher will be restored for future use.
                                                         </p>
                                                     </div>
@@ -1775,10 +1775,10 @@ export default function MyBookings() {
                                             ) : (
                                                 <div className="flex items-start gap-3 p-4 rounded-xl"
                                                     style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                                                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                                                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-danger)' }} />
                                                     <div>
-                                                        <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Voucher will be forfeited</p>
-                                                        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-danger)' }}>Voucher will be forfeited</p>
+                                                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                             Your session is less than 24 hours away. Your voucher cannot be restored per our policy.
                                                         </p>
                                                     </div>
@@ -1792,10 +1792,10 @@ export default function MyBookings() {
                                         return withinGrace ? (
                                             <div className="flex items-start gap-3 p-4 rounded-xl"
                                                 style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                                                <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
+                                                <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-success)' }} />
                                                 <div>
-                                                    <p className="text-sm font-semibold" style={{ color: '#10b981' }}>Full refund eligible</p>
-                                                    <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-success)' }}>Full refund eligible</p>
+                                                    <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                         Your session is more than 24 hours away. Your {amountLabel} of {paidAed} will be refunded within 3-5 business days.
                                                     </p>
                                                 </div>
@@ -1803,10 +1803,10 @@ export default function MyBookings() {
                                         ) : (
                                             <div className="flex items-start gap-3 p-4 rounded-xl"
                                                 style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                                                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                                                <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-danger)' }} />
                                                 <div>
-                                                    <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>{pay.isFull ? 'Payment' : 'Downpayment'} will be forfeited</p>
-                                                    <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-danger)' }}>{pay.isFull ? 'Payment' : 'Downpayment'} will be forfeited</p>
+                                                    <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
                                                         Your session is less than 24 hours away. Your {amountLabel} of {paidAed} cannot be refunded per our policy.
                                                     </p>
                                                 </div>
@@ -1816,7 +1816,7 @@ export default function MyBookings() {
 
                                     {/* Reason selector */}
                                     <div>
-                                        <p className="text-xs font-medium mb-3" style={{ color: '#94a3b8' }}>
+                                        <p className="text-xs font-medium mb-3" style={{ color: 'var(--theme-text-2)' }}>
                                             Reason for cancellation *
                                         </p>
                                         <div className="grid grid-cols-2 gap-2">
@@ -1826,12 +1826,12 @@ export default function MyBookings() {
                                                     <button key={reason.id} onClick={() => setSelectedReason(reason.id)}
                                                         className="flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all"
                                                         style={{
-                                                            borderColor: isActive ? 'rgba(226,183,100,0.5)' : '#1e2740',
-                                                            background:  isActive ? 'rgba(226,183,100,0.08)' : '#141d33',
+                                                            borderColor: isActive ? 'rgba(226,183,100,0.5)' : 'var(--theme-border)',
+                                                            background:  isActive ? 'rgba(226,183,100,0.08)' : 'var(--theme-btn-bg)',
                                                         }}>
                                                         <span className="text-base">{reason.icon}</span>
                                                         <span className="text-xs font-medium"
-                                                            style={{ color: isActive ? '#e2b764' : '#94a3b8' }}>
+                                                            style={{ color: isActive ? 'var(--theme-link)' : 'var(--theme-text-2)' }}>
                                                             {reason.label}
                                                         </span>
                                                     </button>
@@ -1850,7 +1850,7 @@ export default function MyBookings() {
                                                     placeholder="Please describe your reason..."
                                                     rows={3}
                                                     className="w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none resize-none"
-                                                    style={{ background: '#141d33', borderColor: '#1e2740', color: '#e2e8f0' }}
+                                                    style={{ background: 'var(--theme-btn-bg)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-head)' }}
                                                 />
                                             </motion.div>
                                         )}
@@ -1858,7 +1858,7 @@ export default function MyBookings() {
 
                                     {cancelError && (
                                         <div className="flex items-center gap-2 p-3 rounded-xl text-sm"
-                                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>
+                                            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--theme-danger)' }}>
                                             <AlertCircle size={14} /> {cancelError}
                                         </div>
                                     )}
@@ -1866,12 +1866,12 @@ export default function MyBookings() {
 
                                 {/* Footer */}
                                 <div className="sticky bottom-0 p-5 border-t flex gap-3"
-                                    style={{ borderColor: '#1e2740', background: '#0f1629' }}>
+                                    style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                                     <button
                                         onClick={() => { setShowCancelModal(false); setSelectedReason(null); setOtherText(''); }}
                                         disabled={cancelling}
                                         className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                                        style={{ background: '#141d33', color: '#94a3b8' }}>
+                                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
                                         Keep Booking
                                     </button>
                                     <button
@@ -1879,10 +1879,10 @@ export default function MyBookings() {
                                         disabled={!selectedReason || (selectedReason === 'other' && otherText.trim().length < 4) || cancelling}
                                         className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
                                         style={{
-                                            background:  (!selectedReason || cancelling) ? '#141d33' : 'rgba(239,68,68,0.15)',
+                                            background:  (!selectedReason || cancelling) ? 'var(--theme-btn-bg)' : 'rgba(239,68,68,0.15)',
                                             border:      '1px solid',
-                                            borderColor: (!selectedReason || cancelling) ? '#1e2740' : 'rgba(239,68,68,0.4)',
-                                            color:       (!selectedReason || cancelling) ? '#475569' : '#ef4444',
+                                            borderColor: (!selectedReason || cancelling) ? 'var(--theme-border)' : 'rgba(239,68,68,0.4)',
+                                            color:       (!selectedReason || cancelling) ? 'var(--theme-text-muted)' : 'var(--theme-danger)',
                                             cursor:      !selectedReason ? 'not-allowed' : 'pointer',
                                         }}>
                                         {cancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
