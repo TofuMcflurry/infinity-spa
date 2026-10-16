@@ -64,152 +64,268 @@ function WishlistItemCard({ item, locale, index, isRemoving, onRemove, onBook })
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.3, delay: index * 0.05 }}
-            className="rounded-2xl border overflow-hidden transition-all"
-            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)', opacity: isUnavailable ? 0.75 : 1 }}
         >
-            {/* Image */}
-            <div className="h-40 relative overflow-hidden" style={{ background: 'var(--theme-btn-bg)' }}>
-                {imageUrl ? (
-                    <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <Heart size={28} style={{ color: 'var(--theme-border)' }} />
+            {/* ── Mobile/tablet: compact horizontal card (prototype spec:
+                "Compact horizontal cards replace the 160px image cards, so
+                about three fit on screen"). Same item/state/handlers as the
+                desktop card below — just a different arrangement of the same
+                data, so remove/select/book behavior is identical. ── */}
+            <div className="lg:hidden rounded-[20px] border p-3 flex flex-col gap-3 transition-all"
+                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)', opacity: isUnavailable ? 0.75 : 1 }}>
+
+                <div className="flex items-start gap-3">
+                    {/* Image */}
+                    <div className="relative flex-none w-[84px] h-[84px] rounded-[14px] overflow-hidden" style={{ background: 'var(--theme-btn-bg)' }}>
+                        {imageUrl ? (
+                            <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                                <Heart size={22} style={{ color: 'var(--theme-border)' }} />
+                            </div>
+                        )}
                     </div>
-                )}
 
-                {isUnavailable && (
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11,17,32,0.65)' }}>
-                        <span className="text-[11px] font-bold px-3 py-1 rounded-full"
-                            style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
-                            Currently Unavailable
-                        </span>
-                    </div>
-                )}
-
-                {/* Remove button */}
-                <button
-                    type="button"
-                    onClick={() => onRemove(item.id)}
-                    disabled={isRemoving}
-                    aria-label="Remove from wishlist"
-                    className="absolute top-2.5 right-2.5 flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ background: 'rgba(11,17,32,0.8)', border: '1px solid rgba(226,183,100,0.3)', backdropFilter: 'blur(4px)' }}
-                >
-                    {isRemoving ? (
-                        <Loader2 size={14} className="animate-spin" style={{ color: '#e2b764' }} />
-                    ) : (
-                        <X size={14} style={{ color: '#e2b764' }} />
-                    )}
-                </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-5 pb-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-display font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
-                        {name ?? 'Service'}
-                    </h3>
-                    {rating > 0 && (
-                        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                            <Star size={13} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
-                            <span className="text-sm font-semibold" style={{ color: 'var(--theme-link)' }}>
+                    {/* Name, rating/unavailable, 2-line description */}
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <h3 className="font-display font-bold text-[21px] leading-tight truncate" style={{ color: 'var(--theme-text-head)' }}>
+                            {name ?? 'Service'}
+                        </h3>
+                        {isUnavailable ? (
+                            <span className="self-start text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
+                                Currently Unavailable
+                            </span>
+                        ) : rating > 0 ? (
+                            <span className="text-xs font-bold flex items-center gap-1" style={{ color: 'var(--theme-link)' }}>
+                                <Star size={12} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
                                 {rating.toFixed(1)}
                             </span>
-                        </div>
-                    )}
+                        ) : null}
+                        <p className="text-[13px] leading-snug line-clamp-2" style={{ color: 'var(--theme-text-2)' }}>
+                            {service?.description ?? 'Premium spa service delivered to your location.'}
+                        </p>
+                    </div>
+
+                    {/* Remove button — 44px hit area, always visible (not hover-only) */}
+                    <button
+                        type="button"
+                        onClick={() => onRemove(item.id)}
+                        disabled={isRemoving}
+                        aria-label="Remove from wishlist"
+                        className="flex-none w-11 h-11 -mt-1.5 -mr-1.5 rounded-full flex items-center justify-center transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <span className="w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: 'var(--theme-border)' }}>
+                            {isRemoving ? (
+                                <Loader2 size={15} className="animate-spin" style={{ color: 'var(--theme-text-muted)' }} />
+                            ) : (
+                                <X size={15} style={{ color: 'var(--theme-text-muted)' }} />
+                            )}
+                        </span>
+                    </button>
                 </div>
 
-                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--theme-text-muted)' }}>
-                    {service?.description ?? 'Premium spa service delivered to your location.'}
-                </p>
-
-                {/* Duration chips */}
+                {/* Duration chips — horizontal scroll row, hidden scrollbar */}
                 {activeVariants.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    <div className="flex gap-2 overflow-x-auto -mx-3 px-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                         {activeVariants.map(v => {
                             const isSelected = selectedDuration?.id === v.id;
                             return (
                                 <button
                                     key={v.id}
                                     onClick={() => setSelectedDuration(isSelected ? null : v)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border"
+                                    className="flex-none h-10 px-3 rounded-xl text-[13px] font-semibold border whitespace-nowrap transition-all"
                                     style={{
                                         borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
                                         background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
                                         color:       isSelected ? 'var(--theme-link)' : 'var(--theme-text-2)',
                                     }}
                                 >
-                                    <Clock size={11} />
-                                    {v.duration_minutes} min
-                                    <span className="font-bold ml-0.5">
-                                        · AED {Number(v.price).toLocaleString()}
-                                    </span>
+                                    {v.duration_minutes} min · AED {Number(v.price).toLocaleString()}
                                 </button>
                             );
                         })}
                     </div>
                 ) : (
-                    <p className="text-xs mb-4" style={{ color: 'var(--theme-text-muted)' }}>
+                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                         No durations currently available.
                     </p>
                 )}
 
-                <AnimatePresence mode="wait">
-                    {selectedDuration && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                        >
-                            <div className="flex items-center justify-between py-3 px-4 rounded-xl mb-3"
-                                style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.15)' }}>
-                                <div>
-                                    <p className="text-[11px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                                        Selected
-                                    </p>
-                                    <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
-                                        {selectedDuration.duration_minutes} min session
-                                    </p>
-                                </div>
-                                <p className="text-xl font-display font-bold" style={{ color: 'var(--theme-link)' }}>
-                                    AED {Number(selectedDuration.price).toLocaleString()}
-                                </p>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {/* Footer */}
+                <div className="flex items-center justify-between gap-3 pt-2.5 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div>
+                        <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+                            {selectedDuration ? `${selectedDuration.duration_minutes} min selected` : 'Starting from'}
+                        </p>
+                        <p className="text-base font-extrabold" style={{ color: 'var(--theme-link)' }}>
+                            {selectedDuration
+                                ? `AED ${Number(selectedDuration.price).toLocaleString()}`
+                                : (minPrice !== null ? `AED ${minPrice.toLocaleString()}` : '—')}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => onBook(item)}
+                        disabled={isUnavailable}
+                        className="flex-none h-11 px-[18px] rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all disabled:cursor-not-allowed"
+                        style={{
+                            background: isUnavailable ? 'var(--theme-btn-bg)' : 'var(--theme-cta)',
+                            color:      isUnavailable ? 'var(--theme-text-muted)' : 'var(--theme-cta-ink)',
+                        }}
+                    >
+                        Book Now
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-5 pb-5 flex items-center justify-between gap-3">
-                {minPrice !== null && !selectedDuration ? (
-                    <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                        Starting from{' '}
-                        <span className="font-bold" style={{ color: 'var(--theme-link)' }}>
-                            AED {minPrice.toLocaleString()}
-                        </span>
-                    </p>
-                ) : (
-                    <div />
-                )}
+            {/* ── Desktop: original vertical card, unchanged ── */}
+            <div className="hidden lg:block rounded-2xl border overflow-hidden transition-all"
+                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)', opacity: isUnavailable ? 0.75 : 1 }}
+            >
+                {/* Image */}
+                <div className="h-40 relative overflow-hidden" style={{ background: 'var(--theme-btn-bg)' }}>
+                    {imageUrl ? (
+                        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Heart size={28} style={{ color: 'var(--theme-border)' }} />
+                        </div>
+                    )}
 
-                <button
-                    onClick={() => onBook(item)}
-                    disabled={isUnavailable}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                        background:  isUnavailable ? 'var(--theme-btn-bg)' : 'var(--theme-cta)',
-                        color:       isUnavailable ? 'var(--theme-text-muted)' : 'var(--theme-cta-ink)',
-                        boxShadow:   isUnavailable ? 'none' : '0 4px 15px rgba(226,183,100,0.25)',
-                    }}
-                    onMouseEnter={e => { if (!isUnavailable) e.currentTarget.style.boxShadow = '0 4px 20px rgba(226,183,100,0.4)'; }}
-                    onMouseLeave={e => { if (!isUnavailable) e.currentTarget.style.boxShadow = '0 4px 15px rgba(226,183,100,0.25)'; }}
-                >
-                    <ShoppingBag size={14} />
-                    Book Now
-                    <ChevronRight size={14} />
-                </button>
+                    {isUnavailable && (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(11,17,32,0.65)' }}>
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full"
+                                style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)' }}>
+                                Currently Unavailable
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Remove button */}
+                    <button
+                        type="button"
+                        onClick={() => onRemove(item.id)}
+                        disabled={isRemoving}
+                        aria-label="Remove from wishlist"
+                        className="absolute top-2.5 right-2.5 flex items-center justify-center w-8 h-8 rounded-full transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ background: 'rgba(11,17,32,0.8)', border: '1px solid rgba(226,183,100,0.3)', backdropFilter: 'blur(4px)' }}
+                    >
+                        {isRemoving ? (
+                            <Loader2 size={14} className="animate-spin" style={{ color: '#e2b764' }} />
+                        ) : (
+                            <X size={14} style={{ color: '#e2b764' }} />
+                        )}
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-5 pb-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                        <h3 className="font-display font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
+                            {name ?? 'Service'}
+                        </h3>
+                        {rating > 0 && (
+                            <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                                <Star size={13} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
+                                <span className="text-sm font-semibold" style={{ color: 'var(--theme-link)' }}>
+                                    {rating.toFixed(1)}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--theme-text-muted)' }}>
+                        {service?.description ?? 'Premium spa service delivered to your location.'}
+                    </p>
+
+                    {/* Duration chips */}
+                    {activeVariants.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {activeVariants.map(v => {
+                                const isSelected = selectedDuration?.id === v.id;
+                                return (
+                                    <button
+                                        key={v.id}
+                                        onClick={() => setSelectedDuration(isSelected ? null : v)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border"
+                                        style={{
+                                            borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
+                                            background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
+                                            color:       isSelected ? 'var(--theme-link)' : 'var(--theme-text-2)',
+                                        }}
+                                    >
+                                        <Clock size={11} />
+                                        {v.duration_minutes} min
+                                        <span className="font-bold ml-0.5">
+                                            · AED {Number(v.price).toLocaleString()}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-xs mb-4" style={{ color: 'var(--theme-text-muted)' }}>
+                            No durations currently available.
+                        </p>
+                    )}
+
+                    <AnimatePresence mode="wait">
+                        {selectedDuration && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="flex items-center justify-between py-3 px-4 rounded-xl mb-3"
+                                    style={{ background: 'rgba(226,183,100,0.06)', border: '1px solid rgba(226,183,100,0.15)' }}>
+                                    <div>
+                                        <p className="text-[11px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                            Selected
+                                        </p>
+                                        <p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
+                                            {selectedDuration.duration_minutes} min session
+                                        </p>
+                                    </div>
+                                    <p className="text-xl font-display font-bold" style={{ color: 'var(--theme-link)' }}>
+                                        AED {Number(selectedDuration.price).toLocaleString()}
+                                    </p>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 pb-5 flex items-center justify-between gap-3">
+                    {minPrice !== null && !selectedDuration ? (
+                        <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                            Starting from{' '}
+                            <span className="font-bold" style={{ color: 'var(--theme-link)' }}>
+                                AED {minPrice.toLocaleString()}
+                            </span>
+                        </p>
+                    ) : (
+                        <div />
+                    )}
+
+                    <button
+                        onClick={() => onBook(item)}
+                        disabled={isUnavailable}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                            background:  isUnavailable ? 'var(--theme-btn-bg)' : 'var(--theme-cta)',
+                            color:       isUnavailable ? 'var(--theme-text-muted)' : 'var(--theme-cta-ink)',
+                            boxShadow:   isUnavailable ? 'none' : '0 4px 15px rgba(226,183,100,0.25)',
+                        }}
+                        onMouseEnter={e => { if (!isUnavailable) e.currentTarget.style.boxShadow = '0 4px 20px rgba(226,183,100,0.4)'; }}
+                        onMouseLeave={e => { if (!isUnavailable) e.currentTarget.style.boxShadow = '0 4px 15px rgba(226,183,100,0.25)'; }}
+                    >
+                        <ShoppingBag size={14} />
+                        Book Now
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
             </div>
         </motion.div>
     );
@@ -297,7 +413,14 @@ export default function Wishlist() {
 
                 <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-                <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-6">
+                    {/* Extra bottom clearance (mobile/tablet only, reverts to the
+                        original py-6 bottom spacing at md:) so the last card can
+                        be scrolled fully clear of FloatingConcierge (fixed,
+                        bottom-92px+56px tall below md) — measured live on this
+                        page independently: without this, max scroll still left
+                        the last card ~48px short of clearing the button's top
+                        edge (same deficit as Therapists, same shared layout). */}
 
                     {/* ── Remove error banner ── */}
                     {removeError && (
