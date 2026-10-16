@@ -88,7 +88,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
             {/* Card Header */}
             <div className="p-5 pb-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-display font-bold text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
+                    <h3 className="font-display font-bold text-[22px] lg:text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                         {groupLabel}
                     </h3>
                     {/* Rating or New badge */}
@@ -106,7 +106,17 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                         </span>
                     )}
 
-                    {/* Wishlist heart toggle */}
+                    {/* Wishlist heart toggle — 44px tap target on mobile (prototype
+                        spec: "the heart has a 44px tap target, it was 28px"),
+                        unchanged 28px on desktop. mr-14 (56px) below lg keeps
+                        it clear of FloatingConcierge (fixed bottom-right,
+                        right-5 w-14) whenever this row's scroll position
+                        lands in that zone — see the matching note on the
+                        duration-chip grid and footer button below for why
+                        this is a per-element reserve rather than narrowing
+                        the whole page/card (keeps title/description at full
+                        width; only the three actual tap targets pay the
+                        clearance cost). */}
                     {serviceId && (
                         <button
                             type="button"
@@ -114,7 +124,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                             disabled={isTogglingWishlist}
                             aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                             aria-pressed={isWishlisted}
-                            className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="flex-shrink-0 flex items-center justify-center w-11 h-11 lg:w-7 lg:h-7 mr-14 lg:mr-0 rounded-full transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                             style={{
                                 background: isWishlisted ? 'rgba(226,183,100,0.15)' : 'var(--theme-btn-bg)',
                                 border: `1px solid ${isWishlisted ? '#e2b764' : 'var(--theme-border)'}`,
@@ -138,25 +148,33 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                     {group.durations[0]?.description ?? 'Premium spa service delivered to your location.'}
                 </p>
 
-                {/* Duration chips — selectable */}
-                <div className="flex flex-wrap gap-2 mb-4">
+                {/* Duration chips — selectable. Mobile: 2-column tiles with
+                    duration/price stacked (prototype spec: "2-column tiles
+                    of at least 48px, so price and length are readable at
+                    320px"). Desktop: unchanged inline flex-wrap pills.
+                    pr-14 reserves the same FloatingConcierge clearance as
+                    the heart/footer button, scoped to just this grid rather
+                    than the whole page — see the heart's comment above. */}
+                <div className="grid grid-cols-2 gap-2 pr-14 lg:pr-0 lg:flex lg:flex-wrap mb-4">
                     {group.durations.map(d => {
                         const isSelected = selectedDuration?.id === d.id;
                         return (
                             <button
                                 key={d.id}
                                 onClick={() => setSelectedDuration(isSelected ? null : d)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border"
+                                className="flex flex-col lg:flex-row lg:items-center gap-0.5 lg:gap-1.5 min-h-[52px] lg:min-h-0 px-3 py-2 lg:py-1.5 rounded-xl text-xs font-semibold transition-all border text-left"
                                 style={{
                                     borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
                                     background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
                                     color:       isSelected ? 'var(--theme-link)' : 'var(--theme-text-2)',
                                 }}
                             >
-                                <Clock size={11} />
-                                {d.duration_minutes} min
-                                <span className="font-bold ml-0.5">
-                                    · AED {Number(d.price).toLocaleString()}
+                                <span className="flex items-center gap-1">
+                                    <Clock size={11} />
+                                    {d.duration_minutes} min
+                                </span>
+                                <span className="font-bold lg:ml-0.5">
+                                    <span className="lg:inline hidden">· </span>AED {Number(d.price).toLocaleString()}
                                 </span>
                             </button>
                         );
@@ -191,8 +209,10 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                 </AnimatePresence>
             </div>
 
-            {/* Card Footer */}
-            <div className="px-5 pb-5 flex items-center justify-between">
+            {/* Card Footer — mr-14 on the button reserves the same
+                FloatingConcierge clearance as the heart/duration grid above,
+                scoped to just the button rather than the whole page. */}
+            <div className="px-5 pb-5 flex items-center justify-between flex-wrap gap-3">
                 {!selectedDuration ? (
                     <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                         Starting from{' '}
@@ -206,7 +226,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
 
                 <button
                     onClick={handleBook}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
+                    className="flex-1 min-w-[140px] mr-14 lg:mr-0 lg:flex-initial lg:min-w-0 h-12 lg:h-auto flex items-center justify-center lg:justify-start gap-2 px-4 lg:py-2.5 rounded-xl text-sm font-bold transition-all"
                     style={{
                         background:  'var(--theme-cta)',
                         color:       'var(--theme-cta-ink)',
@@ -320,7 +340,7 @@ export default function Services() {
 
                 <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-                <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <main className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8 py-6">
 
                     {/* ── Wishlist error banner ── */}
                     {wishlistError && (
@@ -333,8 +353,24 @@ export default function Services() {
                         </div>
                     )}
 
-                    {/* ── Category Filters ── */}
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+                    {/* ── Category Filters ──────────────────────────────────────
+                        Mobile: sticky just below the header (prototype spec:
+                        filter rows live in the sticky header), now that
+                        CustomerLayout's scroll-container bug (commit eda9677)
+                        no longer breaks sticky positioning for page content.
+                        top-[87px] matches the header's measured rendered
+                        height (py-5 wrapping a fixed-size title/subtitle
+                        stack) — stable regardless of locale. lg:static
+                        restores the exact original in-flow desktop behavior.
+                        z-20 keeps it under the header (z-30) and
+                        MobileMenuSheet (z-[60]), above plain content below.
+                        background matches the page so scrolled-under cards
+                        don't show through. `scrollbar-hide` was already a
+                        dead class (no such Tailwind utility/plugin exists in
+                        this project) — swapped for the working arbitrary-value
+                        technique already used elsewhere in this codebase. */}
+                    <div className="sticky top-[87px] z-20 lg:static lg:top-auto flex gap-2 mb-6 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                        style={{ background: 'var(--theme-bg)' }}>
                         {CATEGORIES.map(cat => {
                             const isActive = activeCategory === cat.key;
                             const label    = locale === 'ar' ? cat.label_ar : cat.label;
