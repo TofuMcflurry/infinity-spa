@@ -20,7 +20,7 @@ async function apiFetch(url) {
 }
 
 // ── Star Display ──────────────────────────────────────────────────────────────
-function StarDisplay({ rating, reviewCount, size = 12 }) {
+function StarDisplay({ rating, reviewCount, size = 12, compact = false }) {
     const MIN_DISPLAY_RATING = 3.5;
     const actualStars = Number(rating) || 0;
     const hasRating = actualStars > 0 && reviewCount > 0;
@@ -45,10 +45,11 @@ function StarDisplay({ rating, reviewCount, size = 12 }) {
     const needsAdminFlag = actualStars <= 3.5;
 
     return (
-        <div className="flex items-center gap-1">
+        <div className={`flex items-center ${compact ? 'gap-0.5 sm:gap-1' : 'gap-1'}`}>
             <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map(s => (
-                    <Star key={s} size={size}
+                    <Star key={s} size={compact ? undefined : size}
+                        className={compact ? 'w-2.5 h-2.5 sm:w-3 sm:h-3' : undefined}
                         style={{
                             color: s <= Math.round(displayStars) ? '#e2b764' : 'var(--theme-border)',
                             fill:  s <= Math.round(displayStars) ? '#e2b764' : 'transparent',
@@ -56,11 +57,11 @@ function StarDisplay({ rating, reviewCount, size = 12 }) {
                     />
                 ))}
             </div>
-            <span className="text-xs font-bold" style={{ color: 'var(--theme-link)' }}>
+            <span className={`font-bold ${compact ? 'text-[10px] sm:text-xs' : 'text-xs'}`} style={{ color: 'var(--theme-link)' }}>
                 {displayStars.toFixed(1)}
             </span>
             {reviewCount > 0 && (
-                <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                <span className={compact ? 'text-[10px] sm:text-xs' : 'text-xs'} style={{ color: 'var(--theme-text-muted)' }}>
                     ({reviewCount})
                 </span>
             )}
@@ -303,6 +304,7 @@ function TherapistCard({ therapist, index, onClick }) {
             <StarDisplay
                 rating={therapist.rating}
                 reviewCount={therapist.review_count ?? 0}
+                compact
             />
 
             {/* Experience */}
@@ -310,12 +312,6 @@ function TherapistCard({ therapist, index, onClick }) {
                 {therapist.experience_years > 0
                     ? `${therapist.experience_years} yrs experience`
                     : 'New therapist'}
-            </p>
-
-            {/* Tap hint */}
-            <p className="text-[10px] mt-2 opacity-0 group-hover:opacity-100 transition-opacity font-medium"
-                style={{ color: 'var(--theme-link)' }}>
-                Tap to view details →
             </p>
         </motion.button>
     );
@@ -365,14 +361,21 @@ export default function Therapists() {
                                 >
                                     Our Therapists
                                 </motion.h1>
-                                <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                {/* Mobile: the count moves into the subtitle (prototype
+                                    spec), replacing the separate badge pill. Desktop
+                                    keeps the original generic subtitle + badge exactly
+                                    as before. */}
+                                <p className="text-xs mt-0.5 lg:hidden" style={{ color: 'var(--theme-text-muted)' }}>
+                                    {loading ? 'Tap a card to view full profile' : `${filtered.length} therapist${filtered.length !== 1 ? 's' : ''} · Tap a card to view full profile`}
+                                </p>
+                                <p className="hidden lg:block text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
                                     Tap a card to view full profile
                                 </p>
                             </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {!loading && (
-                                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
+                                    <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
                                         style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
                                         <Users size={12} />
                                         {filtered.length} therapist{filtered.length !== 1 ? 's' : ''}
@@ -381,15 +384,53 @@ export default function Therapists() {
                                 <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                             </div>
                         </div>
+
+                        {/* Mobile gender filter — lives inside the sticky header
+                            itself (prototype: "Page-specific filter rows sit
+                            inside the sticky header, below the title"), so it
+                            scrolls with the header's own (auto) height instead
+                            of tracking a hardcoded offset that would go stale
+                            the moment the subtitle above wraps to a second
+                            line. Desktop keeps its own unchanged pill row,
+                            below in <main>. Same genderFilter/setGenderFilter
+                            state and FILTERS array either way — no duplicated
+                            filter logic. */}
+                        <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl mt-3 lg:hidden"
+                            style={{ background: 'var(--theme-btn-bg)' }}>
+                            {FILTERS.map(f => {
+                                const isActive = genderFilter === f.key;
+                                return (
+                                    <button
+                                        key={f.key}
+                                        onClick={() => setGenderFilter(f.key)}
+                                        className="h-10 rounded-xl text-sm font-semibold transition-all"
+                                        style={{
+                                            background: isActive
+                                                ? 'linear-gradient(135deg, #b7882a, #e2b764)'
+                                                : 'transparent',
+                                            color: isActive ? 'var(--theme-cta-ink)' : 'var(--theme-text-2)',
+                                        }}
+                                    >
+                                        {f.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </header>
 
                 <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-                <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-6">
+                    {/* Extra bottom clearance (mobile/tablet only, reverts to the
+                        original py-6 bottom spacing at md:) so the last grid row
+                        can be scrolled fully clear of FloatingConcierge (fixed,
+                        bottom-92px+56px tall below md) — measured live: without
+                        this, max scroll still left the last card ~48px short of
+                        clearing the button's top edge. */}
 
-                    {/* ── Gender Filter ── */}
-                    <div className="flex gap-2 mb-6">
+                    {/* ── Gender Filter (desktop) ── */}
+                    <div className="hidden lg:flex gap-2 mb-6">
                         {FILTERS.map(f => {
                             const isActive = genderFilter === f.key;
                             return (
