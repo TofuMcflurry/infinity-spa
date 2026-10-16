@@ -7,12 +7,13 @@ import {
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
     Loader2, Banknote, Gift, X, Check, Heart,
-    XCircle, WifiOff,
+    XCircle, WifiOff, Menu,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
 import ThemeToggle from '@/Components/ThemeToggle';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
 import { useBookingStatus } from '@/hooks/useBookingStatus';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 
@@ -1021,6 +1022,7 @@ export default function Dashboard() {
     const [pendingReview,      setPendingReview]      = useState(null);
     const [showReviewModal,    setShowReviewModal]    = useState(false);
     const [showNotifications,  setShowNotifications]  = useState(false);
+    const [menuOpen,           setMenuOpen]           = useState(false);
     const [notifications,      setNotifications]      = useState([]);
     const [unreadCount,        setUnreadCount]        = useState(0);
     const [justCompletedBooking, setJustCompletedBooking] = useState(null);
@@ -1257,8 +1259,12 @@ export default function Dashboard() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <LanguageToggle />
-                            <ThemeToggle />
+                            {/* Language/Theme move into MobileMenuSheet below md —
+                                desktop keeps them exactly as before. */}
+                            <div className="hidden md:flex items-center gap-3">
+                                <LanguageToggle />
+                                <ThemeToggle />
+                            </div>
 
                             {/* ── Notification Bell ── */}
                             <div className="relative">
@@ -1342,17 +1348,38 @@ export default function Dashboard() {
                                 </AnimatePresence>
                             </div>
 
+                            {/* Logout moves into MobileMenuSheet below md — desktop
+                                keeps its own direct logout button as before. */}
                             <button onClick={handleLogout}
-                                className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                className="hidden md:flex w-10 h-10 rounded-full items-center justify-center transition-colors"
                                 style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-2)'; }}
                             >
                                 <LogOut size={18} />
                             </button>
+
+                            {/* ── Mobile menu trigger — opens MobileMenuSheet, the
+                                prototype's mobile home for Language/Theme/Logout
+                                plus the 7 Customer destinations. ── */}
+                            <button
+                                onClick={() => setMenuOpen(true)}
+                                aria-label="Open menu"
+                                className="md:hidden w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
+                            >
+                                <Menu size={18} />
+                            </button>
                         </div>
                     </div>
                 </header>
+
+                <MobileMenuSheet
+                    open={menuOpen}
+                    onClose={() => setMenuOpen(false)}
+                    avatarUrl={avatarUrl}
+                    name={userProfile?.name}
+                />
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
 
