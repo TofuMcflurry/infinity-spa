@@ -317,7 +317,7 @@ export default function CustomerLayout({ children }) {
         <div className="customer-theme flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
             <CustomerSidebar />
             <div
-                className={`flex-1 min-h-screen overflow-y-auto md:pb-0 ${
+                className={`flex-1 min-h-screen md:pb-0 ${
                     isBookingWizard ? '' : 'pb-[calc(76px+env(safe-area-inset-bottom))]'
                 }`}
             >
