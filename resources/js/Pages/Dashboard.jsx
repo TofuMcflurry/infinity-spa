@@ -7,7 +7,7 @@ import {
     Star, ChevronRight, Sparkles, CheckCircle2,
     Navigation, User, CreditCard, Activity,
     Loader2, Banknote, Gift, X, Check, Heart,
-    XCircle, WifiOff, Menu,
+    XCircle, WifiOff, Menu, Users, CalendarPlus,
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
@@ -360,17 +360,67 @@ function StatusTracker({ booking }) {
                     </AnimatePresence>
                 </div>
 
-                {/* ── Progress bar + Steps ── */}
-                <div className="relative">
-                    <div className="absolute top-5 left-5 right-5 h-px hidden sm:block" style={{ background: 'var(--theme-border)' }} />
+                {/* ── Compact mobile stepper (prototype spec) ──────────────────
+                    Five small circles in a horizontal row with a connecting
+                    track, plus one summary line below — replaces a vertical
+                    per-step list on narrow widths, which the design handoff
+                    explicitly calls out ("Don't use a vertical list"). Driven
+                    by the same STATUS_STEPS/currentIdx/meta the sm:+ stepper
+                    below already uses — no duplicated status logic. */}
+                <div className="sm:hidden">
+                    <div className="relative flex items-center justify-between px-1">
+                        <div className="absolute left-4 right-4 h-0.5 rounded-full" style={{ background: 'var(--theme-border)' }} />
+                        <motion.div
+                            className="absolute left-4 h-0.5 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `calc(${progress}% - 32px)` }}
+                            transition={{ duration: 0.8, ease: 'easeInOut' }}
+                            style={{ background: meta.color }}
+                        />
+                        {STATUS_STEPS.map((step, i) => {
+                            const done   = i <= currentIdx;
+                            const active = i === currentIdx;
+                            const Icon   = step.icon;
+                            return (
+                                <div key={step.key}
+                                    className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500"
+                                    style={{
+                                        background: active ? meta.color : done ? `${meta.color}30` : 'var(--theme-border)',
+                                        color:      active ? '#0b1120'  : done ? meta.color          : 'var(--theme-text-muted)',
+                                        boxShadow:  active ? `0 0 0 5px ${meta.color}40` : 'none',
+                                    }}
+                                >
+                                    <Icon size={15} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>
+                            {STATUS_STEPS[currentIdx]?.label ?? meta.label}
+                        </span>
+                        {currentIdx >= 0 && (
+                            <span className="text-xs font-semibold" style={{ color: meta.color }}>
+                                {(STATUS_STEPS[currentIdx]?.key === 'en_route'  ? 'Heading your way'  :
+                                  STATUS_STEPS[currentIdx]?.key === 'arrived'   ? 'They are here!'    :
+                                  STATUS_STEPS[currentIdx]?.key === 'completed' ? 'Session complete'  :
+                                  'In progress')} · {currentIdx + 1} of {STATUS_STEPS.length}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Progress bar + Steps (sm and up — unchanged) ── */}
+                <div className="relative hidden sm:block">
+                    <div className="absolute top-5 left-5 right-5 h-px" style={{ background: 'var(--theme-border)' }} />
                     <motion.div
-                        className="absolute top-5 left-5 h-px hidden sm:block"
+                        className="absolute top-5 left-5 h-px"
                         initial={{ width: 0 }}
                         animate={{ width: `calc(${progress}% - 40px)` }}
                         transition={{ duration: 0.8, ease: 'easeInOut' }}
                         style={{ background: meta.color }}
                     />
-                    <div className="relative z-10 flex flex-col sm:flex-row justify-between gap-6 sm:gap-0">
+                    <div className="relative z-10 flex flex-row justify-between">
                         {STATUS_STEPS.map((step, i) => {
                             const done   = i <= currentIdx;
                             const active = i === currentIdx;
@@ -1425,6 +1475,31 @@ export default function Dashboard() {
                         )}
                     </AnimatePresence>
 
+                    {/* ── Quick actions (prototype spec, mobile only) ──────────
+                        4-tile grid — Book, Bookings, Wishlist, Therapists —
+                        linking to the same routes already used elsewhere on
+                        this page. Desktop already has these as sidebar links
+                        and section "View All"s, so this stays mobile-only. */}
+                    <div className="lg:hidden grid grid-cols-4 gap-2">
+                        {[
+                            { label: 'Book',       icon: CalendarPlus, go: () => router.visit(route('bookings')) },
+                            { label: 'Bookings',   icon: Calendar,     go: () => router.visit(route('my.bookings')) },
+                            { label: 'Wishlist',   icon: Heart,        go: () => router.visit(route('wishlist')) },
+                            { label: 'Therapists', icon: Users,        go: () => router.visit(route('therapists')) },
+                        ].map(({ label, icon: Icon, go }) => (
+                            <button key={label} onClick={go}
+                                className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-2xl border min-h-[76px] transition-colors"
+                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}
+                            >
+                                <span className="w-9 h-9 rounded-xl flex items-center justify-center"
+                                    style={{ background: 'var(--theme-tag-gold-bg)', color: 'var(--theme-link)' }}>
+                                    <Icon size={18} />
+                                </span>
+                                <span className="text-xs font-semibold" style={{ color: 'var(--theme-text-head)' }}>{label}</span>
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
                         <div className="lg:col-span-2 space-y-12">
 
@@ -1454,6 +1529,23 @@ export default function Dashboard() {
                                 </motion.section>
                             )}
 
+                            {/* Wellness Journey sits here on mobile (prototype order), ahead
+                                of Top Therapists — the lg:+ instance stays in the sidebar
+                                column below. Same LoyaltyWidget, same `data?.loyalty`/
+                                onRedeemed — no duplicated fetch or claim logic, just two
+                                responsive placements of one presentational component (the
+                                same pattern already used for BottomNav vs. the sidebar nav). */}
+                            <div className="lg:hidden">
+                                <LoyaltyWidget
+                                    loyalty={data?.loyalty}
+                                    onRedeemed={() => {
+                                        apiFetch('/api/dashboard-data')
+                                            .then(setData)
+                                            .catch(console.error);
+                                    }}
+                                />
+                            </div>
+
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Top Therapists For You</h2>
@@ -1465,7 +1557,18 @@ export default function Dashboard() {
                                         View All <ChevronRight size={14} />
                                     </button>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+
+                                {/* Mobile: horizontal scroll-snap row (prototype spec),
+                                    showing the full list, not just 2. Desktop: unchanged
+                                    existing 2-up grid, capped at 2 items as before. */}
+                                <div className="lg:hidden flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                                    {(data?.top_therapists ?? []).map(therapist => (
+                                        <div key={therapist.id} className="flex-none w-[228px] snap-start">
+                                            <TherapistCard therapist={therapist} />
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="hidden lg:grid grid-cols-2 gap-4">
                                     {(data?.top_therapists ?? []).slice(0, 2).map(therapist => (
                                         <TherapistCard key={therapist.id} therapist={therapist} />
                                     ))}
@@ -1489,7 +1592,11 @@ export default function Dashboard() {
                                         <p>No bookings yet. Start your wellness journey!</p>
                                     </div>
                                 ) : (
-                                    <div>
+                                    // Mobile: wrapped in one card (prototype spec). Desktop:
+                                    // the border/background/padding are reset to nothing, so
+                                    // it renders exactly as it did before this change.
+                                    <div className="rounded-2xl border px-4 bg-[var(--theme-card)] lg:border-0 lg:rounded-none lg:px-0 lg:bg-transparent"
+                                        style={{ borderColor: 'var(--theme-border)' }}>
                                         {(data?.recent_activity ?? []).map(item => (
                                             <RecentActivityItem key={item.id} item={item} />
                                         ))}
@@ -1498,15 +1605,19 @@ export default function Dashboard() {
                             </motion.section>
                         </div>
 
-                        <div className="space-y-8">
-                            <LoyaltyWidget
-                                loyalty={data?.loyalty}
-                                onRedeemed={() => {
-                                    apiFetch('/api/dashboard-data')
-                                        .then(setData)
-                                        .catch(console.error);
-                                }}
-                            />
+                        <div className="flex flex-col gap-8">
+                            {/* Mobile instance of this same widget now sits above, ahead of
+                                Top Therapists (prototype order) — see comment there. */}
+                            <div className="hidden lg:block">
+                                <LoyaltyWidget
+                                    loyalty={data?.loyalty}
+                                    onRedeemed={() => {
+                                        apiFetch('/api/dashboard-data')
+                                            .then(setData)
+                                            .catch(console.error);
+                                    }}
+                                />
+                            </div>
                             <WishlistWidget items={wishlistItems} loading={wishlistLoading} error={wishlistError} />
                             <AutoPreferencesWidget prefs={prefs} />
                         </div>
