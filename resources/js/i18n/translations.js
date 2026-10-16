@@ -8,6 +8,7 @@ const translations = {
       bookings: 'Bookings',
       profile: 'Profile',
       liveChat: 'Live Chat',
+      book: 'Book',
     },
     header: {
       welcomeBack: 'Welcome back',
@@ -237,6 +238,7 @@ const translations = {
       bookings: 'الحجوزات',
       profile: 'الملف الشخصي',
       liveChat: 'الدردشة المباشرة',
+      book: 'حجز',
     },
     header: {
       welcomeBack: 'مرحباً بعودتك',

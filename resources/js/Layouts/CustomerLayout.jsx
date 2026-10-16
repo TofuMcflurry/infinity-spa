@@ -308,10 +308,19 @@ function CustomerSidebar() {
 
 // ── Main Layout ───────────────────────────────────────────────────────────────
 export default function CustomerLayout({ children }) {
+    const { url } = usePage();
+    // The booking wizard hides BottomNav (it has its own sticky action bar),
+    // so it doesn't need the padding reserved to clear that nav either.
+    const isBookingWizard = url.startsWith('/book-session');
+
     return (
         <div className="customer-theme flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
             <CustomerSidebar />
-            <div className="flex-1 min-h-screen overflow-y-auto pb-24 md:pb-0">
+            <div
+                className={`flex-1 min-h-screen overflow-y-auto md:pb-0 ${
+                    isBookingWizard ? '' : 'pb-[calc(76px+env(safe-area-inset-bottom))]'
+                }`}
+            >
                 {children}
             </div>
             <BottomNav />

@@ -144,7 +144,7 @@ export default function FloatingConcierge() {
             transition={reduceMotion ? { duration: 0 } : undefined}
             onClick={handleOpen}
             aria-label={a.openLabel}
-            className="fixed bottom-20 right-5 md:bottom-6 md:right-6 z-50 w-14 h-14 rounded-full gold-gradient flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow"
+            className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-5 md:bottom-6 md:right-6 z-50 w-14 h-14 rounded-full gold-gradient flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow"
           >
             <MessageCircle className="w-6 h-6 text-primary-foreground" />
             {unread > 0 && (
@@ -164,7 +164,7 @@ export default function FloatingConcierge() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.9 }}
             transition={reduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 300 }}
-            className="ihs-assistant-panel fixed z-50 inset-x-3 bottom-20 md:inset-x-auto md:left-auto md:right-6 md:bottom-6 md:w-full md:max-w-sm glass-card-strong flex flex-col overflow-hidden"
+            className="ihs-assistant-panel fixed z-50 inset-x-3 bottom-[calc(92px+env(safe-area-inset-bottom))] md:inset-x-auto md:left-auto md:right-6 md:bottom-6 md:w-full md:max-w-sm glass-card-strong flex flex-col overflow-hidden"
             role="dialog"
             aria-label={t.messenger.title}
           >

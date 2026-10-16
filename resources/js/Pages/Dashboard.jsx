@@ -1430,7 +1430,7 @@ export default function Dashboard() {
                             <motion.section initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>Top Therapists For You</h2>
-                                    <button onClick={() => router.visit(route('bookings'))}
+                                    <button onClick={() => router.visit(route('therapists'))}
                                         className="text-sm flex items-center gap-1 transition-colors" style={{ color: 'var(--theme-link)' }}
                                         onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-head)'}
                                         onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-link)'}
