@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { router } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Clock, Star, ChevronRight, Loader2, Heart, HeartOff, AlertCircle, X, ShoppingBag } from 'lucide-react';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -222,6 +224,7 @@ export default function Wishlist() {
     const [error,           setError]           = useState(null);
     const [removingIds,     setRemovingIds]     = useState(() => new Set());
     const [removeError,     setRemoveError]     = useState(null);
+    const [menuOpen,        setMenuOpen]        = useState(false);
 
     // ── Fetch wishlist ─────────────────────────────────────────────────────────
     const loadWishlist = () => {
@@ -273,21 +276,26 @@ export default function Wishlist() {
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
                     style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-                        <motion.h1
-                            initial={{ opacity: 0, y: -8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="font-display text-xl font-bold flex items-center gap-2"
-                            style={{ color: 'var(--theme-text-head)' }}
-                        >
-                            <Heart size={20} style={{ color: 'var(--theme-link)' }} fill="var(--theme-link)" />
-                            My Wishlist
-                        </motion.h1>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                            Services you've saved for later
-                        </p>
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between gap-3">
+                        <div>
+                            <motion.h1
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="font-display text-xl font-bold flex items-center gap-2"
+                                style={{ color: 'var(--theme-text-head)' }}
+                            >
+                                <Heart size={20} style={{ color: 'var(--theme-link)' }} fill="var(--theme-link)" />
+                                My Wishlist
+                            </motion.h1>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                Services you've saved for later
+                            </p>
+                        </div>
+                        <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                     </div>
                 </header>
+
+                <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
                 <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 

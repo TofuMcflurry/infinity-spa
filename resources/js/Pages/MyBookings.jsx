@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { computePaymentSummary, PAYMENT_STATUS_LABELS, formatAed } from '@/lib/paymentSummary';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -1449,6 +1451,7 @@ export default function MyBookings() {
     const [activeTab,       setActiveTab]       = useState('upcoming');
     const [data,            setData]            = useState(null);
     const [loading,         setLoading]         = useState(true);
+    const [menuOpen,        setMenuOpen]        = useState(false);
 
     // ── Details modal ─────────────────────────────────────────────────────
     const [detailsBooking,   setDetailsBooking]   = useState(null);
@@ -1589,8 +1592,9 @@ export default function MyBookings() {
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
                     style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="h-16 flex items-center">
+                        <div className="h-16 flex items-center justify-between gap-3">
                             <h1 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>My Bookings</h1>
+                            <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                         </div>
                         <div className="flex gap-1 pb-0 overflow-x-auto scrollbar-hide">
                             {TABS.map(tab => {
@@ -1628,6 +1632,8 @@ export default function MyBookings() {
                         </div>
                     </div>
                 </header>
+
+                <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
                 {/* ── Content ── */}
                 <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

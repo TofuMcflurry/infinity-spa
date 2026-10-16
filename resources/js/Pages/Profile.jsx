@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
 
 // ── Zone config ───────────────────────────────────────────────────────────────
 const ZONE_OPTIONS = [
@@ -70,6 +72,7 @@ export default function Profile() {
     const [editing,      setEditing]      = useState(false);
     const [draft,        setDraft]        = useState({ name: '', phone: '' });
     const [savingInfo,   setSavingInfo]   = useState(false);
+    const [menuOpen,     setMenuOpen]     = useState(false);
 
     // ── Avatar ────────────────────────────────────────────────────────────────
     const [avatarUrl,    setAvatarUrl]    = useState(null);
@@ -266,9 +269,16 @@ export default function Profile() {
                         >
                             {t.profile.title}
                         </motion.h1>
-                        <LanguageToggle />
+                        {/* Language moves into MobileMenuSheet below md — desktop
+                            keeps it exactly as before. */}
+                        <div className="hidden md:block">
+                            <LanguageToggle />
+                        </div>
+                        <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                     </div>
                 </header>
+
+                <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} avatarUrl={avatarUrl} />
 
                 {/* ── Toast notifications ── */}
                 <AnimatePresence>

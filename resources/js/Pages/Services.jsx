@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { router } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Clock, Star, ChevronRight, Loader2, Sparkles, Heart, AlertCircle } from 'lucide-react';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -230,6 +232,7 @@ export default function Services() {
     const [loading,         setLoading]         = useState(true);
     const [error,           setError]           = useState(null);
     const [activeCategory,  setActiveCategory]  = useState('all');
+    const [menuOpen,        setMenuOpen]        = useState(false);
 
     // service_id -> wishlist row id, for services currently saved by this customer
     const [wishlistMap,        setWishlistMap]        = useState({});
@@ -297,20 +300,25 @@ export default function Services() {
                 {/* ── Header ── */}
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
                     style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-                        <motion.h1
-                            initial={{ opacity: 0, y: -8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="font-display text-xl font-bold"
-                            style={{ color: 'var(--theme-text-head)' }}
-                        >
-                            {t.services?.title ?? 'Our Services'}
-                        </motion.h1>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                            {t.services?.subtitle ?? 'Premium spa services delivered to your location'}
-                        </p>
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between gap-3">
+                        <div>
+                            <motion.h1
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="font-display text-xl font-bold"
+                                style={{ color: 'var(--theme-text-head)' }}
+                            >
+                                {t.services?.title ?? 'Our Services'}
+                            </motion.h1>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                {t.services?.subtitle ?? 'Premium spa services delivered to your location'}
+                            </p>
+                        </div>
+                        <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                     </div>
                 </header>
+
+                <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
                 <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 

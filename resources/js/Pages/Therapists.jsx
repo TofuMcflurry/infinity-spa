@@ -6,6 +6,8 @@ import {
     Star, MapPin, Clock, Sparkles,
     Loader2, Users, X, Calendar, Shield
 } from 'lucide-react';
+import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function apiFetch(url) {
@@ -326,6 +328,7 @@ export default function Therapists() {
     const [error,           setError]           = useState(null);
     const [genderFilter,    setGenderFilter]    = useState('all');
     const [selectedTherapist, setSelectedTherapist] = useState(null);
+    const [menuOpen,          setMenuOpen]          = useState(false);
 
     useEffect(() => {
         apiFetch('/api/therapists')
@@ -367,16 +370,21 @@ export default function Therapists() {
                                 </p>
                             </div>
 
-                            {!loading && (
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
-                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
-                                    <Users size={12} />
-                                    {filtered.length} therapist{filtered.length !== 1 ? 's' : ''}
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                {!loading && (
+                                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
+                                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)', border: '1px solid var(--theme-border)' }}>
+                                        <Users size={12} />
+                                        {filtered.length} therapist{filtered.length !== 1 ? 's' : ''}
+                                    </div>
+                                )}
+                                <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
+                            </div>
                         </div>
                     </div>
                 </header>
+
+                <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
                 <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
