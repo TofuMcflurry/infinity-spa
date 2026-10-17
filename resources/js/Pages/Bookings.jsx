@@ -544,75 +544,108 @@ export default function Bookings() {
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                    {services.map((group) => {
-                                                        const isActive = selectedGroup?.group_name === group.group_name;
+                                                {/* Shared duration-tile renderer — used inline (mobile accordion) and in the
+                                                    standalone desktop panel below, so the control itself exists in only
+                                                    one visible place per breakpoint while the markup isn't duplicated. */}
+                                                {(() => {
+                                                    const DurationTile = ({ duration, groupName }) => {
+                                                        const isSelected = selectedService?.id === duration.id;
                                                         return (
-                                                            <button key={group.group_name}
-                                                                onClick={() => { setSelectedGroup(isActive ? null : group); setSelectedService(null); }}
-                                                                className="relative p-5 rounded-2xl border text-start transition-all"
-                                                                style={{ borderColor: isActive ? '#e2b764' : 'var(--theme-border)', background: isActive ? 'rgba(226,183,100,0.08)' : 'var(--theme-card)' }}
-                                                                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
-                                                                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
+                                                            <button key={duration.id}
+                                                                onClick={() => setSelectedService({ ...duration, name: `${groupName} ${duration.duration_minutes} min`, group_name: groupName })}
+                                                                className="relative p-4 rounded-xl border text-start transition-all"
+                                                                style={{ borderColor: isSelected ? '#e2b764' : 'var(--theme-border)', background: isSelected ? 'rgba(226,183,100,0.1)' : 'var(--theme-card)', minHeight: 76 }}
+                                                                onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
+                                                                onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
                                                             >
-                                                                {isActive && (
-                                                                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
-                                                                        <Check className="w-3 h-3" style={{ color: 'var(--theme-cta-ink)' }} />
+                                                                {isSelected && (
+                                                                    <div className="absolute top-3 right-3 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
+                                                                        <Check className="w-2.5 h-2.5" style={{ color: 'var(--theme-cta-ink)' }} />
                                                                     </div>
                                                                 )}
-                                                                <h4 className="font-display font-semibold text-base mb-3 pr-6" style={{ color: 'var(--theme-text-head)' }}>{group.group_name}</h4>
-                                                                <div className="flex flex-wrap gap-1.5 mb-4">
-                                                                    {group.durations.map(d => (
-                                                                        <span key={d.id} className="text-[10px] px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
-                                                                            {d.duration_minutes} {t.minutes_suffix}
-                                                                        </span>
-                                                                    ))}
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <Clock className="w-4 h-4" style={{ color: 'var(--theme-link)' }} />
+                                                                    <span className="text-base font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>{duration.duration_minutes} {t.minutes_suffix}</span>
                                                                 </div>
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{t.from}</span>
-                                                                    <span className="font-display font-bold text-base" style={{ color: 'var(--theme-link)' }}>AED {Number(group.min_price).toLocaleString()}</span>
+                                                                <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>AED {Number(duration.price).toLocaleString()}</p>
+                                                                <div className="flex items-center gap-1 mt-2">
+                                                                    {[1,2,3,4,5].map(s => (
+                                                                        <Star key={s} size={10} style={{ color: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)', fill: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)' }} />
+                                                                    ))}
+                                                                    <span className="text-[10px] ml-1" style={{ color: 'var(--theme-text-muted)' }}>{Number(duration.rating) > 0 ? duration.rating : t.new_rating}</span>
                                                                 </div>
                                                             </button>
                                                         );
-                                                    })}
-                                                </div>
+                                                    };
 
-                                                {selectedGroup && (
-                                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
-                                                        <p className="text-sm font-medium mb-4" style={{ color: 'var(--theme-text-head)' }}>Choose duration — <span style={{ color: 'var(--theme-link)' }}>{selectedGroup.group_name}</span></p>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                            {selectedGroup.durations.map(duration => {
-                                                                const isSelected = selectedService?.id === duration.id;
-                                                                return (
-                                                                    <button key={duration.id}
-                                                                        onClick={() => setSelectedService({ ...duration, name: `${selectedGroup.group_name} ${duration.duration_minutes} min`, group_name: selectedGroup.group_name })}
-                                                                        className="relative p-4 rounded-xl border text-start transition-all"
-                                                                        style={{ borderColor: isSelected ? '#e2b764' : 'var(--theme-border)', background: isSelected ? 'rgba(226,183,100,0.1)' : 'var(--theme-card)' }}
-                                                                        onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
-                                                                        onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
-                                                                    >
-                                                                        {isSelected && (
-                                                                            <div className="absolute top-3 right-3 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
-                                                                                <Check className="w-2.5 h-2.5" style={{ color: 'var(--theme-cta-ink)' }} />
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex items-center gap-2 mb-2">
-                                                                            <Clock className="w-4 h-4" style={{ color: 'var(--theme-link)' }} />
-                                                                            <span className="text-base font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>{duration.duration_minutes} {t.minutes_suffix}</span>
+                                                    return (
+                                                        <>
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                {services.map((group) => {
+                                                                    const isActive = selectedGroup?.group_name === group.group_name;
+                                                                    return (
+                                                                        <div key={group.group_name}>
+                                                                            <button
+                                                                                onClick={() => { setSelectedGroup(isActive ? null : group); setSelectedService(null); }}
+                                                                                aria-expanded={isActive}
+                                                                                className="relative w-full p-5 rounded-2xl border text-start transition-all"
+                                                                                style={{ borderColor: isActive ? '#e2b764' : 'var(--theme-border)', background: isActive ? 'rgba(226,183,100,0.08)' : 'var(--theme-card)' }}
+                                                                                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
+                                                                                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
+                                                                            >
+                                                                                {isActive && (
+                                                                                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#e2b764' }}>
+                                                                                        <Check className="w-3 h-3" style={{ color: 'var(--theme-cta-ink)' }} />
+                                                                                    </div>
+                                                                                )}
+                                                                                <h4 className="font-display font-semibold text-base mb-3 pr-6" style={{ color: 'var(--theme-text-head)' }}>{group.group_name}</h4>
+                                                                                <div className="flex flex-wrap gap-1.5 mb-4">
+                                                                                    {group.durations.map(d => (
+                                                                                        <span key={d.id} className="text-[10px] px-2.5 py-1 rounded-full font-medium" style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}>
+                                                                                            {d.duration_minutes} {t.minutes_suffix}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>{t.from}</span>
+                                                                                    <span className="font-display font-bold text-base" style={{ color: 'var(--theme-link)' }}>AED {Number(group.min_price).toLocaleString()}</span>
+                                                                                </div>
+                                                                            </button>
+
+                                                                            {/* Mobile-only inline accordion panel — expands directly beneath the
+                                                                                tapped group, per the Claude Design prototype. Desktop keeps the
+                                                                                single standalone panel below the grid (see md:block below). */}
+                                                                            {isActive && (
+                                                                                <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                                                                                    className="md:hidden mt-2 rounded-2xl border p-4"
+                                                                                    style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card-hover)' }}>
+                                                                                    <p className="text-xs font-semibold mb-3" style={{ color: 'var(--theme-text-2)' }}>Choose duration</p>
+                                                                                    <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))' }}>
+                                                                                        {group.durations.map(duration => (
+                                                                                            <DurationTile key={duration.id} duration={duration} groupName={group.group_name} />
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </motion.div>
+                                                                            )}
                                                                         </div>
-                                                                        <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>AED {Number(duration.price).toLocaleString()}</p>
-                                                                        <div className="flex items-center gap-1 mt-2">
-                                                                            {[1,2,3,4,5].map(s => (
-                                                                                <Star key={s} size={10} style={{ color: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)', fill: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)' }} />
-                                                                            ))}
-                                                                            <span className="text-[10px] ml-1" style={{ color: 'var(--theme-text-muted)' }}>{Number(duration.rating) > 0 ? duration.rating : t.new_rating}</span>
-                                                                        </div>
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </motion.div>
-                                                )}
+                                                                    );
+                                                                })}
+                                                            </div>
+
+                                                            {/* Desktop-only standalone duration panel (unchanged behavior, just scoped to md+) */}
+                                                            {selectedGroup && (
+                                                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="hidden md:block rounded-2xl border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>
+                                                                    <p className="text-sm font-medium mb-4" style={{ color: 'var(--theme-text-head)' }}>Choose duration — <span style={{ color: 'var(--theme-link)' }}>{selectedGroup.group_name}</span></p>
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                                        {selectedGroup.durations.map(duration => (
+                                                                            <DurationTile key={duration.id} duration={duration} groupName={selectedGroup.group_name} />
+                                                                        ))}
+                                                                    </div>
+                                                                </motion.div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </>
                                         )}
                                     </div>
@@ -621,7 +654,26 @@ export default function Bookings() {
                                 {/* ════════ STEP 2: Therapist ════════ */}
                                 {step === 2 && (
                                     <div className="space-y-4">
-                                        <div className="flex items-center gap-3 mb-2">
+                                        {/* Mobile: label on its own line + equal-width 3-up segmented gender well (Claude Design prototype) */}
+                                        <div className="md:hidden">
+                                            <p className="text-sm mb-2" style={{ color: 'var(--theme-text-2)' }}>{t.selectTherapist}</p>
+                                            <div className="grid grid-cols-3 gap-1 p-1 rounded-xl" style={{ background: 'var(--theme-btn-bg)' }}>
+                                                {['all', 'male', 'female'].map((g) => {
+                                                    const isActive = genderFilter === g;
+                                                    return (
+                                                        <button key={g} onClick={() => setGenderFilter(g)}
+                                                            className={`h-9 rounded-lg text-sm font-semibold transition-all ${isActive ? 'gold-gradient text-primary-foreground' : ''}`}
+                                                            style={!isActive ? { color: 'var(--theme-text-muted)' } : undefined}
+                                                        >
+                                                            {g === 'all' ? t.genderAll : g === 'male' ? t.genderMale : t.genderFemale}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Desktop: original inline label + compact filter row, unchanged */}
+                                        <div className="hidden md:flex items-center gap-3 mb-2">
                                             <p className="text-sm flex-1" style={{ color: 'var(--theme-text-2)' }}>{t.selectTherapist}</p>
                                             <div className="flex gap-1.5">
                                                 {['all', 'male', 'female'].map((g) => {
@@ -704,6 +756,10 @@ export default function Bookings() {
                                                     today:     'bg-[var(--theme-btn-bg)] text-[var(--theme-text-head)] font-semibold rounded-full',
                                                     day_today: 'bg-[var(--theme-btn-bg)] text-[var(--theme-text-head)] font-semibold rounded-full',
                                                 }} />
+                                            {/* Mobile-only helper note (Claude Design prototype) */}
+                                            <p className="md:hidden text-xs mt-2.5 px-1" style={{ color: 'var(--theme-text-muted)' }}>
+                                                Closed on Tuesdays. Same-day bookings need at least 2 hours' notice.
+                                            </p>
                                         </div>
                                         <div className="glass-card p-5 flex flex-col">
                                             <h4 className="font-display font-semibold text-base mb-4">{t.location}</h4>
@@ -779,6 +835,22 @@ export default function Bookings() {
                                                             </button>
                                                         );
                                                     })}
+
+                                                    {/* Mobile-only: persistent "Add new address" (Claude Design prototype) —
+                                                        the empty-address state above has its own add button, so this is
+                                                        scoped to the populated-list branch only, avoiding a duplicate control. */}
+                                                    <button
+                                                        onClick={() => setShowAddAddressModal(true)}
+                                                        className="md:hidden w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all border-dashed border"
+                                                        style={{
+                                                            background: 'var(--theme-card-hover)',
+                                                            borderColor: 'rgba(226,183,100,0.4)',
+                                                            color: 'var(--theme-link)'
+                                                        }}
+                                                    >
+                                                        <Plus size={16} />
+                                                        Add new address
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -805,7 +877,7 @@ export default function Bookings() {
                                             const SlotButton = ({ slot }) => {
                                                 const isSelected  = selectedTime === slot.datetime;
                                                 const isAvailable = slot.available;
-                                                let btnClass = 'rounded-xl transition-all flex flex-col items-center justify-center gap-1.5 py-3 px-2 text-sm font-medium';
+                                                let btnClass = 'rounded-xl transition-all flex flex-col items-center justify-center gap-1.5 py-3 px-2 text-sm font-medium min-h-[46px]';
                                                 let btnStyle = {};
                                                 if (isSelected) {
                                                     btnClass += ' cursor-pointer';
@@ -835,7 +907,7 @@ export default function Bookings() {
                                                     {evening.length > 0 && (
                                                         <div>
                                                             <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Evening</p>
-                                                            <div className="grid grid-cols-4 gap-2">
+                                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                                                                 {evening.map(slot => <SlotButton key={slot.datetime} slot={slot} />)}
                                                             </div>
                                                         </div>
@@ -843,7 +915,7 @@ export default function Bookings() {
                                                     {lateNight.length > 0 && (
                                                         <div>
                                                             <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Late night</p>
-                                                            <div className="grid grid-cols-4 gap-2">
+                                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                                                                 {lateNight.map(slot => <SlotButton key={slot.datetime} slot={slot} />)}
                                                             </div>
                                                         </div>
@@ -887,9 +959,11 @@ export default function Bookings() {
                                                     { label: t.summaryDateTime,  value: formattedDate,           sub: formattedTime },
                                                     { label: t.summaryLocation,  value: selectedAddress?.label,  sub: selectedAddress?.address },
                                                 ].map(({ label, value, sub }) => (
-                                                    <div key={label} className="flex justify-between items-start gap-4 text-sm">
+                                                    // Mobile: label stacked above its value (easier to read at 320px,
+                                                    // per the Claude Design prototype). Desktop: unchanged side-by-side row.
+                                                    <div key={label} className="flex flex-col gap-0.5 md:flex-row md:justify-between md:items-start md:gap-4 text-sm">
                                                         <span className="flex-shrink-0" style={{ color: 'var(--theme-text-muted)' }}>{label}</span>
-                                                        <div className="text-right">
+                                                        <div className="md:text-right">
                                                             <p className="font-medium" style={{ color: 'var(--theme-text-head)' }}>{value ?? '—'}</p>
                                                             {sub && <p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{sub}</p>}
                                                         </div>
