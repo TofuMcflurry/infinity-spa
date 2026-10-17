@@ -837,30 +837,44 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="rounded-2xl border p-5 md:p-6 transition-all"
+            className="rounded-[20px] lg:rounded-2xl border p-5 md:p-6 transition-all"
             style={{ background: 'var(--theme-card)', borderColor: 'var(--theme-border)' }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--theme-link)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--theme-border)'}
         >
             {/* Top row */}
-            <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-4 mb-1 lg:mb-4">
+                <div className="flex items-center gap-3 min-w-0">
                     <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-display font-bold flex-shrink-0"
                         style={{ background: 'linear-gradient(135deg, #b7882a, #e2b764)', color: 'var(--theme-cta-ink)' }}>
                         {booking.therapist_avatar}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <h4 className="font-display font-semibold text-base" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h4>
-                        <p className="text-sm flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--theme-text-2)' }}>
+                        {/* Mobile: duration + therapist merged on one line
+                            (prototype: "90 min · with Therapist"). Desktop
+                            keeps the original therapist-only line untouched. */}
+                        <p className="text-xs mt-0.5 truncate lg:hidden" style={{ color: 'var(--theme-text-2)' }}>
+                            {booking.duration} min · with {booking.therapist}
+                        </p>
+                        <p className="text-sm hidden lg:flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--theme-text-2)' }}>
                             <User size={12} /> {booking.therapist}
                         </p>
                     </div>
                 </div>
-                <StatusBadge status={booking.status} />
+                <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                    <StatusBadge status={booking.status} />
+                    {/* Mobile-only ref code (prototype: "the ref (mono 10px)
+                        on the right"). Same ref format BookingDetailsModal
+                        already computes. */}
+                    <span className="lg:hidden font-mono text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
+                        IHS-{String(booking.id).padStart(5, '0')}
+                    </span>
+                </div>
             </div>
 
             {/* Details grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-2xl mt-3 bg-[var(--theme-btn-bg)] lg:p-0 lg:rounded-none lg:bg-transparent lg:mt-0">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: 'var(--theme-btn-bg)' }}>
@@ -1031,69 +1045,95 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                 </div>
             )}
 
-            {/* Price + Actions row */}
-            <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
-                {booking.is_voucher_covered ? (
-                    <div className="flex items-center gap-2">
-                        <span style={{ fontSize: 16 }}>🎁</span>
-                        <div>
-                            <p className="text-xs font-semibold" style={{ color: 'var(--theme-success)' }}>Redeemed via Loyalty Voucher</p>
-                            {booking.voucher_code && (
-                                <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>{booking.voucher_code}</p>
-                            )}
+            {/* Price + Actions — mobile: price/Details on their own row, then
+                full-width action buttons below (prototype: "Total (serif
+                24px) with a 'Details ›' link; then the actions as full-width
+                44px buttons"). Desktop: unchanged single row. Same
+                booking/tab/eligibility data and handlers either way. */}
+            {(() => {
+                const showReschedule = (tab === 'upcoming' || tab === 'pending') && booking.reschedule_eligible && !pendingProposal;
+                const showCancel     = (tab === 'upcoming' || tab === 'pending') && !pendingProposal;
+                const showBookAgain  = tab === 'completed' || tab === 'cancelled';
+                const showRate       = tab === 'completed' && booking.can_review;
+                return (
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0 pt-4 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                <div className="flex items-center justify-between lg:contents">
+                    {booking.is_voucher_covered ? (
+                        <div className="flex items-center gap-2">
+                            <span style={{ fontSize: 16 }}>🎁</span>
+                            <div>
+                                <p className="text-xs font-semibold" style={{ color: 'var(--theme-success)' }}>Redeemed via Loyalty Voucher</p>
+                                {booking.voucher_code && (
+                                    <p className="text-[10px] font-mono" style={{ color: 'var(--theme-text-muted)' }}>{booking.voucher_code}</p>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <div>
-                        <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>Total</p>
-                        <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>
-                            AED {booking.price}
-                        </p>
-                    </div>
-                )}
-
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {/* Request Reschedule button */}
-                    {(tab === 'upcoming' || tab === 'pending') && booking.reschedule_eligible && !pendingProposal && (
-                        <button
-                            onClick={() => onRequestReschedule?.(booking)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-                            style={{
-                                color:      'var(--theme-info)',
-                                background: 'rgba(96,165,250,0.05)',
-                                border:     '1px solid rgba(96,165,250,0.3)',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.12)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.05)'}
-                        >
-                            <CalendarClock size={13} />
-                            Reschedule
-                        </button>
+                    ) : (
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>Total</p>
+                            <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>
+                                AED {booking.price}
+                            </p>
+                        </div>
                     )}
 
-                    {/* Cancel button */}
-                    {(tab === 'upcoming' || tab === 'pending') && !pendingProposal && (
-                        <button
-                            onClick={() => onCancel?.(booking)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
-                            style={{
-                                color:      'var(--theme-danger)',
-                                background: 'rgba(248,113,113,0.05)',
-                                border:     '1px solid rgba(248,113,113,0.3)',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.12)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,0.05)'}
-                        >
-                            <X size={13} />
-                            Cancel
-                        </button>
+                    {/* Mobile-only "Details ›" link, paired with the price row */}
+                    <button
+                        onClick={() => onViewDetails?.(booking)}
+                        className="lg:hidden flex items-center gap-0.5 h-11 pl-3 text-sm font-bold"
+                        style={{ color: 'var(--theme-link)' }}
+                    >
+                        Details
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:flex-wrap lg:justify-end">
+                    {(showReschedule || showCancel) && (
+                        <div className={`grid gap-2 lg:contents ${showReschedule && showCancel ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {/* Request Reschedule button */}
+                            {showReschedule && (
+                                <button
+                                    onClick={() => onRequestReschedule?.(booking)}
+                                    className="flex items-center justify-center gap-1.5 h-11 lg:h-auto px-4 lg:py-2 rounded-xl text-sm font-medium transition-all"
+                                    style={{
+                                        color:      'var(--theme-info)',
+                                        background: 'rgba(96,165,250,0.05)',
+                                        border:     '1px solid rgba(96,165,250,0.3)',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.12)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.05)'}
+                                >
+                                    <CalendarClock size={13} />
+                                    Reschedule
+                                </button>
+                            )}
+
+                            {/* Cancel button */}
+                            {showCancel && (
+                                <button
+                                    onClick={() => onCancel?.(booking)}
+                                    className="flex items-center justify-center gap-1.5 h-11 lg:h-auto px-4 lg:py-2 rounded-xl text-sm font-medium transition-all"
+                                    style={{
+                                        color:      'var(--theme-danger)',
+                                        background: 'rgba(248,113,113,0.05)',
+                                        border:     '1px solid rgba(248,113,113,0.3)',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.12)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,0.05)'}
+                                >
+                                    <X size={13} />
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
                     )}
 
                     {/* Book Again */}
-                    {(tab === 'completed' || tab === 'cancelled') && (
+                    {showBookAgain && (
                         <button
                             onClick={() => router.visit(route('bookings'))}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all border"
+                            className="flex items-center justify-center gap-1.5 h-11 lg:h-auto w-full lg:w-auto px-4 lg:py-2 rounded-xl text-sm font-medium transition-all border"
                             style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.borderColor = 'rgba(226,183,100,0.5)';
@@ -1112,9 +1152,9 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                     )}
 
                     {/* Rate button */}
-                    {tab === 'completed' && booking.can_review && (
+                    {showRate && (
                         <button
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            className="flex items-center justify-center gap-1.5 h-11 lg:h-auto w-full lg:w-auto px-4 lg:py-2 rounded-xl text-sm font-medium transition-all"
                             style={{
                                 background: 'rgba(226,183,100,0.1)',
                                 border:     '1px solid rgba(226,183,100,0.3)',
@@ -1133,10 +1173,10 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         </button>
                     )}
 
-                    {/* View Details arrow */}
+                    {/* View Details arrow — desktop only (icon-only, as before) */}
                     <button
                         onClick={() => onViewDetails?.(booking)}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+                        className="hidden lg:flex w-9 h-9 rounded-xl items-center justify-center transition-all"
                         style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#e2b764'; e.currentTarget.style.color = 'var(--theme-cta-ink)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--theme-btn-bg)'; e.currentTarget.style.color = 'var(--theme-text-muted)'; }}
@@ -1145,6 +1185,8 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                     </button>
                 </div>
             </div>
+                );
+            })()}
         </motion.div>
     );
 }
@@ -1592,11 +1634,56 @@ export default function MyBookings() {
                 <header className="sticky top-0 z-30 border-b backdrop-blur-xl"
                     style={{ background: 'var(--theme-header-bg)', borderColor: 'var(--theme-border)' }}>
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="h-16 flex items-center justify-between gap-3">
-                            <h1 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>My Bookings</h1>
+                        <div className="py-3 lg:h-16 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <h1 className="text-xl font-display font-semibold" style={{ color: 'var(--theme-text-head)' }}>My Bookings</h1>
+                                {/* Mobile-only subtitle, matching the title/subtitle
+                                    pattern already shipped on Services/Therapists/
+                                    Wishlist/Profile. Desktop is unchanged — it never
+                                    had a subtitle here. */}
+                                <p className="text-xs mt-0.5 lg:hidden truncate" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Track, reschedule or rebook your sessions
+                                </p>
+                            </div>
                             <MobileMenuTrigger onClick={() => setMenuOpen(true)} />
                         </div>
-                        <div className="flex gap-1 pb-0 overflow-x-auto scrollbar-hide">
+
+                        {/* Mobile tabs — pill buttons with a status dot and count
+                            bubble (prototype: "horizontally scrolling pills...
+                            Active: #1f1c17 background with ivory text"). Same
+                            TABS/activeTab/counts as the desktop row below — no
+                            duplicated tab state or counting logic. */}
+                        <div className="lg:hidden flex gap-2 pb-3 overflow-x-auto scrollbar-hide">
+                            {TABS.map(tab => {
+                                const Icon   = tab.icon;
+                                const active = activeTab === tab.key;
+                                const count  = counts[tab.key];
+                                return (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setActiveTab(tab.key)}
+                                        className="flex items-center gap-2 h-10 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 border"
+                                        style={active
+                                            ? { background: '#1f1c17', borderColor: '#1f1c17', color: '#faf7f1' }
+                                            : { background: 'var(--theme-card)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-2)' }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: active ? tab.color : 'var(--theme-border)' }} />
+                                        {tab.label}
+                                        {count > 0 && (
+                                            <span className="min-w-[20px] h-5 px-1 rounded-full text-[11px] font-bold flex items-center justify-center"
+                                                style={active
+                                                    ? { background: 'rgba(250,247,241,0.18)', color: '#faf7f1' }
+                                                    : { background: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}>
+                                                {count}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Desktop tabs — unchanged */}
+                        <div className="hidden lg:flex gap-1 pb-0 overflow-x-auto scrollbar-hide">
                             {TABS.map(tab => {
                                 const Icon   = tab.icon;
                                 const active = activeTab === tab.key;
@@ -1636,7 +1723,7 @@ export default function MyBookings() {
                 <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
 
                 {/* ── Content ── */}
-                <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-6">
                     {loading ? (
                         <div className="flex items-center justify-center py-20">
                             <Loader2 className="w-7 h-7 animate-spin" style={{ color: 'var(--theme-cta)' }} />
