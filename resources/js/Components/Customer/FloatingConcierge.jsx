@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { MessageCircle, X, Send, Paperclip } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -79,6 +79,18 @@ export default function FloatingConcierge() {
   const { t } = useLanguage();
   const a = t.messenger.assistant;
   const reduceMotion = useReducedMotion();
+
+  // The booking wizard (see CustomerLayout.jsx / BottomNav.jsx) replaces the
+  // bottom nav with its own fixed action bar (~95px tall, measured), so the
+  // button/panel need extra clearance there — everywhere else the default
+  // 92px (tuned for BottomNav) still applies. One env(safe-area-inset-bottom)
+  // reference in each case keeps the gap constant across devices rather than
+  // compounding with the footer's own safe-area padding.
+  const { url } = usePage();
+  const isBookingWizard = url.startsWith('/book-session');
+  const mobileBottomClass = isBookingWizard
+    ? 'bottom-[calc(110px+env(safe-area-inset-bottom))]'
+    : 'bottom-[calc(92px+env(safe-area-inset-bottom))]';
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(1);
   const [input, setInput] = useState('');
@@ -144,7 +156,7 @@ export default function FloatingConcierge() {
             transition={reduceMotion ? { duration: 0 } : undefined}
             onClick={handleOpen}
             aria-label={a.openLabel}
-            className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-5 md:bottom-6 md:right-6 z-50 w-14 h-14 rounded-full gold-gradient flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow"
+            className={`fixed ${mobileBottomClass} right-5 md:bottom-6 md:right-6 z-50 w-14 h-14 rounded-full gold-gradient flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow`}
           >
             <MessageCircle className="w-6 h-6 text-primary-foreground" />
             {unread > 0 && (
@@ -164,7 +176,7 @@ export default function FloatingConcierge() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.9 }}
             transition={reduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 300 }}
-            className="ihs-assistant-panel fixed z-50 inset-x-3 bottom-[calc(92px+env(safe-area-inset-bottom))] md:inset-x-auto md:left-auto md:right-6 md:bottom-6 md:w-full md:max-w-sm glass-card-strong flex flex-col overflow-hidden"
+            className={`ihs-assistant-panel fixed z-50 inset-x-3 ${mobileBottomClass} md:inset-x-auto md:left-auto md:right-6 md:bottom-6 md:w-full md:max-w-sm glass-card-strong flex flex-col overflow-hidden`}
             role="dialog"
             aria-label={t.messenger.title}
           >

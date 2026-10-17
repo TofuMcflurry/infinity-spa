@@ -420,7 +420,31 @@ export default function Bookings() {
         return Math.max(MIN_DISPLAY, actual);
     };
 
-    
+    // Mobile sticky-footer summary/total — same source values as the summary
+    // card and price breakdown below, just condensed to one line per the
+    // Claude Design mobile prototype (design_handoff_customer_portal_mobile/
+    // Customer Portal Mobile.dc.html, bkSummary/bkTotal).
+    const mobileSummaryText = !selectedService
+        ? 'Select a treatment and duration'
+        : step === 1
+            ? `${selectedService.group_name} · ${selectedService.duration_minutes} ${t.minutes_suffix}`
+            : [
+                `${selectedService.duration_minutes} ${t.minutes_suffix}`,
+                selectedTherapist?.name?.split(' ')[0] || null,
+                selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null,
+                formattedTime,
+              ].filter(Boolean).join(' · ');
+
+    const mobileTotalText = !selectedService
+        ? ''
+        : step === 5
+            ? (appliedVoucher ? 'AED 0.00' : `AED ${payAmount} now`)
+            : `AED ${fullAmt}`;
+
+    const nextButtonLabel = appliedVoucher
+        ? (isSubmitting ? 'Confirming Booking…' : 'Confirm Free Booking')
+        : (isSubmitting ? 'Redirecting to Stripe…' : `Pay AED ${payAmount} with Stripe`);
+
     return (
         <AuthenticatedLayout>
             <div className="min-h-screen" style={{ background: 'var(--theme-bg)' }}>
@@ -428,10 +452,24 @@ export default function Bookings() {
                 {/* ── Header / Stepper ── */}
                 <header className="sticky top-0 z-40 glass-card-strong rounded-none border-x-0 border-t-0 px-5 pt-[env(safe-area-inset-top)] pb-4">
                     <div className="pt-3 max-w-4xl mx-auto">
-                        <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-xl font-bold" style={{ color: 'var(--theme-text-head)' }}>
-                            {t.title}
-                        </motion.h1>
-                        <div className="flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide">
+                        <div className="flex items-center gap-1">
+                            {/* Mobile-only close button (Claude Design: 44px, aria-label "Close booking") */}
+                            <button
+                                type="button"
+                                onClick={() => router.visit(route('dashboard'))}
+                                aria-label="Close booking"
+                                className="md:hidden -ms-2.5 w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center"
+                                style={{ color: 'var(--theme-text-head)' }}
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                            <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-xl font-bold flex-1" style={{ color: 'var(--theme-text-head)' }}>
+                                {t.title}
+                            </motion.h1>
+                        </div>
+
+                        {/* Desktop stepper (unchanged) — hidden on mobile, replaced by the progress bar below */}
+                        <div className="hidden md:flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide">
                             {stepLabels.map((label, i) => (
                                 <div key={i} className="flex items-center gap-1.5 flex-shrink-0">
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
@@ -441,21 +479,37 @@ export default function Bookings() {
                                         style={step <= i ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}>
                                         {step > i + 1 ? <Check className="w-3.5 h-3.5" /> : i + 1}
                                     </div>
-                                    <span className={`text-xs hidden sm:inline whitespace-nowrap ${step === i + 1 ? 'text-gold font-medium' : ''}`}
+                                    <span className={`text-xs whitespace-nowrap ${step === i + 1 ? 'text-gold font-medium' : ''}`}
                                         style={step !== i + 1 ? { color: 'var(--theme-text-muted)' } : undefined}>
                                         {label}
                                     </span>
                                     {i < TOTAL_STEPS - 1 && (
-                                        <div className="w-5 sm:w-8 h-px transition-all"
+                                        <div className="w-8 h-px transition-all"
                                             style={{ background: step > i + 1 ? 'rgba(226,183,100,0.6)' : 'var(--theme-border)' }} />
                                     )}
                                 </div>
                             ))}
                         </div>
+
+                        {/* Mobile 5-segment progress bar + "Step n of 5" (Claude Design prototype) */}
+                        {!isConfirmed && (
+                            <div className="md:hidden mt-3">
+                                <div className="flex items-center gap-1">
+                                    {stepLabels.map((_, i) => (
+                                        <span key={i} className="flex-1 h-1 rounded-full transition-colors"
+                                            style={{ background: i < step ? 'var(--theme-cta)' : 'var(--theme-border)' }} />
+                                    ))}
+                                </div>
+                                <div className="flex items-center justify-between mt-2 text-xs">
+                                    <span className="font-bold" style={{ color: 'var(--theme-link)' }}>Step {step} of {TOTAL_STEPS}</span>
+                                    <span className="font-semibold" style={{ color: 'var(--theme-text-2)' }}>{stepLabels[step - 1]}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </header>
 
-                <main className="px-6 pt-5 pb-10 max-w-6xl mx-auto">
+                <main className={`px-6 pt-5 max-w-6xl mx-auto ${isConfirmed ? 'pb-10' : 'pb-[150px] md:pb-10'}`}>
 
                     {error && (
                         <div className="flex items-center gap-3 p-4 mb-4 bg-destructive/10 border border-destructive/30 rounded-xl text-sm text-destructive">
@@ -1062,9 +1116,9 @@ export default function Bookings() {
                         )}
                     </AnimatePresence>
 
-                    {/* ── Navigation buttons ── */}
+                    {/* ── Navigation buttons (desktop only — mobile uses the sticky action bar below) ── */}
                     {!isConfirmed && (
-                        <div className="flex items-center gap-3 mt-6 mb-8">
+                        <div className="hidden md:flex items-center gap-3 mt-6 mb-8">
                             {step > 1 && (
                                 <button onClick={() => setStep(step - 1)} className="btn-ghost-gold flex items-center gap-1">
                                     <ChevronLeft className="w-4 h-4" /> {t.back}
@@ -1079,14 +1133,65 @@ export default function Bookings() {
                                 <button onClick={handleConfirm} disabled={!canProceed() || isSubmitting}
                                     className="btn-gold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {appliedVoucher
-                                        ? (isSubmitting ? 'Confirming Booking…' : 'Confirm Free Booking')
-                                        : (isSubmitting ? 'Redirecting to Stripe…' : `Pay AED ${payAmount} with Stripe`)}
+                                    {nextButtonLabel}
                                 </button>
                             )}
                         </div>
                     )}
                 </main>
+
+                {/* ── Mobile sticky action bar (Claude Design prototype: summary + total, 52px Back, full-width 50px CTA) ── */}
+                {!isConfirmed && (
+                    <div
+                        className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-4 pt-2.5"
+                        style={{
+                            background: 'var(--theme-header-bg)',
+                            borderTop: '1px solid var(--theme-border)',
+                            paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+                            boxShadow: '0 -10px 24px -18px rgba(60,45,20,0.3)',
+                        }}
+                    >
+                        <div className="flex items-center justify-between gap-2.5 mb-2 text-xs">
+                            <span className="truncate" style={{ color: 'var(--theme-text-2)' }}>{mobileSummaryText}</span>
+                            <span className="flex-shrink-0 font-extrabold" style={{ color: 'var(--theme-text-head)' }}>{mobileTotalText}</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            {step > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(step - 1)}
+                                    aria-label={t.back}
+                                    className="flex-shrink-0 w-[52px] h-[50px] flex items-center justify-center"
+                                    style={{ borderRadius: 14, border: '1px solid var(--theme-border)', background: 'var(--theme-card)', color: 'var(--theme-text-head)' }}
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                            )}
+                            {step < TOTAL_STEPS ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(step + 1)}
+                                    disabled={!canProceed()}
+                                    className="flex-1 min-w-0 h-[50px] text-sm font-bold disabled:opacity-45"
+                                    style={{ borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#d3a24c,#e8c27a)', color: '#0b1120' }}
+                                >
+                                    {t.next}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleConfirm}
+                                    disabled={!canProceed() || isSubmitting}
+                                    className="flex-1 min-w-0 h-[50px] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-45"
+                                    style={{ borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#d3a24c,#e8c27a)', color: '#0b1120' }}
+                                >
+                                    {isSubmitting && <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />}
+                                    <span className="truncate">{nextButtonLabel}</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Add Address Modal */}
