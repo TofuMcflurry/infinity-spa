@@ -11,6 +11,7 @@ import { Calendar } from '@/Components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import SuccessScreen from '@/Components/SuccessScreen';
+import BottomSheet from '@/Components/Customer/BottomSheet';
 
 const PAYMENT_METHODS = [
     { id: 'cash',     label: 'Cash',     sub: 'Pay on arrival', desc: 'Pay directly to the therapist in cash', icon: Banknote  },
@@ -1268,200 +1269,267 @@ export default function Bookings() {
                 )}
             </div>
 
-            {/* Add Address Modal */}
-            <AnimatePresence>
-                {showAddAddressModal && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-                        {/* Backdrop */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 backdrop-blur-sm"
-                            style={{ background: 'rgba(0,0,0,0.7)' }}
-                            onClick={() => setShowAddAddressModal(false)}
-                        />
+            {/* Add Address — shared field renderer used by both the desktop modal
+                (unchanged below) and the mobile BottomSheet, so the actual
+                inputs/handlers exist in one place in source. Reads/writes
+                newAddress via closure; no business logic lives here. */}
+            {(() => {
+                const addressDisabled = !newAddress.label || !newAddress.zone_name || !newAddress.address;
 
-                        {/* Modal */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
-                            style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
-                        >
-                            {/* Header */}
-                            <div className="sticky top-0 p-5 border-b flex items-center justify-between"
-                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
-                                <div>
-                                    <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--theme-text-head)' }}>
-                                        Add New Address
-                                    </h3>
-                                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                                        Fill in your location details
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowAddAddressModal(false)}
-                                    className="p-1.5 rounded-lg transition-colors"
-                                    style={{ color: 'var(--theme-text-muted)' }}
-                                >
-                                    <X size={18} />
-                                </button>
+                // A plain function, not a component — called directly (not as
+                // JSX) so it splices its returned tree straight into the
+                // parent render rather than mounting as a distinct component.
+                // Defining this as `() => <AddressFormFields/>` JSX would give
+                // React a new component identity on every keystroke (this IIFE
+                // re-runs every render), remounting the subtree below and
+                // dropping focus out of the address textarea after each char.
+                const renderAddressFormFields = () => (
+                    <div className="space-y-5">
+                        {/* 1. Address Type / Label */}
+                        <div>
+                            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
+                                Address Type *
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { value: 'Home', icon: '🏠', label: 'Home' },
+                                    { value: 'Office', icon: '🏢', label: 'Office' },
+                                    { value: 'Hotel', icon: '🏨', label: 'Hotel' },
+                                ].map((type) => {
+                                    const isActive = newAddress.label === type.value;
+                                    return (
+                                        <button
+                                            key={type.value}
+                                            type="button"
+                                            onClick={() => setNewAddress({ ...newAddress, label: type.value })}
+                                            className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'gold-gradient text-primary-foreground' : ''}`}
+                                            style={!isActive ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}
+                                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-card-hover)'; }}
+                                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
+                                        >
+                                            <span className="text-lg">{type.icon}</span>
+                                            <span>{type.label}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
+                        </div>
 
-                            {/* Form Body */}
-                            <div className="p-5 space-y-5">
-                                
-                                {/* 1. Address Type / Label */}
-                                <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
-                                        Address Type *
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { value: 'Home', icon: '🏠', label: 'Home' },
-                                            { value: 'Office', icon: '🏢', label: 'Office' },
-                                            { value: 'Hotel', icon: '🏨', label: 'Hotel' },
-                                        ].map((type) => {
-                                            const isActive = newAddress.label === type.value;
-                                            return (
-                                                <button
-                                                    key={type.value}
-                                                    type="button"
-                                                    onClick={() => setNewAddress({ ...newAddress, label: type.value })}
-                                                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'gold-gradient text-primary-foreground' : ''}`}
-                                                    style={!isActive ? { background: 'var(--theme-btn-bg)', color: 'var(--theme-text-muted)' } : undefined}
-                                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-card-hover)'; }}
-                                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}
-                                                >
-                                                    <span className="text-lg">{type.icon}</span>
-                                                    <span>{type.label}</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                        {/* 2. Service Area (Zone) */}
+                        <div>
+                            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
+                                Service Area / Zone *
+                            </label>
+                            <p className="text-[10px] mb-3" style={{ color: 'var(--theme-text-muted)' }}>
+                                We currently serve these areas in Dubai
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-gold">
+                                {[
+                                    { name: 'JAFZA', location: 'Dubai, UAE' },
+                                    { name: 'DAFZ', location: 'Dubai, UAE' },
+                                    { name: 'DMCC / JLT', location: 'Dubai, UAE' },
+                                    { name: 'Dubai South', location: 'Dubai, UAE' },
+                                    { name: 'Dubai Silicon Oasis', location: 'Dubai, UAE' },
+                                    { name: 'Dubai Internet City', location: 'Dubai, UAE' },
+                                    { name: 'Dubai Design District', location: 'Dubai, UAE' },
+                                    { name: 'DIFC', location: 'Dubai, UAE' },
+                                ].map((zone) => {
+                                    const isActive = newAddress.zone_name === zone.name;
+                                    return (
+                                        <button
+                                            key={zone.name}
+                                            type="button"
+                                            onClick={() => setNewAddress({ ...newAddress, zone_name: zone.name })}
+                                            className={`text-left p-3 rounded-xl border transition-all ${isActive ? 'border-gold bg-gold/10' : ''}`}
+                                            style={!isActive ? { borderColor: 'var(--theme-border)', background: 'var(--theme-btn-bg)' } : undefined}
+                                        >
+                                            <p className="text-sm font-semibold" style={{ color: isActive ? 'var(--theme-link)' : 'var(--theme-text-head)' }}>
+                                                {zone.name}
+                                            </p>
+                                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                                {zone.location}
+                                            </p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
 
-                                {/* 2. Service Area (Zone) */}
-                                <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
-                                        Service Area / Zone *
-                                    </label>
-                                    <p className="text-[10px] mb-3" style={{ color: 'var(--theme-text-muted)' }}>
-                                        We currently serve these areas in Dubai
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-gold">
-                                        {[
-                                            { name: 'JAFZA', location: 'Dubai, UAE' },
-                                            { name: 'DAFZ', location: 'Dubai, UAE' },
-                                            { name: 'DMCC / JLT', location: 'Dubai, UAE' },
-                                            { name: 'Dubai South', location: 'Dubai, UAE' },
-                                            { name: 'Dubai Silicon Oasis', location: 'Dubai, UAE' },
-                                            { name: 'Dubai Internet City', location: 'Dubai, UAE' },
-                                            { name: 'Dubai Design District', location: 'Dubai, UAE' },
-                                            { name: 'DIFC', location: 'Dubai, UAE' },
-                                        ].map((zone) => {
-                                            const isActive = newAddress.zone_name === zone.name;
-                                            return (
-                                                <button
-                                                    key={zone.name}
-                                                    type="button"
-                                                    onClick={() => setNewAddress({ ...newAddress, zone_name: zone.name })}
-                                                    className={`text-left p-3 rounded-xl border transition-all ${isActive ? 'border-gold bg-gold/10' : ''}`}
-                                                    style={!isActive ? { borderColor: 'var(--theme-border)', background: 'var(--theme-btn-bg)' } : undefined}
-                                                >
-                                                    <p className="text-sm font-semibold" style={{ color: isActive ? 'var(--theme-link)' : 'var(--theme-text-head)' }}>
-                                                        {zone.name}
-                                                    </p>
-                                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
-                                                        {zone.location}
-                                                    </p>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                        {/* 3. Full Address Details */}
+                        <div>
+                            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
+                                Complete Address *
+                            </label>
+                            <textarea
+                                value={newAddress.address}
+                                onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })}
+                                placeholder="Building name, street, apartment/villa number, landmark..."
+                                rows={3}
+                                className="w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none resize-none"
+                                style={{
+                                    background: 'var(--theme-input-bg)',
+                                    borderColor: 'var(--theme-border)',
+                                    color: 'var(--theme-text-head)',
+                                }}
+                            />
+                            <p className="text-[10px] mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                Example: "Boulevard Plaza Tower 1, Sheikh Mohammed Boulevard, Downtown Dubai"
+                            </p>
+                        </div>
 
-                                {/* 3. Full Address Details */}
-                                <div>
-                                    <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--theme-text-2)' }}>
-                                        Complete Address *
-                                    </label>
-                                    <textarea
-                                        value={newAddress.address}
-                                        onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })}
-                                        placeholder="Building name, street, apartment/villa number, landmark..."
-                                        rows={3}
-                                        className="w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none resize-none"
-                                        style={{
-                                            background: 'var(--theme-input-bg)',
-                                            borderColor: 'var(--theme-border)',
-                                            color: 'var(--theme-text-head)',
-                                        }}
-                                    />
-                                    <p className="text-[10px] mt-1.5" style={{ color: 'var(--theme-text-muted)' }}>
-                                        Example: "Boulevard Plaza Tower 1, Sheikh Mohammed Boulevard, Downtown Dubai"
-                                    </p>
-                                </div>
-
-                                {/* Preview Section */}
-                                {(newAddress.label || newAddress.zone_name || newAddress.address) && (
-                                    <div className="mt-2 p-3 rounded-xl" style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.1)' }}>
-                                        <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--theme-link)' }}>
-                                            Address Preview
+                        {/* Preview Section */}
+                        {(newAddress.label || newAddress.zone_name || newAddress.address) && (
+                            <div className="mt-2 p-3 rounded-xl" style={{ background: 'rgba(226,183,100,0.05)', border: '1px solid rgba(226,183,100,0.1)' }}>
+                                <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--theme-link)' }}>
+                                    Address Preview
+                                </p>
+                                <div className="flex items-start gap-2">
+                                    <MapPin size={14} style={{ color: 'var(--theme-link)' }} />
+                                    <div>
+                                        <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
+                                            {newAddress.label || '___'} {newAddress.zone_name ? `· ${newAddress.zone_name}` : ''}
                                         </p>
-                                        <div className="flex items-start gap-2">
-                                            <MapPin size={14} style={{ color: 'var(--theme-link)' }} />
+                                        <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
+                                            {newAddress.address || 'Your complete address will appear here'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+
+                return (
+                    <>
+                        {/* Desktop Add Address Modal (md+) — unchanged markup/behavior, only
+                            scoped `hidden md:flex` so the mobile BottomSheet below owns <768px. */}
+                        <AnimatePresence>
+                            {showAddAddressModal && (
+                                <div className="hidden md:flex fixed inset-0 z-50 items-end sm:items-center justify-center p-4">
+                                    {/* Backdrop */}
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="absolute inset-0 backdrop-blur-sm"
+                                        style={{ background: 'rgba(0,0,0,0.7)' }}
+                                        onClick={() => setShowAddAddressModal(false)}
+                                    />
+
+                                    {/* Modal */}
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                        className="relative w-full max-w-md rounded-2xl shadow-2xl z-10 overflow-y-auto max-h-[90vh]"
+                                        style={{ background: 'var(--theme-card)', border: '1px solid var(--theme-border)' }}
+                                    >
+                                        {/* Header */}
+                                        <div className="sticky top-0 p-5 border-b flex items-center justify-between"
+                                            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
                                             <div>
-                                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>
-                                                    {newAddress.label || '___'} {newAddress.zone_name ? `· ${newAddress.zone_name}` : ''}
-                                                </p>
-                                                <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
-                                                    {newAddress.address || 'Your complete address will appear here'}
+                                                <h3 className="font-display font-semibold text-lg" style={{ color: 'var(--theme-text-head)' }}>
+                                                    Add New Address
+                                                </h3>
+                                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>
+                                                    Fill in your location details
                                                 </p>
                                             </div>
+                                            <button
+                                                onClick={() => setShowAddAddressModal(false)}
+                                                className="p-1.5 rounded-lg transition-colors"
+                                                style={{ color: 'var(--theme-text-muted)' }}
+                                            >
+                                                <X size={18} />
+                                            </button>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Footer */}
-                            <div className="sticky bottom-0 p-5 border-t flex gap-3"
-                                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
-                                <button
-                                    onClick={() => {
-                                        setShowAddAddressModal(false);
-                                        setNewAddress({ label: '', address: '', zone_name: '' });
-                                    }}
-                                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
-                                    style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleAddAddress}
-                                    disabled={submittingAddress || !newAddress.label || !newAddress.zone_name || !newAddress.address}
-                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #b7882a, #e2b764)',
-                                        color: 'var(--theme-cta-ink)',
-                                        opacity: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 0.5 : 1,
-                                        cursor: (!newAddress.label || !newAddress.zone_name || !newAddress.address) ? 'not-allowed' : 'pointer',
-                                    }}
-                                >
-                                    {submittingAddress ? (
-                                        <Loader2 size={16} className="animate-spin" />
-                                    ) : (
-                                        <Check size={16} />
-                                    )}
-                                    {submittingAddress ? 'Saving...' : 'Save Address'}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                                        {/* Form Body */}
+                                        <div className="p-5">
+                                            {renderAddressFormFields()}
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="sticky bottom-0 p-5 border-t flex gap-3"
+                                            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
+                                            <button
+                                                onClick={() => {
+                                                    setShowAddAddressModal(false);
+                                                    setNewAddress({ label: '', address: '', zone_name: '' });
+                                                }}
+                                                className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+                                                style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleAddAddress}
+                                                disabled={submittingAddress || addressDisabled}
+                                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                                                style={{
+                                                    background: 'linear-gradient(135deg, #b7882a, #e2b764)',
+                                                    color: 'var(--theme-cta-ink)',
+                                                    opacity: addressDisabled ? 0.5 : 1,
+                                                    cursor: addressDisabled ? 'not-allowed' : 'pointer',
+                                                }}
+                                            >
+                                                {submittingAddress ? (
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                ) : (
+                                                    <Check size={16} />
+                                                )}
+                                                {submittingAddress ? 'Saving...' : 'Save Address'}
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                </div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Mobile Add Address Sheet (<768px) */}
+                        <BottomSheet
+                            open={showAddAddressModal}
+                            onClose={() => setShowAddAddressModal(false)}
+                            title="Add New Address"
+                            subtitle="Fill in your location details"
+                            footer={
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setShowAddAddressModal(false);
+                                            setNewAddress({ label: '', address: '', zone_name: '' });
+                                        }}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+                                        style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAddAddress}
+                                        disabled={submittingAddress || addressDisabled}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                                        style={{
+                                            background: 'linear-gradient(135deg, #b7882a, #e2b764)',
+                                            color: 'var(--theme-cta-ink)',
+                                            opacity: addressDisabled ? 0.5 : 1,
+                                            cursor: addressDisabled ? 'not-allowed' : 'pointer',
+                                        }}
+                                    >
+                                        {submittingAddress ? (
+                                            <Loader2 size={16} className="animate-spin" />
+                                        ) : (
+                                            <Check size={16} />
+                                        )}
+                                        {submittingAddress ? 'Saving...' : 'Save Address'}
+                                    </button>
+                                </div>
+                            }
+                        >
+                            {renderAddressFormFields()}
+                        </BottomSheet>
+                    </>
+                );
+            })()}
         </AuthenticatedLayout>
     );
 }
