@@ -9,7 +9,7 @@ import {
     XCircle, AlertCircle, RefreshCw, Sparkles,
     CreditCard, Banknote, X, AlertTriangle,
     Receipt, Image, ExternalLink, CalendarClock,
-    ArrowRight, ChevronLeft, Bell
+    ArrowRight, ChevronLeft, Bell, Info
 } from 'lucide-react';
 import { computePaymentSummary, PAYMENT_STATUS_LABELS, formatAed } from '@/lib/paymentSummary';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
@@ -850,7 +850,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         {booking.therapist_avatar}
                     </div>
                     <div className="min-w-0">
-                        <h4 className="font-display font-semibold text-base" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h4>
+                        <h4 className="font-display font-semibold text-base break-words" style={{ color: 'var(--theme-text-head)' }}>{booking.service}</h4>
                         {/* Mobile: duration + therapist merged on one line
                             (prototype: "90 min · with Therapist"). Desktop
                             keeps the original therapist-only line untouched. */}
@@ -862,50 +862,70 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         </p>
                     </div>
                 </div>
-                <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                {/* Desktop only: status badge stays in its original top-right
+                    position, unchanged. On mobile it moves to its own full-
+                    width row below (next block) — matching the Customer
+                    Portal Mobile Prototype's actual card markup (service
+                    title + ref on one header row; the status pill is a
+                    separate, self-aligned row underneath, never sharing a
+                    column with the ref code). The previous mobile fix
+                    squeezed the badge and the ref code into one shared
+                    max-w-[108px] column, which is what actually clipped
+                    long labels ("Awaiting Therapist") — giving the badge
+                    its own row removes that width competition entirely
+                    rather than just capping/wrapping it. */}
+                <div className="hidden lg:flex flex-shrink-0 flex-col items-end gap-1">
                     <StatusBadge status={booking.status} />
-                    {/* Mobile-only ref code (prototype: "the ref (mono 10px)
-                        on the right"). Same ref format BookingDetailsModal
-                        already computes. */}
-                    <span className="lg:hidden font-mono text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
-                        IHS-{String(booking.id).padStart(5, '0')}
-                    </span>
                 </div>
+                {/* Mobile-only ref code (prototype: "the ref (mono 10px)
+                    on the right"), now alone on this row. Same ref format
+                    BookingDetailsModal already computes. */}
+                <span className="lg:hidden flex-shrink-0 font-mono text-[10px] pt-1" style={{ color: 'var(--theme-text-muted)' }}>
+                    IHS-{String(booking.id).padStart(5, '0')}
+                </span>
+            </div>
+
+            {/* Mobile-only status badge row — its own line, matching the
+                prototype's align-self:flex-start pill. Desktop keeps the
+                badge in the header row above (lg:flex block), so this is
+                lg:hidden to avoid showing it twice. */}
+            <div className="lg:hidden mb-3">
+                <StatusBadge status={booking.status} />
             </div>
 
             {/* Details grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-2xl mt-3 bg-[var(--theme-btn-bg)] lg:p-0 lg:rounded-none lg:bg-transparent lg:mt-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: 'var(--theme-btn-bg)' }}>
                         <Calendar size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Date</p>
-                        <p className="text-xs font-medium" style={{ color: 'var(--theme-text-head)' }}>{booking.date_short}</p>
+                        <p className="text-xs font-medium break-words" style={{ color: 'var(--theme-text-head)' }}>{booking.date_short}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: 'var(--theme-btn-bg)' }}>
                         <Clock size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Time</p>
-                        <p className="text-xs font-medium" style={{ color: 'var(--theme-text-head)' }}>{booking.time}</p>
+                        <p className="text-xs font-medium break-words" style={{ color: 'var(--theme-text-head)' }}>{booking.time}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: 'var(--theme-btn-bg)' }}>
                         <MapPin size={13} style={{ color: 'var(--theme-link)' }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>Location</p>
                         <p className="text-xs font-medium truncate" style={{ color: 'var(--theme-text-head)' }}>{booking.location?.split(' - ')[0]}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: 'var(--theme-btn-bg)' }}>
                         {booking.is_voucher_covered
@@ -915,11 +935,11 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                                 : <CreditCard size={13} style={{ color: 'var(--theme-link)' }} />
                         }
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--theme-text-muted)' }}>
                             {booking.is_voucher_covered ? 'Voucher' : 'Payment'}
                         </p>
-                        <p className="text-xs font-medium capitalize" style={{ color: 'var(--theme-text-head)' }}>
+                        <p className="text-xs font-medium capitalize break-words" style={{ color: 'var(--theme-text-head)' }}>
                             {booking.is_voucher_covered ? 'Redeemed' : booking.payment_method}
                         </p>
                     </div>
@@ -1090,7 +1110,18 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
 
                 <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:flex-wrap lg:justify-end">
                     {(showReschedule || showCancel) && (
-                        <div className={`grid gap-2 lg:contents ${showReschedule && showCancel ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        // Unconditional single column on mobile — both buttons
+                        // get the full card width, stacked, rather than sharing
+                        // a row via grid-cols-2. grid-cols-2's own tracks are
+                        // already overflow-safe (Tailwind's minmax(0,1fr)), but
+                        // a grid ITEM's content still carries an implicit
+                        // min-width:auto independent of its track, so a full-
+                        // width stack removes that whole class of risk instead
+                        // of relying on each button's content staying under its
+                        // track's resolved width. lg:contents is unchanged —
+                        // desktop still dissolves this wrapper exactly as
+                        // before.
+                        <div className="grid grid-cols-1 gap-2 lg:contents">
                             {/* Request Reschedule button */}
                             {showReschedule && (
                                 <button
@@ -1295,6 +1326,26 @@ function RequestRescheduleModal({ booking, proposal = null, onClose, onSubmitted
                 {/* ── Step: choose ── */}
                 {step === 'choose' && (
                     <div className="p-5 space-y-5">
+                        {/* Server-authoritative forfeiture notice (Batch #26) — a
+                            reschedule only moves the appointment date, it never
+                            restores a refund/voucher entitlement already lost
+                            under the 24-hour cancellation policy. Shown whenever
+                            that's already true (refund_forfeited) or about to
+                            become true if left at the current time
+                            (hours_until_session <= 24) — either way, rescheduling
+                            will not change the outcome. */}
+                        {(booking.refund_forfeited || booking.hours_until_session <= 24) && (
+                            <div className="flex items-start gap-3 p-3 rounded-xl"
+                                style={{ background: 'rgba(226,183,100,0.08)', border: '1px solid rgba(226,183,100,0.25)' }}>
+                                <Info size={15} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--theme-link)' }} />
+                                <p className="text-xs" style={{ color: 'var(--theme-text-2)' }}>
+                                    {booking.refund_forfeited
+                                        ? 'This booking already lost its refund/voucher eligibility under our 24-hour cancellation policy. Rescheduling changes the appointment time only — it will not restore that eligibility.'
+                                        : 'This appointment is within 24 hours. Rescheduling will not restore refund/voucher eligibility for the original time, even if the new date is further away.'}
+                                </p>
+                            </div>
+                        )}
+
                         <div>
                             <p className="text-xs font-medium mb-3" style={{ color: 'var(--theme-text-2)' }}>Quick suggestions</p>
                             <div className="grid grid-cols-3 gap-2">
@@ -1836,7 +1887,14 @@ export default function MyBookings() {
                                         copy is only for a booking nothing has been charged on yet. */}
                                     {(() => {
                                         const pay = computePaymentSummary(cancelBooking);
-                                        const withinGrace = cancelBooking.hours_until_session > 24;
+                                        // refund_forfeited is the server-authoritative durable lock
+                                        // (Batch #26): once a past reschedule has moved this booking
+                                        // away from an appointment that was already inside the 24-hour
+                                        // window, hours_until_session alone can no longer predict the
+                                        // real cancellation outcome — it stays forfeited regardless of
+                                        // how far away the booking now looks.
+                                        const withinGrace = !cancelBooking.refund_forfeited && cancelBooking.hours_until_session > 24;
+                                        const forfeitedByReschedule = cancelBooking.refund_forfeited && cancelBooking.hours_until_session > 24;
 
                                         if (!pay.isPaid) {
                                             return (
@@ -1872,7 +1930,9 @@ export default function MyBookings() {
                                                     <div>
                                                         <p className="text-sm font-semibold" style={{ color: 'var(--theme-danger)' }}>Voucher will be forfeited</p>
                                                         <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
-                                                            Your session is less than 24 hours away. Your voucher cannot be restored per our policy.
+                                                            {forfeitedByReschedule
+                                                                ? 'This appointment was rescheduled after it was already within 24 hours of its original time — your voucher remains non-restorable per our policy, regardless of the new date.'
+                                                                : 'Your session is less than 24 hours away. Your voucher cannot be restored per our policy.'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1900,7 +1960,9 @@ export default function MyBookings() {
                                                 <div>
                                                     <p className="text-sm font-semibold" style={{ color: 'var(--theme-danger)' }}>{pay.isFull ? 'Payment' : 'Downpayment'} will be forfeited</p>
                                                     <p className="text-xs mt-1" style={{ color: 'var(--theme-text-2)' }}>
-                                                        Your session is less than 24 hours away. Your {amountLabel} of {paidAed} cannot be refunded per our policy.
+                                                        {forfeitedByReschedule
+                                                            ? `This appointment was rescheduled after it was already within 24 hours of its original time — your ${amountLabel} of ${paidAed} remains non-refundable per our policy, regardless of the new date.`
+                                                            : `Your session is less than 24 hours away. Your ${amountLabel} of ${paidAed} cannot be refunded per our policy.`}
                                                     </p>
                                                 </div>
                                             </div>
