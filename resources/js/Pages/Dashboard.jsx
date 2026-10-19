@@ -386,8 +386,14 @@ function StatusTracker({ booking }) {
                                 <div key={step.key}
                                     className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500"
                                     style={{
-                                        background: active ? meta.color : done ? `${meta.color}30` : 'var(--theme-border)',
-                                        color:      active ? '#0b1120'  : done ? meta.color          : 'var(--theme-text-muted)',
+                                        // "done" uses a fixed opaque cream fill + dark-gold icon (prototype
+                                        // spec), not the live status hue at reduced opacity — that previous
+                                        // pairing put a full-opacity icon over a ~19%-opacity tint of the
+                                        // same color, which is nearly illegible. Hardcoded (not --theme-link)
+                                        // because --theme-link flips to a lighter gold in dark mode, which
+                                        // would fail contrast against this same fixed cream fill there.
+                                        background: active ? meta.color : done ? '#f3e6c8' : 'var(--theme-border)',
+                                        color:      active ? '#0b1120'  : done ? '#8a6420' : 'var(--theme-text-muted)',
                                         boxShadow:  active ? `0 0 0 5px ${meta.color}40` : 'none',
                                     }}
                                 >
@@ -436,8 +442,10 @@ function StatusTracker({ booking }) {
                                 >
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${active ? 'shadow-lg' : ''}`}
                                         style={{
-                                            background: active ? meta.color : done ? `${meta.color}30` : 'var(--theme-border)',
-                                            color:      active ? '#0b1120'  : done ? meta.color          : 'var(--theme-text-muted)',
+                                            // Same "done" cream/dark-gold fix as the sm:hidden copy above —
+                                            // kept in sync since both render the identical STATUS_STEPS/meta.
+                                            background: active ? meta.color : done ? '#f3e6c8' : 'var(--theme-border)',
+                                            color:      active ? '#0b1120'  : done ? '#8a6420' : 'var(--theme-text-muted)',
                                             boxShadow:  active ? `0 0 20px ${meta.color}50` : 'none',
                                         }}>
                                         <Icon size={18} className={active && step.key === 'en_route' ? 'animate-bounce' : ''} />
