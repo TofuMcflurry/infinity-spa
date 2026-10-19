@@ -6,7 +6,9 @@ use App\Models\Booking;
 use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
+use App\Models\TherapistUnavailableSlot;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -68,12 +70,28 @@ class BookingCreationRaceTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'therapist']);
 
+        // day_off/shift_start/shift_end/crosses_midnight are left to the
+        // therapists table's own column defaults (Tuesday / 16:00 / 04:00 /
+        // true — see the add_shift_columns_to_therapists migration), the
+        // same defaults every seeded real therapist uses. Test datetimes
+        // below are chosen to always fall inside that shift and never on
+        // that day-off, regardless of what day the suite runs on.
         return Therapist::create([
             'user_id'       => $user->id,
             'base_location' => 'Dubai',
             'gender'        => 'female',
             'is_active'     => true,
         ]);
+    }
+
+    // "next Monday" is always strictly in the future and is never the
+    // default day_off ('Tuesday'), regardless of what day the suite runs
+    // on — avoids the flakiness of "tomorrow" occasionally landing on the
+    // day off. $hour/$minute must fall inside the default 16:00-04:00
+    // shift (i.e. >= 16:00 or < 04:00) for a booking to be acceptable.
+    private function shiftDateTime(int $hour, int $minute = 0): string
+    {
+        return Carbon::parse('next Monday')->setTime($hour, $minute)->toDateTimeString();
     }
 
     private function bookingPayload(Therapist $therapist, array $overrides = []): array
@@ -83,7 +101,7 @@ class BookingCreationRaceTest extends TestCase
             'therapist_id'   => $therapist->id,
             'zone_name'      => 'Test Zone',
             'location'       => 'Test location',
-            'datetime'       => now()->addDay()->toDateTimeString(),
+            'datetime'       => $this->shiftDateTime(20, 0),
             'payment_type'   => 'full',
             'payment_method' => 'cashless',
         ], $overrides);
@@ -108,7 +126,7 @@ class BookingCreationRaceTest extends TestCase
     public function test_second_overlapping_booking_for_same_therapist_is_rejected_with_409(): void
     {
         $therapist = $this->makeTherapist();
-        $datetime  = now()->addDay()->setTime(14, 0)->toDateTimeString();
+        $datetime  = $this->shiftDateTime(20, 0);
 
         $first = $this->actingAs($this->customer)
             ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
@@ -133,7 +151,7 @@ class BookingCreationRaceTest extends TestCase
     {
         $therapistA = $this->makeTherapist();
         $therapistB = $this->makeTherapist();
-        $datetime   = now()->addDay()->setTime(15, 0)->toDateTimeString();
+        $datetime   = $this->shiftDateTime(21, 0);
 
         $responseA = $this->actingAs($this->customer)
             ->postJson('/api/bookings', $this->bookingPayload($therapistA, ['datetime' => $datetime]));
@@ -156,12 +174,12 @@ class BookingCreationRaceTest extends TestCase
         $morning = $this->actingAs($this->customer)
             ->postJson('/api/bookings', $this->bookingPayload(
                 $therapist,
-                ['datetime' => now()->addDay()->setTime(9, 0)->toDateTimeString()]
+                ['datetime' => $this->shiftDateTime(20, 0)]
             ));
         $afternoon = $this->actingAs(User::factory()->create(['role' => 'customer']))
             ->postJson('/api/bookings', $this->bookingPayload(
                 $therapist,
-                ['datetime' => now()->addDay()->setTime(16, 0)->toDateTimeString()]
+                ['datetime' => $this->shiftDateTime(23, 0)]
             ));
 
         $morning->assertCreated();
@@ -175,7 +193,7 @@ class BookingCreationRaceTest extends TestCase
     public function test_two_near_simultaneous_requests_for_the_same_slot_produce_exactly_one_booking(): void
     {
         $therapist = $this->makeTherapist();
-        $datetime  = now()->addDay()->setTime(11, 0)->toDateTimeString();
+        $datetime  = $this->shiftDateTime(22, 0);
 
         $winner = $this->actingAs($this->customer)
             ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
@@ -186,5 +204,161 @@ class BookingCreationRaceTest extends TestCase
         $loser->assertStatus(409);
 
         $this->assertSame(1, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    // ── Partial overlap → rejected ────────────────────────────────────────
+
+    public function test_partially_overlapping_booking_for_same_therapist_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+
+        $first = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $this->shiftDateTime(20, 0)]));
+        $first->assertCreated();
+
+        // 20:30 start overlaps the first booking's 19:30-21:30 travel/buffer
+        // window even though it doesn't share the same start time.
+        $second = $this->actingAs(User::factory()->create(['role' => 'customer']))
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $this->shiftDateTime(20, 30)]));
+
+        $second->assertStatus(409);
+        $this->assertSame(1, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    // ── A cancelled booking must not block rebooking the same slot ───────
+
+    public function test_cancelled_booking_does_not_block_rebooking_the_same_slot(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(20, 0);
+
+        $first = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+        $first->assertCreated();
+
+        Booking::where('therapist_id', $therapist->id)->update(['status' => 'cancelled']);
+
+        $second = $this->actingAs(User::factory()->create(['role' => 'customer']))
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $second->assertCreated();
+        $this->assertSame(2, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    // ── en_route / arrived must still reserve the therapist (confirmed gap) ──
+
+    public function test_booking_overlapping_an_en_route_booking_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(20, 0);
+
+        $first = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+        $first->assertCreated();
+
+        Booking::where('therapist_id', $therapist->id)->update(['status' => 'en_route']);
+
+        $second = $this->actingAs(User::factory()->create(['role' => 'customer']))
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $second->assertStatus(409);
+        $this->assertSame(1, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    public function test_booking_overlapping_an_arrived_booking_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(20, 0);
+
+        $first = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+        $first->assertCreated();
+
+        Booking::where('therapist_id', $therapist->id)->update(['status' => 'arrived']);
+
+        $second = $this->actingAs(User::factory()->create(['role' => 'customer']))
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $second->assertStatus(409);
+        $this->assertSame(1, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    // ── Day-off / shift / manual-unavailability must be enforced by a
+    //    direct POST, not just by the slot list (confirmed gap) ──────────
+
+    public function test_booking_on_therapist_day_off_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        $therapist->update(['day_off' => 'Monday']);
+
+        // shiftDateTime() always lands on a Monday.
+        $datetime = $this->shiftDateTime(20, 0);
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $response->assertStatus(409);
+        $this->assertSame(0, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    public function test_booking_during_manually_blocked_slot_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(20, 0);
+
+        // therapist_unavailable_slots.therapist_id references users.id, not
+        // therapists.id — see TherapistAvailabilityService::hasUnavailableSlot().
+        TherapistUnavailableSlot::create([
+            'therapist_id' => $therapist->user_id,
+            'date'         => Carbon::parse($datetime)->toDateString(),
+            'start_time'   => '19:00:00',
+            'end_time'     => '21:00:00',
+            'is_full_day'  => false,
+        ]);
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $response->assertStatus(409);
+        $this->assertSame(0, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    public function test_booking_outside_therapist_shift_hours_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(10, 0); // 10 AM — outside the 16:00-04:00 shift
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $response->assertStatus(409);
+        $this->assertSame(0, Booking::where('therapist_id', $therapist->id)->count());
+    }
+
+    // ── Overnight (crosses-midnight) boundary ─────────────────────────────
+
+    public function test_valid_overnight_booking_after_midnight_succeeds(): void
+    {
+        $therapist = $this->makeTherapist();
+        $datetime  = $this->shiftDateTime(2, 0); // 2 AM — inside the overnight shift
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $response->assertCreated();
+    }
+
+    public function test_overnight_booking_exceeding_shift_end_is_rejected_with_409(): void
+    {
+        $therapist = $this->makeTherapist();
+        // 60-min service + 30-min buffer starting 03:40 ends 05:10 —
+        // past the therapist's 04:00 shift end.
+        $datetime = $this->shiftDateTime(3, 40);
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, ['datetime' => $datetime]));
+
+        $response->assertStatus(409);
+        $this->assertSame(0, Booking::where('therapist_id', $therapist->id)->count());
     }
 }

@@ -8,6 +8,7 @@ use App\Models\ServiceVariant;
 use App\Models\Therapist;
 use App\Models\User;
 use App\Notifications\BookingNotification;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Tests\TestCase;
@@ -66,6 +67,17 @@ class TherapistNewBookingNotificationTest extends TestCase
         return [$user, $therapist];
     }
 
+    // Therapists here are created with the therapists table's own column
+    // defaults (Tuesday day-off, 16:00-04:00 shift — see the
+    // add_shift_columns_to_therapists migration), now enforced by
+    // BookingController::store(). "next Monday" is always strictly in the
+    // future and never that default day off, regardless of what day the
+    // suite runs on — same pattern as BookingCreationRaceTest::shiftDateTime().
+    private function shiftDateTime(int $hour, int $minute = 0, string $day = 'next Monday'): string
+    {
+        return Carbon::parse($day)->setTime($hour, $minute)->toDateTimeString();
+    }
+
     private function bookingPayload(Therapist $therapist, array $overrides = []): array
     {
         return array_merge([
@@ -73,7 +85,7 @@ class TherapistNewBookingNotificationTest extends TestCase
             'therapist_id'   => $therapist->id,
             'zone_name'      => 'Test Zone',
             'location'       => 'Test location',
-            'datetime'       => now()->addDay()->toDateTimeString(),
+            'datetime'       => $this->shiftDateTime(20, 0),
             'payment_type'   => 'full',
             'payment_method' => 'cashless',
         ], $overrides);
@@ -155,12 +167,12 @@ class TherapistNewBookingNotificationTest extends TestCase
         [$therapistB, $tb] = $this->makeTherapist();
 
         $this->actingAs($this->customer)
-            ->postJson('/api/bookings', $this->bookingPayload($ta, ['datetime' => now()->addDay(1)->toDateTimeString()]))
+            ->postJson('/api/bookings', $this->bookingPayload($ta, ['datetime' => $this->shiftDateTime(20, 0, 'next Monday')]))
             ->assertCreated();
         $bookingA = Booking::latest('id')->first();
 
         $this->actingAs(User::factory()->create(['role' => 'customer']))
-            ->postJson('/api/bookings', $this->bookingPayload($tb, ['datetime' => now()->addDay(2)->toDateTimeString()]))
+            ->postJson('/api/bookings', $this->bookingPayload($tb, ['datetime' => $this->shiftDateTime(20, 0, 'next Wednesday')]))
             ->assertCreated();
         $bookingB = Booking::latest('id')->first();
 
@@ -232,7 +244,7 @@ class TherapistNewBookingNotificationTest extends TestCase
 
         $this->actingAs($this->customer)
             ->postJson('/api/bookings', $this->bookingPayload($therapist, [
-                'datetime' => '2026-09-30 10:00:00',
+                'datetime' => $this->shiftDateTime(20, 0),
             ]))
             ->assertCreated();
         $booking = Booking::latest('id')->first();

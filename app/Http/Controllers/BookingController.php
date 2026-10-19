@@ -299,6 +299,26 @@ class BookingController extends Controller
         ) {
             Therapist::where('id', $therapist->id)->lockForUpdate()->firstOrFail();
 
+            // ── Day-off / shift / manual-unavailability enforcement ───────
+            // Previously only checked upstream by getAvailableSlots() for
+            // display — a direct POST bypassed all three. Reuses the exact
+            // rules BookingRescheduleService already enforces for admin
+            // rescheduling (see TherapistAvailabilityService::isDayOff/
+            // isWithinShift/hasUnavailableSlot), inside the same lock and
+            // transaction as the conflict check below, so the backend POST
+            // is authoritative regardless of what the slot list showed.
+            if (TherapistAvailabilityService::isDayOff($therapist, $slotDatetime)) {
+                abort(409, 'Sorry, this slot is no longer available.');
+            }
+
+            if (!TherapistAvailabilityService::isWithinShift($therapist, $slotDatetime, $timeBlocks['buffer_end'])) {
+                abort(409, 'Sorry, this slot is no longer available.');
+            }
+
+            if (TherapistAvailabilityService::hasUnavailableSlot($therapist, $slotDatetime, $timeBlocks['scheduled_end'])) {
+                abort(409, 'Sorry, this slot is no longer available.');
+            }
+
             if (TherapistAvailabilityService::hasConflict(
                 $therapist->id,
                 $timeBlocks['travel_start'],

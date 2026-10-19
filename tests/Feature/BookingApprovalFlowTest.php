@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\ServiceVariant;
 use App\Models\Therapist;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Stripe\WebhookSignature;
@@ -65,6 +66,17 @@ class BookingApprovalFlowTest extends TestCase
             'duration_minutes'  => 60,
             'price'             => 300,
         ]);
+    }
+
+    // $this->therapist uses the therapists table's own column defaults
+    // (Tuesday day-off, 16:00-04:00 shift), now enforced by
+    // BookingController::store() for a direct POST. "next Monday" is always
+    // strictly in the future and never that default day off, regardless of
+    // what day the suite runs on — same pattern as
+    // BookingCreationRaceTest::shiftDateTime().
+    private function shiftDateTime(int $hour, int $minute = 0): string
+    {
+        return Carbon::parse('next Monday')->setTime($hour, $minute)->toDateTimeString();
     }
 
     private function makeBooking(array $overrides = []): Booking
@@ -208,7 +220,7 @@ class BookingApprovalFlowTest extends TestCase
             'therapist_id'       => $this->therapist->id,
             'zone_name'          => 'Test Zone',
             'location'           => 'Test location',
-            'datetime'           => now()->addDay()->toDateTimeString(),
+            'datetime'           => $this->shiftDateTime(20, 0),
             'is_voucher_covered' => true,
             'voucher_code'       => 'TESTVOUCHER',
         ]);
