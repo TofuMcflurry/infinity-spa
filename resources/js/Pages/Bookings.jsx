@@ -554,7 +554,7 @@ export default function Bookings() {
                                                         return (
                                                             <button key={duration.id}
                                                                 onClick={() => setSelectedService({ ...duration, name: `${groupName} ${duration.duration_minutes} min`, group_name: groupName })}
-                                                                className="relative p-4 rounded-xl border text-start transition-all"
+                                                                className="relative p-3 md:p-4 rounded-xl border text-start transition-all"
                                                                 style={{ borderColor: isSelected ? '#e2b764' : 'var(--theme-border)', background: isSelected ? 'rgba(226,183,100,0.1)' : 'var(--theme-card)', minHeight: 76 }}
                                                                 onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-link)'; e.currentTarget.style.background = 'var(--theme-btn-bg)'; }}}
                                                                 onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--theme-border)'; e.currentTarget.style.background = 'var(--theme-card)'; }}}
@@ -564,11 +564,17 @@ export default function Bookings() {
                                                                         <Check className="w-2.5 h-2.5" style={{ color: 'var(--theme-cta-ink)' }} />
                                                                     </div>
                                                                 )}
-                                                                <div className="flex items-center gap-2 mb-2">
-                                                                    <Clock className="w-4 h-4" style={{ color: 'var(--theme-link)' }} />
-                                                                    <span className="text-base font-display font-bold" style={{ color: 'var(--theme-text-head)' }}>{duration.duration_minutes} {t.minutes_suffix}</span>
+                                                                {/* Mobile: UI sans, not font-display, per the prototype's
+                                                                    typography rule ("serif only at 20px and above") — at
+                                                                    this tile's minimum mobile width (minmax(84px,1fr)) the
+                                                                    serif-bold glyphs didn't fit on one line. Desktop (md+,
+                                                                    the wider sm:grid-cols-3 panel) keeps the original serif
+                                                                    sizing unchanged via the md: overrides below. */}
+                                                                <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2 min-w-0">
+                                                                    <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" style={{ color: 'var(--theme-link)' }} />
+                                                                    <span className="text-sm md:text-base md:font-display font-bold whitespace-nowrap" style={{ color: 'var(--theme-text-head)' }}>{duration.duration_minutes} {t.minutes_suffix}</span>
                                                                 </div>
-                                                                <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>AED {Number(duration.price).toLocaleString()}</p>
+                                                                <p className="text-sm md:text-lg md:font-display font-bold whitespace-nowrap" style={{ color: 'var(--theme-link)' }}>AED {Number(duration.price).toLocaleString()}</p>
                                                                 <div className="flex items-center gap-1 mt-2">
                                                                     {[1,2,3,4,5].map(s => (
                                                                         <Star key={s} size={10} style={{ color: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)', fill: Number(duration.rating) > 0 ? '#e2b764' : 'var(--theme-border)' }} />
@@ -1220,7 +1226,13 @@ export default function Bookings() {
                     <div
                         className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-4 pt-2.5"
                         style={{
-                            background: 'var(--theme-header-bg)',
+                            // Fully opaque card surface — matches the prototype's own
+                            // `background:#ffffff` for this footer exactly (it uses no
+                            // backdrop-filter at all here). `--theme-header-bg` is a
+                            // translucent token meant for blurred sticky headers
+                            // elsewhere; at this footer it let scrolled content behind
+                            // it show through.
+                            background: 'var(--theme-card)',
                             borderTop: '1px solid var(--theme-border)',
                             paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
                             boxShadow: '0 -10px 24px -18px rgba(60,45,20,0.3)',
