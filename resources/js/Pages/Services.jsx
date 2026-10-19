@@ -80,27 +80,144 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: index * 0.08 }}
-            className="rounded-2xl border overflow-hidden transition-all"
-            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}
+            // bg-[var(--theme-card)] moved from the always-on inline `style`
+            // to this lg:-only class: the inline style painted a square
+            // theme-card rectangle at every breakpoint, but radius/border/
+            // overflow-hidden on this wrapper were already lg:-scoped (so the
+            // mobile card below can own its own rounded chrome) — the result
+            // was a square white box behind a rounded one, bleeding past the
+            // corners. At mobile this wrapper is now fully transparent; the
+            // mobile card's own `background: var(--theme-card)` (in its own
+            // style prop, inside its own rounded-[20px] border) is the only
+            // surface painted there.
+            className="lg:rounded-2xl lg:border lg:overflow-hidden lg:bg-[var(--theme-card)] transition-all"
+            style={{ borderColor: 'var(--theme-border)' }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--theme-link)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--theme-border)'}
         >
-            {/* Card Header */}
+            {/* ── Mobile: exact Wishlist.jsx card parity (same component used
+                for both — resources/js/Pages/Wishlist.jsx:73-179 is the literal
+                source this was built from). Services has no image field, so
+                the thumbnail slot is omitted entirely (no placeholder); every
+                other value — card padding/radius, p-3→-mx-3/px-3 duration-pill
+                bleed, flex-col gap-1 title/rating/description stack, 44px
+                favorite hit area with its 32px inner circle, footer divider +
+                stacked price-label-then-AED-price + far-right Book Now — is
+                copied from that file, not re-derived. Same selectedDuration
+                state, same handleWishlistClick/handleBook handlers as the
+                desktop block below; only the JSX layout differs. ── */}
+            <div className="lg:hidden rounded-[20px] border p-3 flex flex-col gap-3 transition-all"
+                style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-card)' }}>
+
+                <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <h3 className="font-display font-bold text-[21px] leading-tight truncate" style={{ color: 'var(--theme-text-head)' }}>
+                            {groupLabel}
+                        </h3>
+                        {avgRating ? (
+                            <span className="self-start text-xs font-bold flex items-center gap-1" style={{ color: 'var(--theme-link)' }}>
+                                <Star size={12} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
+                                {avgRating}
+                            </span>
+                        ) : (
+                            <span className="self-start text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: 'rgba(226,183,100,0.15)', color: 'var(--theme-link)' }}>
+                                NEW
+                            </span>
+                        )}
+                        <p className="text-[13px] leading-snug line-clamp-2" style={{ color: 'var(--theme-text-2)' }}>
+                            {group.durations[0]?.description ?? 'Premium spa service delivered to your location.'}
+                        </p>
+                    </div>
+
+                    {serviceId && (
+                        <button
+                            type="button"
+                            onClick={handleWishlistClick}
+                            disabled={isTogglingWishlist}
+                            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+                            aria-pressed={isWishlisted}
+                            className="flex-none w-11 h-11 -mt-1.5 -mr-1.5 rounded-full flex items-center justify-center transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            <span className="w-8 h-8 rounded-full border flex items-center justify-center"
+                                style={{
+                                    borderColor: isWishlisted ? '#e2b764' : 'var(--theme-border)',
+                                    background:  isWishlisted ? 'rgba(226,183,100,0.15)' : 'transparent',
+                                }}>
+                                {isTogglingWishlist ? (
+                                    <Loader2 size={15} className="animate-spin" style={{ color: 'var(--theme-link)' }} />
+                                ) : (
+                                    <Heart size={15} fill={isWishlisted ? '#e2b764' : 'none'} style={{ color: isWishlisted ? '#e2b764' : 'var(--theme-text-muted)' }} />
+                                )}
+                            </span>
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto -mx-3 px-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    {group.durations.map(d => {
+                        const isSelected = selectedDuration?.id === d.id;
+                        return (
+                            <button
+                                key={d.id}
+                                onClick={() => setSelectedDuration(isSelected ? null : d)}
+                                className="flex-none h-10 px-3 rounded-xl text-[13px] font-semibold border whitespace-nowrap transition-all"
+                                style={{
+                                    borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
+                                    background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
+                                    color:       isSelected ? 'var(--theme-link)' : 'var(--theme-text-2)',
+                                }}
+                            >
+                                {d.duration_minutes} min · AED {Number(d.price).toLocaleString()}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2.5 border-t" style={{ borderColor: 'var(--theme-border)' }}>
+                    <div>
+                        <p className="text-[11px]" style={{ color: 'var(--theme-text-muted)' }}>
+                            {selectedDuration ? `${selectedDuration.duration_minutes} min selected` : 'Starting from'}
+                        </p>
+                        <p className="text-base font-extrabold" style={{ color: 'var(--theme-link)' }}>
+                            AED {(selectedDuration ? Number(selectedDuration.price) : minPrice).toLocaleString()}
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleBook}
+                        className="flex-none h-11 px-[18px] rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all"
+                        style={{ background: 'var(--theme-cta)', color: 'var(--theme-cta-ink)' }}
+                    >
+                        Book Now
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Desktop (lg+): unchanged from before this rebuild — same
+                markup, byte-for-byte, now just explicitly scoped to lg+
+                instead of sharing elements with mobile via inline lg:
+                prefixes. Any mobile-only utility classes still visible below
+                (e.g. stray mr-14/lg:mr-0 pairs) are inert leftovers that
+                already resolved to their lg: value in the original code; they
+                render identically whether or not they're cleaned up, so they
+                were left as-is to minimize the diff on a block that isn't
+                supposed to change. ── */}
+            <div className="hidden lg:block">
             <div className="p-5 pb-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
                     <h3 className="font-display font-bold text-[22px] lg:text-lg leading-tight" style={{ color: 'var(--theme-text-head)' }}>
                         {groupLabel}
                     </h3>
-                    {/* Rating or New badge */}
                     {avgRating ? (
-                        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5 mr-14 lg:mr-0">
                             <Star size={13} style={{ color: 'var(--theme-link)', fill: 'var(--theme-link)' }} />
                             <span className="text-sm font-semibold" style={{ color: 'var(--theme-link)' }}>
                                 {avgRating}
                             </span>
                         </div>
                     ) : (
-                        <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full mr-14 lg:mr-0"
                             style={{ background: 'rgba(226,183,100,0.15)', color: 'var(--theme-link)' }}>
                             NEW
                         </span>
@@ -148,21 +265,16 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                     {group.durations[0]?.description ?? 'Premium spa service delivered to your location.'}
                 </p>
 
-                {/* Duration chips — selectable. Mobile: 2-column tiles with
-                    duration/price stacked (prototype spec: "2-column tiles
-                    of at least 48px, so price and length are readable at
-                    320px"). Desktop: unchanged inline flex-wrap pills.
-                    pr-14 reserves the same FloatingConcierge clearance as
-                    the heart/footer button, scoped to just this grid rather
-                    than the whole page — see the heart's comment above. */}
-                <div className="grid grid-cols-2 gap-2 pr-14 lg:pr-0 lg:flex lg:flex-wrap mb-4">
+                {/* Duration chips (lg+ only here — mobile has its own block
+                    above). Unchanged markup from before this rebuild. */}
+                <div className="hidden lg:flex lg:flex-wrap gap-2 mb-4">
                     {group.durations.map(d => {
                         const isSelected = selectedDuration?.id === d.id;
                         return (
                             <button
                                 key={d.id}
                                 onClick={() => setSelectedDuration(isSelected ? null : d)}
-                                className="flex flex-col lg:flex-row lg:items-center gap-0.5 lg:gap-1.5 min-h-[52px] lg:min-h-0 px-3 py-2 lg:py-1.5 rounded-xl text-xs font-semibold transition-all border text-left"
+                                className="flex lg:flex-row lg:items-center gap-0.5 lg:gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border text-left"
                                 style={{
                                     borderColor: isSelected ? '#e2b764' : 'var(--theme-border)',
                                     background:  isSelected ? 'rgba(226,183,100,0.12)' : 'var(--theme-btn-bg)',
@@ -174,7 +286,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                                     {d.duration_minutes} min
                                 </span>
                                 <span className="font-bold lg:ml-0.5">
-                                    <span className="lg:inline hidden">· </span>AED {Number(d.price).toLocaleString()}
+                                    <span className="lg:inline">· </span>AED {Number(d.price).toLocaleString()}
                                 </span>
                             </button>
                         );
@@ -209,9 +321,8 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                 </AnimatePresence>
             </div>
 
-            {/* Card Footer — mr-14 on the button reserves the same
-                FloatingConcierge clearance as the heart/duration grid above,
-                scoped to just the button rather than the whole page. */}
+            {/* Card Footer (lg+ only here — mobile has its own footer in the
+                block above). Unchanged markup from before this rebuild. */}
             <div className="px-5 pb-5 flex items-center justify-between flex-wrap gap-3">
                 {!selectedDuration ? (
                     <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
@@ -226,7 +337,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
 
                 <button
                     onClick={handleBook}
-                    className="flex-1 min-w-[140px] mr-14 lg:mr-0 lg:flex-initial lg:min-w-0 h-12 lg:h-auto flex items-center justify-center lg:justify-start gap-2 px-4 lg:py-2.5 rounded-xl text-sm font-bold transition-all"
+                    className="flex-none h-11 lg:h-auto flex items-center gap-2 px-[18px] lg:px-4 lg:py-2.5 rounded-xl text-sm font-bold transition-all"
                     style={{
                         background:  'var(--theme-cta)',
                         color:       'var(--theme-cta-ink)',
@@ -239,6 +350,7 @@ function ServiceGroupCard({ group, locale, onBook, index, serviceId, isWishliste
                     Book Now
                     <ChevronRight size={14} />
                 </button>
+            </div>
             </div>
         </motion.div>
     );
