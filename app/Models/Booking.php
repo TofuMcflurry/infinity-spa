@@ -49,6 +49,7 @@ class Booking extends Model
         'flag_reason',
         'resolved_at',
         'resolved_by',
+        'refund_forfeited_at',
     ];
 
     protected $casts = [
@@ -61,6 +62,7 @@ class Booking extends Model
         'cancelled_at'             => 'datetime',
         'flagged_at'               => 'datetime',
         'resolved_at'              => 'datetime',
+        'refund_forfeited_at'      => 'datetime',
         'downpayment_amount'       => 'decimal:2',
         'remaining_amount'         => 'decimal:2',
         'paid_amount'              => 'decimal:2',

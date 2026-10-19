@@ -24,11 +24,24 @@ class RescheduleRequestService
     public const ROLE_CUSTOMER  = 'customer';
     public const ROLE_THERAPIST = 'therapist';
 
-    // Mirrors BookingRescheduleService::RESCHEDULABLE_STATUSES — a request
-    // for a time change only makes sense for a booking that could still
-    // legally be rescheduled. pending_payment is excluded for the same
-    // reason it's excluded there: nothing is confirmed yet to reschedule.
+    // Mirrors BookingRescheduleService::RESCHEDULABLE_STATUSES — a THERAPIST
+    // request for a time change only makes sense for a booking that could
+    // still legally be rescheduled. pending_payment is excluded for the
+    // same reason it's excluded there: nothing is confirmed yet to
+    // reschedule. Unchanged — this governs only the therapist/legacy path
+    // (see ROLE_THERAPIST below); direct Admin reschedule actions are
+    // governed separately by BookingRescheduleService::RESCHEDULABLE_STATUSES
+    // and are not affected by either constant here.
     public const ELIGIBLE_STATUSES = ['pending', 'accepted'];
+
+    // Customer-initiated requests are deliberately narrower: a booking
+    // still 'pending' (awaiting therapist acceptance) or 'pending_payment'
+    // has nothing settled yet for the customer to ask to move, and
+    // en_route/arrived/completed/cancelled/rejected/no_show are all either
+    // already under way or terminal — only an 'accepted' booking is
+    // eligible for a customer-submitted reschedule request. Approved
+    // CTO policy (Batch #26) — see RescheduleRequestService::create().
+    public const CUSTOMER_ELIGIBLE_STATUSES = ['accepted'];
 
     /**
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException 422 on an ineligible booking state or a past requested time, 409 on a duplicate pending request
@@ -50,8 +63,15 @@ class RescheduleRequestService
         return DB::transaction(function () use ($booking, $requester, $role, $requestedStartAt, $reason) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
+            // Role-aware: a customer may only request a reschedule once the
+            // booking is 'accepted'; the therapist/legacy path keeps its
+            // existing, wider eligibility unchanged.
+            $eligibleStatuses = $role === self::ROLE_CUSTOMER
+                ? self::CUSTOMER_ELIGIBLE_STATUSES
+                : self::ELIGIBLE_STATUSES;
+
             abort_if(
-                !in_array($locked->status, self::ELIGIBLE_STATUSES, true),
+                !in_array($locked->status, $eligibleStatuses, true),
                 422,
                 'This booking is not eligible for a reschedule request.'
             );

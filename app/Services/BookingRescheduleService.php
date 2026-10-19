@@ -99,16 +99,43 @@ class BookingRescheduleService
         return $blocks;
     }
 
+    /**
+     * The one chokepoint every reschedule path funnels through — a direct
+     * admin reschedule, an approved reschedule request, and an accepted
+     * reschedule proposal all call this and nothing else ever moves a
+     * booking's schedule. That makes it the single correct place to enforce
+     * the durable refund-forfeiture policy: if the appointment being
+     * replaced (i.e. $booking->scheduled_start as it stands right now,
+     * before this update) is already inside
+     * BookingCancellationService::cancel()'s 24-hour non-refundable
+     * window, moving the booking to a date that LOOKS safe must never
+     * silently restore the refund/voucher entitlement already lost under
+     * the original schedule — see refund_forfeited_at's migration
+     * docblock. Checked and persisted atomically with the schedule change
+     * (same update() call) and only ever set once — already-forfeited
+     * stays forfeited through any number of further reschedules.
+     */
     public static function reschedule(Booking $booking, Carbon $newStart, ?string $reason = null): Booking
     {
         $blocks = self::validateCandidate($booking, $newStart);
 
-        $booking->update([
+        $updates = [
             'scheduled_start' => $newStart,
             'scheduled_end'   => $blocks['scheduled_end'],
             'travel_start'    => $blocks['travel_start'],
             'buffer_end'      => $blocks['buffer_end'],
-        ]);
+        ];
+
+        if ($booking->refund_forfeited_at === null) {
+            $hoursUntilCurrent = now('Asia/Dubai')
+                ->diffInHours(Carbon::parse($booking->scheduled_start)->timezone('Asia/Dubai'), false);
+
+            if ($hoursUntilCurrent <= 24) {
+                $updates['refund_forfeited_at'] = now();
+            }
+        }
+
+        $booking->update($updates);
 
         return $booking;
     }
@@ -164,6 +191,21 @@ class BookingRescheduleService
         );
     }
 
+    /**
+     * Compares full datetimes, not raw time-of-day strings — consistent
+     * with TherapistAvailabilityService::hasUnavailableSlot() (fixed at
+     * Checkpoint #24). Schedule.jsx's UnavailableModal always creates
+     * single-hour, same-date blocks via its own effHour/effDate rollover —
+     * except the 23:00 hour, whose end_time is submitted as "00:00" (via
+     * (effHour+1)%24) to mean "midnight at the end of this date," not an
+     * earlier time on the same date. The previous end_time > start_time
+     * string/time comparison broke for exactly that record
+     * ('00:00:00' > '23:00:00' is false), so an admin reschedule candidate
+     * overlapping that hour was never rejected here, even though the
+     * customer booking path already correctly rejected it. Treating an
+     * end_time that is <= its own start_time as rolling into the following
+     * date is the only reading consistent with how these rows are created.
+     */
     private static function hasUnavailableSlot(Therapist $therapist, Carbon $newStart, Carbon $scheduledEnd): bool
     {
         // therapist_unavailable_slots.therapist_id references users.id
@@ -171,15 +213,22 @@ class BookingRescheduleService
         // therapists.id — must key off the therapist's user_id here.
         return TherapistUnavailableSlot::where('therapist_id', $therapist->user_id)
             ->where('date', $newStart->toDateString())
-            ->where(function ($q) use ($newStart, $scheduledEnd) {
-                $q->where('is_full_day', true)
-                    ->orWhere(function ($q2) use ($newStart, $scheduledEnd) {
-                        $q2->where('is_full_day', false)
-                            ->where('start_time', '<', $scheduledEnd->format('H:i:s'))
-                            ->where('end_time', '>', $newStart->format('H:i:s'));
-                    });
-            })
-            ->exists();
+            ->get(['date', 'start_time', 'end_time', 'is_full_day'])
+            ->contains(function ($slot) use ($newStart, $scheduledEnd) {
+                if ($slot->is_full_day) {
+                    return true;
+                }
+
+                $blockDate  = Carbon::parse($slot->date)->toDateString();
+                $blockStart = Carbon::parse($blockDate . ' ' . $slot->start_time);
+                $blockEnd   = Carbon::parse($blockDate . ' ' . $slot->end_time);
+
+                if ($blockEnd->lte($blockStart)) {
+                    $blockEnd->addDay();
+                }
+
+                return $blockStart->lt($scheduledEnd) && $blockEnd->gt($newStart);
+            });
     }
 
     /**

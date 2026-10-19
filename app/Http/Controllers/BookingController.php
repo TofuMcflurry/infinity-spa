@@ -510,10 +510,11 @@ class BookingController extends Controller
                 'status'           => $b->status,
                 'rejection_reason' => $b->rejection_reason,
                 'can_review'       => $this->canReview($b, auth()->id()),
-                // Mirrors RescheduleRequestService::ELIGIBLE_STATUSES — only
-                // used to decide whether to show the "Request Reschedule"
-                // action; the backend re-checks this itself on submit.
-                'reschedule_eligible' => in_array($b->status, RescheduleRequestService::ELIGIBLE_STATUSES, true)
+                // Mirrors RescheduleRequestService::CUSTOMER_ELIGIBLE_STATUSES
+                // — only used to decide whether to show the "Request
+                // Reschedule" action; the backend re-checks this itself
+                // (role-aware) on submit.
+                'reschedule_eligible' => in_array($b->status, RescheduleRequestService::CUSTOMER_ELIGIBLE_STATUSES, true)
                     && $latestRequest?->status !== 'pending'
                     && $latestProposal?->status !== 'pending',
                 'reschedule_request' => $latestRequest ? [
@@ -541,6 +542,13 @@ class BookingController extends Controller
                 'hours_until_session' => Carbon::parse($b->scheduled_start)
                     ->timezone('Asia/Dubai')
                     ->diffInHours(now('Asia/Dubai'), false),
+                // Durable forfeiture lock (Batch #26) — true once a past
+                // reschedule has moved this booking away from an
+                // appointment that was already inside the 24-hour
+                // non-refundable window. hours_until_session alone is no
+                // longer sufficient to predict the cancellation outcome
+                // once this is true — see BookingCancellationService::cancel().
+                'refund_forfeited'    => $b->refund_forfeited_at !== null,
                 'cancellation_reason' => $b->cancellation_reason,
                 'payment_type'        => $b->payment_type,
                 'payment_status'      => $b->payment_status,

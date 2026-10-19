@@ -127,12 +127,13 @@ class AdminBookingController extends Controller
                 'Booking is awaiting customer response to a reschedule proposal.'
             );
 
-            $previousStart = $locked->scheduled_start;
-            $previousEnd   = $locked->scheduled_end;
+            $previousStart        = $locked->scheduled_start;
+            $previousEnd          = $locked->scheduled_end;
+            $previousForfeitedAt  = $locked->refund_forfeited_at;
 
             $updated = BookingRescheduleService::reschedule($locked, $newStart, $request->reason);
 
-            $this->recordRescheduleAudit($updated, $previousStart, $previousEnd, $request->reason, $request);
+            $this->recordRescheduleAudit($updated, $previousStart, $previousEnd, $request->reason, $request, $previousForfeitedAt);
 
             return [$updated, $previousStart];
         });
@@ -282,15 +283,16 @@ class AdminBookingController extends Controller
 
             $lockedBooking = Booking::where('id', $lockedRequest->booking_id)->lockForUpdate()->firstOrFail();
 
-            $previousStart = $lockedBooking->scheduled_start;
-            $previousEnd   = $lockedBooking->scheduled_end;
+            $previousStart       = $lockedBooking->scheduled_start;
+            $previousEnd         = $lockedBooking->scheduled_end;
+            $previousForfeitedAt = $lockedBooking->refund_forfeited_at;
 
             // Re-validates against the booking's CURRENT state — day-off,
             // shift, unavailable slots, conflicts (self-excluded) — never
             // trusting whatever was true when the request was submitted.
             $updated = BookingRescheduleService::reschedule($lockedBooking, $finalStart, $request->admin_notes);
 
-            $this->recordRescheduleAudit($updated, $previousStart, $previousEnd, $request->admin_notes, $request);
+            $this->recordRescheduleAudit($updated, $previousStart, $previousEnd, $request->admin_notes, $request, $previousForfeitedAt);
 
             $lockedRequest->update([
                 'status'              => 'approved',
@@ -356,7 +358,8 @@ class AdminBookingController extends Controller
         ?Carbon  $previousStart,
         ?Carbon  $previousEnd,
         ?string  $reason,
-        Request  $request
+        Request  $request,
+        ?Carbon  $previousForfeitedAt = null
     ): void {
         BookingRescheduled::dispatch(
             $updated->id,
@@ -366,6 +369,8 @@ class AdminBookingController extends Controller
             $updated->scheduled_end->toDateTimeString(),
             $reason,
             $request,
+            $previousForfeitedAt === null && $updated->refund_forfeited_at !== null,
+            $updated->refund_forfeited_at?->toDateTimeString(),
         );
     }
 

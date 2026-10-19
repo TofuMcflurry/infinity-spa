@@ -28,10 +28,22 @@ class BookingCancellationService
             ->diffInHours(Carbon::parse($booking->scheduled_start)->timezone('Asia/Dubai'), false);
         $withinGrace = $hoursUntil > 24; // true = more than 24hrs away = refund
 
+        // Durable forfeiture lock (see refund_forfeited_at's migration
+        // docblock and BookingRescheduleService::reschedule(), the only
+        // place this is ever set) — once a reschedule has moved this
+        // booking away from an appointment that was already inside the
+        // 24-hour window, cancellation must honor that forfeiture
+        // regardless of how far away the CURRENT scheduled_start looks.
+        // $forcedType (admin/spa-initiated exception labeling, e.g.
+        // no-show) is untouched by this — it only ever relabels
+        // cancellation_type, never the underlying downpayment_status/
+        // voucher computation this lock protects.
+        $forfeitedByReschedule = $booking->refund_forfeited_at !== null;
+
         if ($booking->is_voucher_covered) {
             $voucherRestored = false;
 
-            if ($withinGrace) {
+            if ($withinGrace && !$forfeitedByReschedule) {
                 $restoreResult   = LoyaltyService::restoreVoucher($booking->id, $booking->customer_id);
                 $voucherRestored = $restoreResult['success'];
             }
@@ -54,6 +66,8 @@ class BookingCancellationService
 
         if ($booking->downpayment_status === 'pending') {
             $downpaymentStatus = 'refunded';
+        } elseif ($forfeitedByReschedule) {
+            $downpaymentStatus = 'forfeited';
         } elseif ($withinGrace) {
             $downpaymentStatus = 'refunded';
         } else {

@@ -176,8 +176,9 @@ class RescheduleProposalService
 
             abort_if($lockedBooking->customer_id !== $customer->id, 403);
 
-            $previousStart = $lockedBooking->scheduled_start;
-            $previousEnd   = $lockedBooking->scheduled_end;
+            $previousStart       = $lockedBooking->scheduled_start;
+            $previousEnd         = $lockedBooking->scheduled_end;
+            $previousForfeitedAt = $lockedBooking->refund_forfeited_at;
 
             // Re-validates against the booking's CURRENT state — never
             // trusts whatever was true when the proposal was created.
@@ -211,6 +212,8 @@ class RescheduleProposalService
                 $updatedBooking->scheduled_end->toDateTimeString(),
                 $lockedProposal->admin_reason,
                 request(),
+                $previousForfeitedAt === null && $updatedBooking->refund_forfeited_at !== null,
+                $updatedBooking->refund_forfeited_at?->toDateTimeString(),
             );
 
             return [$updatedBooking, $previousStart];

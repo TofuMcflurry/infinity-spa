@@ -92,19 +92,21 @@ class RescheduleRequestTest extends TestCase
 
     // ── 1, 2: eligible statuses succeed ──────────────────────────────────────
 
-    public function test_customer_can_create_request_for_pending_booking(): void
+    // Intentional behavior change (Batch #26 approved policy): a 'pending'
+    // booking (awaiting therapist acceptance) has nothing settled yet for
+    // the customer to ask to move — previously accepted here, now
+    // RescheduleRequestService::CUSTOMER_ELIGIBLE_STATUSES restricts a
+    // customer-initiated request to 'accepted' only. The therapist/legacy
+    // path (ELIGIBLE_STATUSES) is unchanged — see
+    // test_existing_therapist_request_flow_still_works_with_role_therapist().
+    public function test_customer_cannot_create_request_for_pending_booking(): void
     {
         $booking = $this->makeBooking(['status' => 'pending']);
 
         $response = $this->postRequest($booking);
-        $response->assertCreated();
-        $response->assertJsonPath('request.status', 'pending');
-        $response->assertJsonPath('request.booking_ref', 'IHS-' . str_pad($booking->id, 5, '0', STR_PAD_LEFT));
+        $response->assertStatus(422);
 
-        $this->assertDatabaseHas('reschedule_requests', [
-            'booking_id' => $booking->id,
-            'status'     => 'pending',
-        ]);
+        $this->assertDatabaseMissing('reschedule_requests', ['booking_id' => $booking->id]);
     }
 
     public function test_customer_can_create_request_for_accepted_booking(): void
@@ -118,7 +120,7 @@ class RescheduleRequestTest extends TestCase
 
     public function test_customer_cannot_request_for_ineligible_booking_states(): void
     {
-        foreach (['pending_payment', 'en_route', 'arrived', 'completed', 'rejected', 'cancelled'] as $status) {
+        foreach (['pending', 'pending_payment', 'en_route', 'arrived', 'completed', 'rejected', 'cancelled'] as $status) {
             $booking = $this->makeBooking(['status' => $status]);
 
             $response = $this->postRequest($booking);
@@ -204,12 +206,12 @@ class RescheduleRequestTest extends TestCase
 
     public function test_booking_status_remains_unchanged(): void
     {
-        $booking = $this->makeBooking(['status' => 'pending']);
+        $booking = $this->makeBooking(['status' => 'accepted']);
 
         $this->postRequest($booking)->assertCreated();
 
         $booking->refresh();
-        $this->assertSame('pending', $booking->status);
+        $this->assertSame('accepted', $booking->status);
     }
 
     // ── 14, 15: requester identity comes only from the session ──────────────

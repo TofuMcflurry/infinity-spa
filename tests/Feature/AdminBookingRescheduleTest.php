@@ -233,6 +233,54 @@ class AdminBookingRescheduleTest extends TestCase
         $response->assertJsonPath('message', 'Therapist has marked this time as unavailable.');
     }
 
+    // ── Midnight-wrap unavailable-slot record (Batch #26) ───────────────────
+    //
+    // Schedule.jsx's UnavailableModal submits start_time=23/end_time=0 for
+    // the 23:00 hour cell — an end_time that is <= its own start_time,
+    // meaning "midnight at the end of this date." BookingRescheduleService's
+    // own hasUnavailableSlot() previously compared raw time-of-day strings
+    // and never matched this exact row shape.
+
+    public function test_admin_reschedule_rejects_a_23_00_midnight_wrap_unavailable_block(): void
+    {
+        $booking = $this->makeBooking();
+
+        TherapistUnavailableSlot::create([
+            'therapist_id' => $this->therapistUser->id,
+            'date'         => '2026-12-11',
+            'start_time'   => '23:00:00',
+            'end_time'     => '00:00:00',
+            'is_full_day'  => false,
+        ]);
+
+        $response = $this->reschedule($booking, '2026-12-11 23:00:00');
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'Therapist has marked this time as unavailable.');
+
+        $booking->refresh();
+        $this->assertSame(self::ORIGINAL_START, $booking->scheduled_start->toDateTimeString());
+    }
+
+    public function test_adjacent_slot_to_the_midnight_wrap_block_remains_reschedulable(): void
+    {
+        $booking = $this->makeBooking();
+
+        TherapistUnavailableSlot::create([
+            'therapist_id' => $this->therapistUser->id,
+            'date'         => '2026-12-11',
+            'start_time'   => '23:00:00',
+            'end_time'     => '00:00:00',
+            'is_full_day'  => false,
+        ]);
+
+        // 22:00-23:00 session ends exactly when the block starts — no overlap.
+        $response = $this->reschedule($booking, '2026-12-11 22:00:00');
+        $response->assertOk();
+
+        $booking->refresh();
+        $this->assertSame('2026-12-11 22:00:00', $booking->scheduled_start->toDateTimeString());
+    }
+
     // ── 11: booking does not conflict with its own current slot ─────────────
 
     public function test_booking_does_not_conflict_with_its_own_current_slot(): void
