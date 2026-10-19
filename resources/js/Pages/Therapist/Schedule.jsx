@@ -140,15 +140,28 @@ function UnavailableModal({ slot, onClose, onSaved, toast }) {
     const [form, setForm] = useState({ is_full_day: false, reason: '' });
     const [saving, setSaving] = useState(false);
 
+    // The grid's hour scale runs 16-28 (4PM-4AM) so a single calendar-day
+    // column can show a full overnight shift without visually splitting it
+    // across two columns — slot.hour can legitimately be 24-28 for the
+    // post-midnight end of that row. The backend only knows plain 00:00-23:59
+    // times tied to a real calendar date, so anything past hour 23 needs to
+    // both wrap the hour (%24) and roll the date forward a day before it's
+    // shown here or sent to the API — previously neither happened, so a
+    // post-midnight slot would submit an invalid time like "25:00" (rejected
+    // by the backend's H:i validation) tied to the wrong (previous) date.
+    const effHour = slot.hour % 24;
+    const effDate = slot.hour >= 24 ? addDays(parseISO(slot.date), 1) : parseISO(slot.date);
+    const effDateStr = format(effDate, 'yyyy-MM-dd');
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
             const body = {
-                date:        slot.date,
+                date:        effDateStr,
                 is_full_day: form.is_full_day,
-                start_time:  form.is_full_day ? null : `${String(slot.hour).padStart(2,'0')}:00`,
-                end_time:    form.is_full_day ? null : `${String(slot.hour + 1).padStart(2,'0')}:00`,
+                start_time:  form.is_full_day ? null : `${String(effHour).padStart(2,'0')}:00`,
+                end_time:    form.is_full_day ? null : `${String((effHour + 1) % 24).padStart(2,'0')}:00`,
                 reason:      form.reason || null,
             };
             const data = await api('/therapist/api/unavailable', { method: 'POST', body });
@@ -166,10 +179,10 @@ function UnavailableModal({ slot, onClose, onSaved, toast }) {
         <Modal title="Mark as Unavailable" onClose={onClose}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="rounded-lg p-3 text-sm bg-card border border-gold/15">
-                    <div className="font-medium text-gold">{format(parseISO(slot.date), 'EEEE, d MMMM yyyy')}</div>
+                    <div className="font-medium text-gold">{format(effDate, 'EEEE, d MMMM yyyy')}</div>
                     {!form.is_full_day && (
                         <div className="text-muted-foreground text-xs mt-0.5">
-                            {TIME_OPTIONS.find(t => t.value === `${String(slot.hour).padStart(2,'0')}:00`)?.label}
+                            {TIME_OPTIONS.find(t => t.value === `${String(effHour).padStart(2,'0')}:00`)?.label}
                         </div>
                     )}
                 </div>
@@ -453,14 +466,27 @@ export default function Schedule() {
     };
 
     const getUnavailable = (date, hour) => {
-        const d    = format(date, 'yyyy-MM-dd');
-        const hNum = hour;
+        // Same post-midnight normalization as UnavailableModal: hour 24-28
+        // belongs to the next calendar date at hour-24, not to `date` at face
+        // value — without this, a slot blocked for e.g. 1AM-2AM (stored by
+        // the backend as date=<next day>, start_time="01:00") was never
+        // found here, since this was comparing it against the wrong date and
+        // against the un-wrapped hour (25, which matches no 00-23 range).
+        const effHour = hour % 24;
+        const d = format(hour >= 24 ? addDays(date, 1) : date, 'yyyy-MM-dd');
         return data.unavailable_slots.find(s => {
             if (s.date !== d) return false;
             if (s.is_full_day) return true;
             const start = parseInt(s.start_time);
-            const end   = parseInt(s.end_time);
-            return hNum >= start && hNum < end;
+            let   end   = parseInt(s.end_time);
+            // A block's end_time can be "00:00" (e.g. the 23:00 hour cell,
+            // submitted as start_time=23/end_time=(23+1)%24=0) to mean
+            // midnight at the END of this date, not an earlier hour on the
+            // same date — same convention as the backend's
+            // TherapistAvailabilityService::hasUnavailableSlot(). Without
+            // this, end(0) <= start(23) made every such block invisible here.
+            if (end <= start) end += 24;
+            return effHour >= start && effHour < end;
         });
     };
 
