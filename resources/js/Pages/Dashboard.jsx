@@ -14,6 +14,7 @@ import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ReviewModal from '@/Components/Customer/ReviewModal';
 import ThemeToggle from '@/Components/ThemeToggle';
 import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 import { useBookingStatus } from '@/hooks/useBookingStatus';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 
@@ -1147,7 +1148,25 @@ export default function Dashboard() {
         router.visit(notif.url ?? '/my-bookings');
     }, []);
 
-    const handleLogout = () => router.post(route('logout'));
+    // This page's own desktop header logout button is a separate control
+    // from CustomerLayout's sidebar logout (see CustomerLayout.jsx), so it
+    // owns its own confirm state independently rather than sharing state
+    // across those two files.
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const loggingOutRef = useRef(false);
+
+    const handleLogout = () => {
+        if (loggingOutRef.current) return;
+        loggingOutRef.current = true;
+        setLoggingOut(true);
+        router.post(route('logout'), {}, {
+            onFinish: () => {
+                loggingOutRef.current = false;
+                setLoggingOut(false);
+            },
+        });
+    };
 
     // Actually clears the confirmation and checks for a pending review — only
     // ever called once both the 4s display timer has elapsed AND the
@@ -1400,7 +1419,7 @@ export default function Dashboard() {
 
                             {/* Logout moves into MobileMenuSheet below md — desktop
                                 keeps its own direct logout button as before. */}
-                            <button onClick={handleLogout}
+                            <button onClick={() => setConfirmLogoutOpen(true)}
                                 className="hidden md:flex w-10 h-10 rounded-full items-center justify-center transition-colors"
                                 style={{ background: 'var(--theme-btn-bg)', color: 'var(--theme-text-2)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#ef4444'; }}
@@ -1429,6 +1448,17 @@ export default function Dashboard() {
                     onClose={() => setMenuOpen(false)}
                     avatarUrl={avatarUrl}
                     name={userProfile?.name}
+                />
+
+                <ConfirmDialog
+                    open={confirmLogoutOpen}
+                    title="Log out?"
+                    message="Are you sure you want to log out of your account?"
+                    confirmLabel="Log Out"
+                    cancelLabel="Cancel"
+                    confirmLoading={loggingOut}
+                    onConfirm={handleLogout}
+                    onCancel={() => setConfirmLogoutOpen(false)}
                 />
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">

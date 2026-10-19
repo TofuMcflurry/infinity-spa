@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,6 +8,7 @@ import {
     Navigation, MapPin, Star, Check, CalendarPlus,
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 
 // ── Nav items ────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
@@ -245,7 +246,7 @@ function NotificationBell() {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-function TherapistSidebar({ user }) {
+function TherapistSidebar({ user, onLogoutRequest }) {
     const { url } = usePage();
     const isActive = (href) => href && url.startsWith(href);
 
@@ -346,7 +347,7 @@ function TherapistSidebar({ user }) {
                         <div className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Therapist</div>
                     </div>
                     <button
-                        onClick={() => router.post(route('logout'))}
+                        onClick={onLogoutRequest}
                         className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                         style={{
                             background: 'rgba(239,68,68,0.08)',
@@ -411,7 +412,7 @@ function MobileTopBar({ user, menuOpen, setMenuOpen }) {
 }
 
 // ── Mobile slide-down menu ────────────────────────────────────────────────────
-function MobileMenu({ user, onClose }) {
+function MobileMenu({ user, onClose, onLogoutRequest }) {
     const { url } = usePage();
     const isActive = (href) => href && url.startsWith(href);
 
@@ -486,7 +487,7 @@ function MobileMenu({ user, onClose }) {
                         </div>
                     </div>
                     <button
-                        onClick={() => router.post(route('logout'))}
+                        onClick={onLogoutRequest}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
                         style={{
                             background: 'rgba(239,68,68,0.08)',
@@ -562,6 +563,32 @@ export default function TherapistLayout({ children }) {
     const user      = props.auth?.user;
     const [menuOpen, setMenuOpen] = useState(false);
 
+    // Logout confirmation — owned here since this is the one component that
+    // already owns `menuOpen` and renders all three logout entry points
+    // (desktop sidebar, mobile drawer, desktop header). TherapistSidebar and
+    // MobileMenu are separate top-level components, so they receive
+    // onLogoutRequest as a prop rather than reading this state directly.
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const loggingOutRef = useRef(false);
+
+    const handleLogoutRequest = () => {
+        setMenuOpen(false);          // close the mobile drawer first, if open
+        setConfirmLogoutOpen(true);
+    };
+
+    const confirmLogout = () => {
+        if (loggingOutRef.current) return;
+        loggingOutRef.current = true;
+        setLoggingOut(true);
+        router.post(route('logout'), {}, {
+            onFinish: () => {
+                loggingOutRef.current = false;
+                setLoggingOut(false);
+            },
+        });
+    };
+
     const hour     = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = user?.name?.split(' ')[0] ?? 'Therapist';
@@ -570,7 +597,7 @@ export default function TherapistLayout({ children }) {
         <div className="therapist-theme flex min-h-screen w-full" style={{ background: 'var(--theme-bg)' }}>
 
             {/* Desktop sidebar */}
-            <TherapistSidebar user={user} />
+            <TherapistSidebar user={user} onLogoutRequest={handleLogoutRequest} />
 
             <div className="flex-1 min-h-screen overflow-y-auto pb-24 md:pb-0">
 
@@ -589,7 +616,7 @@ export default function TherapistLayout({ children }) {
                                 exit={{ opacity: 0 }}
                                 onClick={() => setMenuOpen(false)}
                             />
-                            <MobileMenu user={user} onClose={() => setMenuOpen(false)} />
+                            <MobileMenu user={user} onClose={() => setMenuOpen(false)} onLogoutRequest={handleLogoutRequest} />
                         </>
                     )}
                 </AnimatePresence>
@@ -615,7 +642,7 @@ export default function TherapistLayout({ children }) {
                             <ThemeToggle />
                             <NotificationBell />
                             <button
-                                onClick={() => router.post(route('logout'))}
+                                onClick={() => setConfirmLogoutOpen(true)}
                                 className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
                                 style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.querySelector('svg').style.color = '#ef4444'; }}
@@ -634,6 +661,17 @@ export default function TherapistLayout({ children }) {
 
             {/* Mobile bottom nav */}
             <TherapistBottomNav />
+
+            <ConfirmDialog
+                open={confirmLogoutOpen}
+                title="Log out?"
+                message="Are you sure you want to log out of your account?"
+                confirmLabel="Log Out"
+                cancelLabel="Cancel"
+                confirmLoading={loggingOut}
+                onConfirm={confirmLogout}
+                onCancel={() => setConfirmLogoutOpen(false)}
+            />
 
         </div>
     );

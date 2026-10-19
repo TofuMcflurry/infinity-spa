@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Home, CalendarPlus, Calendar, Sparkles, Users, Heart,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/hooks/useTheme';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 
 // Matches the Claude Design prototype's MobileMenuSheet exactly: account
 // card, the 7 Customer destinations (PAGES in the prototype script),
@@ -34,6 +35,39 @@ export default function MobileMenuSheet({ open, onClose, avatarUrl, name }) {
     const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
     const isActive = (path) => (path === '/dashboard' ? url === '/dashboard' : url.startsWith(path));
+
+    // Logout confirmation — owned locally so all 6 pages that render this
+    // sheet get the guarded flow for free with no prop changes of their own.
+    // This component is always mounted by its callers (only `open` toggles
+    // whether its panel renders), so this state survives the sheet opening
+    // and closing, which is what lets the dialog stay up after the sheet
+    // itself closes below.
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    // Synchronous guard in addition to the (async) state above — closes the
+    // gap between a double-click/double-tap and React actually committing
+    // the `disabled` attribute from `loggingOut`.
+    const loggingOutRef = useRef(false);
+
+    const handleLogoutClick = () => {
+        onClose();                  // close the sheet first — see the effect below
+        setConfirmLogoutOpen(true); // then raise the confirm dialog, independently of `open`
+    };
+
+    const confirmLogout = () => {
+        if (loggingOutRef.current) return;
+        loggingOutRef.current = true;
+        setLoggingOut(true);
+        router.post(route('logout'), {}, {
+            // Covers failure/error/cancellation — on success the page
+            // navigates away and this component unmounts, so there's
+            // nothing left to reset.
+            onFinish: () => {
+                loggingOutRef.current = false;
+                setLoggingOut(false);
+            },
+        });
+    };
 
     // Dashboard passes a fresh `onClose` closure on every one of its own
     // re-renders (background polling, etc). Routing calls through a ref
@@ -90,9 +124,15 @@ export default function MobileMenuSheet({ open, onClose, avatarUrl, name }) {
         };
     }, [open]);
 
-    if (!open) return null;
+    // No longer an early `if (!open) return null` — the ConfirmDialog below
+    // must stay mounted (and visible) independently of the sheet's own
+    // `open` prop, since handleLogoutClick closes the sheet the same moment
+    // it opens the dialog.
+    if (!open && !confirmLogoutOpen) return null;
 
     return (
+        <>
+        {open && (
         <div className="fixed inset-0 z-[60] md:hidden">
             <div
                 className="absolute inset-0"
@@ -223,9 +263,10 @@ export default function MobileMenuSheet({ open, onClose, avatarUrl, name }) {
                         </div>
                     </div>
 
-                    {/* Logout — same call CustomerSidebar's own logout button uses. */}
+                    {/* Logout — opens the shared confirm dialog; same eventual
+                        call CustomerSidebar's own logout button uses. */}
                     <button
-                        onClick={() => router.post(route('logout'))}
+                        onClick={handleLogoutClick}
                         className="h-12 rounded-xl flex-shrink-0 flex items-center justify-center gap-2 font-bold text-[15px]"
                         style={{ border: '1px solid #f1c6bf', background: 'var(--theme-card)', color: '#b13a2a' }}
                     >
@@ -235,5 +276,18 @@ export default function MobileMenuSheet({ open, onClose, avatarUrl, name }) {
                 </div>
             </div>
         </div>
+        )}
+
+        <ConfirmDialog
+            open={confirmLogoutOpen}
+            title="Log out?"
+            message="Are you sure you want to log out of your account?"
+            confirmLabel="Log Out"
+            cancelLabel="Cancel"
+            confirmLoading={loggingOut}
+            onConfirm={confirmLogout}
+            onCancel={() => setConfirmLogoutOpen(false)}
+        />
+        </>
     );
 }

@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { 
     BarChart3, LayoutDashboard, Menu, Shield, Users, X, LogOut, 
     CalendarCheck, UserPlus, Sparkles, ShieldCheck, TrendingUp, UserCog, ShieldAlert 
 } from 'lucide-react';
 import ThemeToggle from '@/Components/ThemeToggle';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 
 const NAV = [
   { type: 'divider', label: 'MAIN' },
@@ -51,6 +52,30 @@ export default function AdminLayout({ title = 'Admin', children }) {
   const pendingGuestCount = props.pendingGuestBookingsCount ?? 0;
 
   const firstName = useMemo(() => (user?.name || 'Admin').split(' ')[0], [user?.name]);
+
+  // Logout confirmation — `Sidebar` below is an inline closure (not a
+  // separate component), so it and the header button can both reference
+  // this state directly with no prop threading.
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const loggingOutRef = useRef(false);
+
+  const handleLogoutRequest = () => {
+    setMobileOpen(false);        // close the drawer first, if open
+    setConfirmLogoutOpen(true);
+  };
+
+  const confirmLogout = () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    setLoggingOut(true);
+    router.post(route('logout'), {}, {
+      onFinish: () => {
+        loggingOutRef.current = false;
+        setLoggingOut(false);
+      },
+    });
+  };
 
   const Sidebar = ({ onNavigate }) => (
     <div className="flex h-full flex-col">
@@ -161,7 +186,7 @@ export default function AdminLayout({ title = 'Admin', children }) {
             </div>
           </div>
           <button
-            onClick={() => router.post(route('logout'))}
+            onClick={handleLogoutRequest}
             className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
             style={{
               background: 'rgba(239,68,68,0.08)',
@@ -247,7 +272,7 @@ export default function AdminLayout({ title = 'Admin', children }) {
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <button
-                onClick={() => router.post(route('logout'))}
+                onClick={() => setConfirmLogoutOpen(true)}
                 className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
                 style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
                 title="Logout"
@@ -263,6 +288,17 @@ export default function AdminLayout({ title = 'Admin', children }) {
         </main>
 
       </div>
+
+      <ConfirmDialog
+        open={confirmLogoutOpen}
+        title="Log out?"
+        message="Are you sure you want to log out of your account?"
+        confirmLabel="Log Out"
+        cancelLabel="Cancel"
+        confirmLoading={loggingOut}
+        onConfirm={confirmLogout}
+        onCancel={() => setConfirmLogoutOpen(false)}
+      />
     </div>
   );
 }

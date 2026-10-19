@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Home, Sparkles, CalendarDays, User, Crown, ChevronDown, BookOpen, History, Users, LogOut, Heart } from 'lucide-react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -6,6 +6,7 @@ import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import ThemeToggle from '@/Components/ThemeToggle';
 import BottomNav from '@/Components/Customer/BottomNav';
 import FloatingConcierge from '@/Components/Customer/FloatingConcierge';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function apiFetch(url) {
@@ -44,6 +45,24 @@ function CustomerSidebar() {
     const isActive = (path) => {
         if (path === '/') return url === '/';
         return url.startsWith(path);
+    };
+
+    // Logout confirmation — self-contained, nothing else in this file opens
+    // a competing drawer/sheet to coordinate with.
+    const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const loggingOutRef = useRef(false);
+
+    const confirmLogout = () => {
+        if (loggingOutRef.current) return;
+        loggingOutRef.current = true;
+        setLoggingOut(true);
+        router.post(route('logout'), {}, {
+            onFinish: () => {
+                loggingOutRef.current = false;
+                setLoggingOut(false);
+            },
+        });
     };
 
     const user        = props.auth?.user;
@@ -286,7 +305,7 @@ function CustomerSidebar() {
                         <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Member</p>
                     </div>
                     <button
-                        onClick={() => router.post(route('logout'))}
+                        onClick={() => setConfirmLogoutOpen(true)}
                         className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                         style={{
                             background: 'rgba(239,68,68,0.08)',
@@ -301,6 +320,17 @@ function CustomerSidebar() {
                     </button>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={confirmLogoutOpen}
+                title="Log out?"
+                message="Are you sure you want to log out of your account?"
+                confirmLabel="Log Out"
+                cancelLabel="Cancel"
+                confirmLoading={loggingOut}
+                onConfirm={confirmLogout}
+                onCancel={() => setConfirmLogoutOpen(false)}
+            />
 
         </aside>
     );
