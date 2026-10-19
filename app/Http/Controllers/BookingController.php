@@ -97,11 +97,19 @@ class BookingController extends Controller
         $therapistId = $request->therapist_id;
         $customerId  = auth()->id();
 
-        // ── Day-off check ─────────────────────────────────────────────────────
+        $therapist = $therapistId ? Therapist::findOrFail($therapistId) : null;
+
+        // ── Day-off check (whole-day short-circuit) ─────────────────────────────
+        // This only catches the common case where the entire requested date
+        // is the day off, for the existing "day off" message/empty-grid UX.
+        // The per-slot loop below separately re-checks isDayOff() against
+        // each individual slot's own (possibly next-calendar-day) instant —
+        // the same check BookingController::store() enforces — so a shift
+        // that spans past midnight into an actual day-off date still has
+        // just its own late slots correctly excluded, not the whole window.
         $dayName = Carbon::parse($date, 'Asia/Dubai')->format('l');
 
-        if ($therapistId) {
-            $therapist = Therapist::findOrFail($therapistId);
+        if ($therapist) {
             if ($therapist->day_off === $dayName) {
                 return response()->json([
                     'day_off' => true,
@@ -124,16 +132,31 @@ class BookingController extends Controller
             }
         }
 
-        // ── Generate valid time slots ─────────────────────────────────────────
-        $shiftStart    = Carbon::parse($date . ' 16:00:00');
-        $shiftEnd      = Carbon::parse($date . ' 04:00:00')->addDay();
+        // ── Generate the candidate slot window ──────────────────────────────────
+        // Previously hardcoded 16:00-04:00 for every therapist. Now reads the
+        // selected therapist's own shift_start/shift_end/crosses_midnight —
+        // or, with no therapist selected, the union of every zone-serving
+        // therapist's shift window — via TherapistAvailabilityService, the
+        // exact same source BookingController::store() reads from. For every
+        // therapist actually configured with 16:00-04:00 (every real
+        // therapist today), this produces the identical window as before.
+        if ($therapist) {
+            [$shiftStart, $shiftEnd] = TherapistAvailabilityService::shiftWindowStartingOn($therapist, $date);
+        } else {
+            $envelope = TherapistAvailabilityService::zoneShiftEnvelope($zoneName, $date);
+
+            if ($envelope === null) {
+                return response()->json(['day_off' => false, 'slots' => []]);
+            }
+
+            [$shiftStart, $shiftEnd] = $envelope;
+        }
+
         $maxBuffer     = 30;
         $lastValidTime = $shiftEnd->copy()->subMinutes($variant->duration_minutes + $maxBuffer);
 
         // ── Pre-fetch ONCE before loop ────────────────────────────────────────
-        $travelMinutes = $therapistId
-            ? Therapist::findOrFail($therapistId)->getTravelTime($zoneName)
-            : 0;
+        $travelMinutes = $therapist ? $therapist->getTravelTime($zoneName) : 0;
 
         // Pre-fetch ALL customer active bookings ONCE (not inside loop)
         $customerBookings = $customerId
@@ -148,28 +171,37 @@ class BookingController extends Controller
         $current = $shiftStart->copy();
 
         while ($current->lessThanOrEqualTo($lastValidTime)) {
-            $slotDateTime = Carbon::parse($date . ' ' . $current->format('H:i:s'));
+            $slotDateTime = $current->copy();
 
-            if ($current->format('H') < 16) {
-                $slotDateTime->addDay();
-            }
-
-            if ($therapistId) {
-                $slotResult = TherapistAvailabilityService::getTherapistSlotStatus(
-                    $therapistId,
-                    $slotDateTime,
+            if ($therapist) {
+                $thisBlocks = Booking::computeTimeBlocks(
+                    $slotDateTime->toDateTimeString(),
                     $variant->duration_minutes,
-                    $zoneName
+                    $travelMinutes
                 );
+
+                // Same check order as BookingController::store()'s
+                // transaction: day-off, shift boundary, manual
+                // unavailability, then the active-booking conflict — so a
+                // slot is never shown available here that the backend POST
+                // would then reject with 409.
+                if (TherapistAvailabilityService::isDayOff($therapist, $slotDateTime)) {
+                    $slotResult = ['available' => false, 'reason' => 'day_off'];
+                } elseif (!TherapistAvailabilityService::isWithinShift($therapist, $slotDateTime, $thisBlocks['buffer_end'])) {
+                    $slotResult = ['available' => false, 'reason' => 'outside_shift'];
+                } elseif (TherapistAvailabilityService::hasUnavailableSlot($therapist, $slotDateTime, $thisBlocks['scheduled_end'])) {
+                    $slotResult = ['available' => false, 'reason' => 'unavailable_slot'];
+                } else {
+                    $slotResult = TherapistAvailabilityService::getTherapistSlotStatus(
+                        $therapistId,
+                        $slotDateTime,
+                        $variant->duration_minutes,
+                        $zoneName
+                    );
+                }
 
                 // ── FIX 3: Check customer conflict using pre-fetched bookings ──
                 if ($slotResult['available']) {
-                    $thisBlocks = Booking::computeTimeBlocks(
-                        $slotDateTime->toDateTimeString(),
-                        $variant->duration_minutes,
-                        $travelMinutes
-                    );
-
                     // Customer-side conflict: compare only the actual session
                     // window (scheduled_start/scheduled_end) — no therapist
                     // travel/rest buffer applies to the customer's own schedule.
@@ -186,8 +218,7 @@ class BookingController extends Controller
                 $isAvail    = TherapistAvailabilityService::hasAvailableTherapist(
                     $slotDateTime,
                     $variant->duration_minutes,
-                    $zoneName,
-                    $dayName
+                    $zoneName
                 );
                 $slotResult = ['available' => $isAvail, 'reason' => $isAvail ? null : 'booked'];
             }

@@ -112,28 +112,48 @@ class TherapistAvailabilityService
     }
 
     /**
-     * Is there at least one active, zone-serving therapist (not on day off)
-     * free at this slot? Used by the "any therapist" search path.
+     * Is there at least one active, zone-serving therapist free at this
+     * slot — not on day off, within their own shift, not manually blocked,
+     * and without a conflicting active booking? Used by the "any therapist"
+     * search path (BookingController::getAvailableSlots() with no
+     * therapist_id — not currently called by the Customer Booking Wizard,
+     * which always selects a therapist first, but kept correct since the
+     * endpoint is still public).
+     *
+     * Day-off is evaluated per candidate from $slotDatetime's own (possibly
+     * next-calendar-day) date via isDayOff() — not a single dayName computed
+     * once from the requested date — matching what BookingController::store()
+     * actually enforces at the overnight boundary.
      */
     public static function hasAvailableTherapist(
         Carbon $slotDatetime,
         int    $duration,
-        string $zoneName,
-        string $dayName
+        string $zoneName
     ): bool {
         $therapists = Therapist::with('zones')
             ->where('is_active', true)
-            ->where('day_off', '!=', $dayName)
             ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
             ->get();
 
         foreach ($therapists as $therapist) {
+            if (self::isDayOff($therapist, $slotDatetime)) {
+                continue;
+            }
+
             $travelMinutes = $therapist->getTravelTime($zoneName);
             $timeBlocks    = Booking::computeTimeBlocks(
                 $slotDatetime->toDateTimeString(),
                 $duration,
                 $travelMinutes
             );
+
+            if (!self::isWithinShift($therapist, $slotDatetime, $timeBlocks['buffer_end'])) {
+                continue;
+            }
+
+            if (self::hasUnavailableSlot($therapist, $slotDatetime, $timeBlocks['scheduled_end'])) {
+                continue;
+            }
 
             if (!self::hasConflict(
                 $therapist->id,
@@ -192,10 +212,23 @@ class TherapistAvailabilityService
     }
 
     /**
-     * Has the therapist manually blocked this time? Same rule as
-     * BookingRescheduleService::hasUnavailableSlot() — checked against the
+     * Has the therapist manually blocked this time? Checked against the
      * session window ($start through $scheduledEnd), not the travel/buffer
-     * window, matching that service's established interpretation.
+     * window — matching BookingRescheduleService's established
+     * interpretation for admin rescheduling (a separate, private
+     * implementation there, out of scope to touch here).
+     *
+     * Compares full datetimes, not raw time-of-day strings. Schedule.jsx's
+     * UnavailableModal always creates single-hour, same-date blocks via its
+     * own effHour/effDate rollover — except the 23:00 hour, whose end_time
+     * is submitted as "00:00" (via (effHour+1)%24) to mean "midnight at the
+     * end of this date," not an earlier time on the same date. A plain
+     * end_time > start_time string/time comparison breaks for exactly that
+     * record ('00:00:00' > '23:00:00' is false), so a session overlapping
+     * that hour was never detected as blocked — confirmed via Schedule.jsx's
+     * own code and comments, not a new convention. Treating an end_time
+     * that is <= its own start_time as rolling into the following date is
+     * the only reading consistent with how these rows are actually created.
      */
     public static function hasUnavailableSlot(Therapist $therapist, Carbon $start, Carbon $scheduledEnd): bool
     {
@@ -204,14 +237,83 @@ class TherapistAvailabilityService
         // therapists.id — must key off the therapist's user_id here.
         return TherapistUnavailableSlot::where('therapist_id', $therapist->user_id)
             ->where('date', $start->toDateString())
-            ->where(function ($q) use ($start, $scheduledEnd) {
-                $q->where('is_full_day', true)
-                    ->orWhere(function ($q2) use ($start, $scheduledEnd) {
-                        $q2->where('is_full_day', false)
-                            ->where('start_time', '<', $scheduledEnd->format('H:i:s'))
-                            ->where('end_time', '>', $start->format('H:i:s'));
-                    });
-            })
-            ->exists();
+            ->get(['date', 'start_time', 'end_time', 'is_full_day'])
+            ->contains(function ($slot) use ($start, $scheduledEnd) {
+                if ($slot->is_full_day) {
+                    return true;
+                }
+
+                $blockDate  = Carbon::parse($slot->date)->toDateString();
+                $blockStart = Carbon::parse($blockDate . ' ' . $slot->start_time);
+                $blockEnd   = Carbon::parse($blockDate . ' ' . $slot->end_time);
+
+                if ($blockEnd->lte($blockStart)) {
+                    $blockEnd->addDay();
+                }
+
+                return $blockStart->lt($scheduledEnd) && $blockEnd->gt($start);
+            });
+    }
+
+    /**
+     * The shift window that STARTS on $date (e.g. a 16:00->04:00 shift for
+     * Oct 8 runs Oct 8 16:00 through Oct 9 04:00). Same rule as
+     * BookingRescheduleService::shiftWindowStartingOn() — the natural
+     * reading for a date picker, used by getAvailableSlots() to generate
+     * the candidate slot list for a selected therapist's own shift instead
+     * of a hardcoded 16:00-04:00 window.
+     */
+    public static function shiftWindowStartingOn(Therapist $therapist, string $date): array
+    {
+        $shiftStartTime = Carbon::parse($therapist->shift_start)->format('H:i:s');
+        $shiftEndTime   = Carbon::parse($therapist->shift_end)->format('H:i:s');
+
+        $shiftStart = Carbon::parse($date . ' ' . $shiftStartTime);
+        $shiftEnd   = Carbon::parse($date . ' ' . $shiftEndTime);
+
+        if ($therapist->crosses_midnight) {
+            $shiftEnd->addDay();
+        }
+
+        return [$shiftStart, $shiftEnd];
+    }
+
+    /**
+     * The widest candidate window that could contain any active, zone-serving
+     * therapist's shift starting on $date — the union of every such
+     * therapist's own shiftWindowStartingOn(). Used by getAvailableSlots()
+     * when no therapist is selected, so a therapist configured with
+     * different hours than the rest is never excluded from slot generation
+     * just because their shift falls outside the common 16:00-04:00 window.
+     * Day-off is deliberately not applied here — it only affects which
+     * individual candidate slots end up eligible (checked separately per
+     * slot by hasAvailableTherapist()), not the shift-hours envelope itself.
+     * Returns null when no active therapist serves this zone at all.
+     */
+    public static function zoneShiftEnvelope(string $zoneName, string $date): ?array
+    {
+        $therapists = Therapist::where('is_active', true)
+            ->whereHas('zones', fn($q) => $q->where('zone_name', $zoneName))
+            ->get(['shift_start', 'shift_end', 'crosses_midnight']);
+
+        if ($therapists->isEmpty()) {
+            return null;
+        }
+
+        $envelopeStart = null;
+        $envelopeEnd   = null;
+
+        foreach ($therapists as $therapist) {
+            [$start, $end] = self::shiftWindowStartingOn($therapist, $date);
+
+            if ($envelopeStart === null || $start->lt($envelopeStart)) {
+                $envelopeStart = $start;
+            }
+            if ($envelopeEnd === null || $end->gt($envelopeEnd)) {
+                $envelopeEnd = $end;
+            }
+        }
+
+        return [$envelopeStart, $envelopeEnd];
     }
 }
