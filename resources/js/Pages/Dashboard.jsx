@@ -15,6 +15,7 @@ import ReviewModal from '@/Components/Customer/ReviewModal';
 import ThemeToggle from '@/Components/ThemeToggle';
 import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
 import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
+import BottomSheet from '@/Components/Customer/BottomSheet';
 import { useBookingStatus } from '@/hooks/useBookingStatus';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 
@@ -1359,7 +1360,10 @@ export default function Dashboard() {
                                     )}
                                 </button>
 
-                                {/* Notification Dropdown */}
+                                {/* Notification Dropdown — desktop only; mobile uses the
+                                    <BottomSheet> below instead (same showNotifications
+                                    state, same handlers, no duplicated fetch/read logic). */}
+                                <div className="hidden md:block">
                                 <AnimatePresence>
                                     {showNotifications && (
                                         <>
@@ -1423,6 +1427,7 @@ export default function Dashboard() {
                                         </>
                                     )}
                                 </AnimatePresence>
+                                </div>
                             </div>
 
                             {/* Logout moves into MobileMenuSheet below md — desktop
@@ -1457,6 +1462,65 @@ export default function Dashboard() {
                     avatarUrl={avatarUrl}
                     name={userProfile?.name}
                 />
+
+                {/* Notifications — mobile presentation (<768px) of the same
+                    showNotifications state the desktop dropdown above uses.
+                    Same notifications/unreadCount data and the same
+                    handleMarkAllRead/handleNotifClick handlers — no separate
+                    fetch, read-state, or navigation logic here. BottomSheet
+                    itself is already md:hidden internally, so this renders
+                    nothing at md+ regardless of `open`. */}
+                <BottomSheet
+                    open={showNotifications}
+                    onClose={() => setShowNotifications(false)}
+                    ariaLabel="Notifications"
+                    title={
+                        <div className="flex items-center justify-between gap-2 w-full">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="truncate">Notifications</span>
+                                {unreadCount > 0 && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0"
+                                        style={{ background: 'rgba(226,183,100,0.15)', color: '#e2b764' }}>
+                                        {unreadCount}
+                                    </span>
+                                )}
+                            </div>
+                            {unreadCount > 0 && (
+                                <button onClick={handleMarkAllRead} className="text-sm font-bold flex-shrink-0" style={{ color: '#e2b764' }}>
+                                    Mark all read
+                                </button>
+                            )}
+                        </div>
+                    }
+                >
+                    {notifications.length === 0 ? (
+                        <div className="py-10 text-center">
+                            <Bell size={24} className="mx-auto mb-2 opacity-20" style={{ color: 'var(--theme-text-head)' }} />
+                            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>No notifications yet</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-1 pb-2">
+                            {notifications.map(notif => (
+                                <button key={notif.id} onClick={() => handleNotifClick(notif)}
+                                    className="w-full flex items-start gap-3 px-2 py-3.5 text-left transition-colors border-b last:border-0 rounded-xl"
+                                    style={{ borderColor: 'var(--theme-border)', background: notif.read ? 'transparent' : 'rgba(226,183,100,0.04)' }}
+                                >
+                                    <NotifIcon icon={notif.icon} color={notif.color} />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start gap-1.5">
+                                            {!notif.read && (
+                                                <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#e2b764' }} />
+                                            )}
+                                            <p className="text-sm font-semibold mb-0.5 break-words" style={{ color: 'var(--theme-text-head)' }}>{notif.title}</p>
+                                        </div>
+                                        <p className="text-xs leading-relaxed break-words" style={{ color: 'var(--theme-text-2)' }}>{notif.message}</p>
+                                        <p className="text-[11px] mt-1" style={{ color: 'var(--theme-text-muted)' }}>{notif.created_at}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </BottomSheet>
 
                 <ConfirmDialog
                     open={confirmLogoutOpen}
