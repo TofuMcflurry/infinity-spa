@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from '@/Components/Customer/LanguageToggle';
 import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
 import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
+import ConfirmDialog from '@/Components/Customer/ConfirmDialog';
 
 // ── Zone config ───────────────────────────────────────────────────────────────
 const ZONE_OPTIONS = [
@@ -92,6 +93,7 @@ export default function Profile() {
     const [savingAddress,  setSavingAddress]  = useState(false);
     const [deletingId,     setDeletingId]     = useState(null);
     const [settingDefault, setSettingDefault] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null); // id pending delete confirmation
 
     // ── Notifications (local state for now) ───────────────────────────────────
     const [prefs, setPrefs] = useState({
@@ -234,18 +236,36 @@ export default function Profile() {
     }, [selectedZone, addrLabel, addrText, addresses.length, t]);
 
     // ── Delete address ────────────────────────────────────────────────────────
+    // Returns true/false so callers can tell success from failure synchronously
+    // off the resolved value — deliberately not via the `error` state, which is
+    // async/batched and not safe to inspect right after this await resolves.
     const handleDeleteAddress = useCallback(async (id) => {
         setDeletingId(id);
         try {
             await apiFetch(`/api/addresses/${id}`, { method: 'DELETE' });
             setAddresses(prev => prev.filter(a => a.id !== id));
             showSuccess(t.profile.addressRemoved || 'Address removed!');
+            return true;
         } catch (err) {
             setError(err.message);
+            return false;
         } finally {
             setDeletingId(null);
         }
     }, [t]);
+
+    // Trash buttons only ever open the confirmation dialog (see confirmDeleteId);
+    // this is the dialog's sole "Delete Address" action — it calls the existing
+    // handleDeleteAddress unchanged and only dismisses the dialog on a true
+    // (successful) result, leaving it open on failure so the user can retry
+    // without re-opening it — same precedent as handleAddAddress's closeModal().
+    const confirmAndDeleteAddress = useCallback(async () => {
+        if (!confirmDeleteId) return;
+        const succeeded = await handleDeleteAddress(confirmDeleteId);
+        if (succeeded) {
+            setConfirmDeleteId(null);
+        }
+    }, [confirmDeleteId, handleDeleteAddress]);
 
     // ── Set default address ───────────────────────────────────────────────────
     const handleSetDefault = useCallback(async (id) => {
@@ -337,6 +357,17 @@ export default function Profile() {
                 </header>
 
                 <MobileMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} avatarUrl={avatarUrl} />
+
+                <ConfirmDialog
+                    open={!!confirmDeleteId}
+                    title="Delete this address?"
+                    message="Are you sure you want to delete this saved address? This action cannot be undone."
+                    confirmLabel="Delete Address"
+                    cancelLabel="Cancel"
+                    confirmLoading={deletingId !== null && deletingId === confirmDeleteId}
+                    onConfirm={confirmAndDeleteAddress}
+                    onCancel={() => setConfirmDeleteId(null)}
+                />
 
                 {/* ── Toast notifications ── */}
                 <AnimatePresence>
@@ -586,7 +617,7 @@ export default function Profile() {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => handleDeleteAddress(addr.id)}
+                                                onClick={() => setConfirmDeleteId(addr.id)}
                                                 disabled={deletingId === addr.id}
                                                 aria-label="Delete address"
                                                 className="w-10 h-10 rounded-xl border flex items-center justify-center text-destructive"
@@ -951,7 +982,7 @@ export default function Profile() {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={() => handleDeleteAddress(addr.id)}
+                                                        onClick={() => setConfirmDeleteId(addr.id)}
                                                         disabled={deletingId === addr.id}
                                                         className="p-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors"
                                                     >
