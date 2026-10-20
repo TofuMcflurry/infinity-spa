@@ -1238,14 +1238,41 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, 
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-5">
-                    {booking.cancellation_type === 'refunded' && booking.downpayment_status === 'refunded' && (
+                    {/* Batch #28 (final) — 'therapist' included alongside 'refunded':
+                        a therapist-caused refund is just as eligible on the backend
+                        (BookingCancellationService::cancelByTherapist()) but this
+                        condition previously only ever matched the customer-cancelled
+                        case, so it never showed here at all. refund_amount_verified
+                        (true only for a Stripe-confirmed numeric amount — see
+                        formatBooking()) decides whether "Mark Refund Sent" is offered
+                        at all: a legacy bank-transfer refund stays visible with its
+                        expected/collected breakdown and a verification warning, but
+                        the send action itself is backend-enforced, not just hidden
+                        here (see markRefundSent()'s own hasVerifiedAmount() check). */}
+                    {(booking.cancellation_type === 'refunded' || booking.cancellation_type === 'therapist') && booking.downpayment_status === 'refunded' && (
                         <div className="mb-5 p-4 rounded-xl"
                             style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.25)' }}>
-                            <div className="flex items-center gap-2 mb-3">
+                            <div className="flex items-center gap-2 mb-2">
                                 <RotateCcw size={14} style={{ color: '#3b82f6' }} />
-                                <p className="text-sm font-semibold" style={{ color: '#3b82f6' }}>Refund eligible — AED {Number(booking.downpayment_amount).toFixed(2)}</p>
+                                <p className="text-sm font-semibold" style={{ color: '#3b82f6' }}>Refund eligible</p>
                             </div>
-                            {!showRefund ? (
+                            <div className="space-y-1 mb-3">
+                                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Expected downpayment: <span className="font-semibold" style={{ color: 'var(--theme-text-head)' }}>AED {Number(booking.downpayment_amount).toFixed(2)}</span>
+                                </p>
+                                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+                                    Actual collected amount: {booking.refund_amount_verified
+                                        ? <span className="font-semibold" style={{ color: '#10b981' }}>AED {Number(booking.paid_amount).toFixed(2)}</span>
+                                        : <span className="font-semibold" style={{ color: '#f59e0b' }}>Not independently recorded</span>}
+                                </p>
+                            </div>
+                            {!booking.refund_amount_verified ? (
+                                <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium"
+                                    style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+                                    <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+                                    <span>Manual payment verification required — this was a historical bank-transfer payment with no independently confirmed amount. It cannot be marked sent until the real amount is established.</span>
+                                </div>
+                            ) : !showRefund ? (
                                 <button onClick={() => setShowRefund(true)}
                                     className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
                                     style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6' }}>
@@ -1929,7 +1956,19 @@ function GenericTableView({ bookings, loading, onView, viewKey, search, onClearS
                                 <>
                                     <td className="px-4 py-3"><p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name}</p><p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.customer_email}</p></td>
                                     <td className="px-4 py-3 text-sm" style={{ color: 'var(--theme-text-head)' }}>{b.service_name}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap"><span className="text-sm font-bold" style={{ color: '#10b981' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span></td>
+                                    {/* Batch #28 (final): a legacy bank-transfer refund (refund_amount_verified
+                                        === false) shows the expected figure in amber with an inline warning
+                                        instead of the green Stripe-confirmed amount — the two must never look
+                                        interchangeable here, since only the latter is an independently proven
+                                        collected amount. */}
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <span className="text-sm font-bold" style={{ color: b.refund_amount_verified ? '#10b981' : '#f59e0b' }}>AED {Number(b.downpayment_amount).toFixed(2)}</span>
+                                        {!b.refund_amount_verified && (
+                                            <span className="flex items-center gap-1 mt-0.5 text-[10px] font-semibold" style={{ color: '#f59e0b' }}>
+                                                <AlertTriangle size={10} /> Verify manually
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3 max-w-[160px]"><p className="text-xs truncate" style={{ color: 'var(--theme-text-muted)' }}>{b.cancellation_reason ?? '—'}</p></td>
                                     <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--theme-text-muted)' }}>{b.cancelled_at}</td>
                                 </>
@@ -1937,7 +1976,13 @@ function GenericTableView({ bookings, loading, onView, viewKey, search, onClearS
                                 <>
                                     <td className="px-4 py-3"><p className="text-sm font-semibold" style={{ color: 'var(--theme-text-head)' }}>{b.customer_name}</p><p className="text-xs mt-0.5" style={{ color: 'var(--theme-text-muted)' }}>{b.service_name}</p></td>
                                     <td className="px-4 py-3 text-sm" style={{ color: 'var(--theme-text-muted)' }}>{b.therapist_name}</td>
-                                    <td className="px-4 py-3"><span className="text-xs font-semibold" style={{ color: b.cancellation_type === 'refunded' ? '#10b981' : '#f87171' }}>{b.cancellation_type === 'refunded' ? '✅ Refund' : '❌ Forfeited'}</span></td>
+                                    {/* Batch #28.1: cancellation_type is null for a customer cancelling an
+                                        unpaid booking (nothing was ever collected) — must not fall into the
+                                        "else" branch and display as Forfeited, which would falsely claim a
+                                        financial outcome that never happened. Every other existing value
+                                        (forfeited/no_show/expired/therapist) keeps its prior "❌ Forfeited"
+                                        display unchanged. */}
+                                    <td className="px-4 py-3"><span className="text-xs font-semibold" style={{ color: b.cancellation_type === 'refunded' ? '#10b981' : (b.cancellation_type === null ? '#94a3b8' : '#f87171') }}>{b.cancellation_type === 'refunded' ? '✅ Refund' : (b.cancellation_type === null ? '— No Payment' : '❌ Forfeited')}</span></td>
                                     <td className="px-4 py-3"><Badge cfg={DP_STYLES[b.downpayment_status]} /></td>
                                     <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--theme-text-muted)' }}>{b.cancelled_at}</td>
                                 </>

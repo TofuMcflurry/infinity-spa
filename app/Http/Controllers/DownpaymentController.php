@@ -57,13 +57,24 @@ class DownpaymentController extends Controller
             ]);
         }
 
+        // Batch #28.1: cancellation_type is null when
+        // BookingCancellationService::cancel() found no confirmed
+        // collection at all (nothing paid, nothing to refund or forfeit) —
+        // the previous two-way ternary here would have told the customer
+        // their downpayment was "forfeited" even though nothing was ever
+        // collected, since a plain unpaid cancel's cancellation_type used
+        // to always come back 'refunded' and never anything else.
+        $downpaymentMessage = match ($result['cancellation_type']) {
+            'refunded'  => 'Your downpayment will be refunded within 3-5 business days.',
+            'forfeited' => 'Your downpayment has been forfeited as per our cancellation policy.',
+            default     => 'No payment was collected for this booking, so there is nothing to refund or forfeit.',
+        };
+
         return response()->json([
             'message'           => 'Booking cancelled.',
             'cancellation_type' => $result['cancellation_type'],
             'hours_until'       => $result['hours_until'],
-            'downpayment'       => $result['cancellation_type'] === 'refunded'
-                ? 'Your downpayment will be refunded within 3-5 business days.'
-                : 'Your downpayment has been forfeited as per our cancellation policy.',
+            'downpayment'       => $downpaymentMessage,
         ]);
     }
 }

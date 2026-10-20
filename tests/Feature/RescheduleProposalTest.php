@@ -447,7 +447,14 @@ class RescheduleProposalTest extends TestCase
         // Scheduled far enough out that the existing >24h rule refunds.
         // Fixed, in-shift time (not now()->addDays(), which drifts outside
         // the 16:00-04:00 shift depending on what time of day the suite runs).
-        $booking  = $this->makeBooking(['scheduled_start' => '2026-12-16 20:00:00', 'downpayment_status' => 'verified']);
+        // Batch #28.1: hasConfirmedCollection() requires real payment
+        // evidence (paid_amount), not just downpayment_status!=='pending' —
+        // 'verified' alone (without downpayment_verified_at, which the old
+        // legacy bank-transfer flow always set alongside it) is no longer
+        // sufficient, since this test fixture never went through that real
+        // flow. This test is about the >24h refund policy for a paid
+        // booking, so it needs genuine Stripe-style evidence instead.
+        $booking  = $this->makeBooking(['scheduled_start' => '2026-12-16 20:00:00', 'payment_status' => 'paid', 'paid_amount' => 300]);
         $booking->update(Booking::computeTimeBlocks($booking->scheduled_start->toDateTimeString(), 60, 30));
         $proposal = \App\Services\RescheduleProposalService::create($booking, $this->admin, Carbon::parse('2026-12-17 20:00:00'));
 

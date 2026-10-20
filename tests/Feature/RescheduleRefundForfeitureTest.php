@@ -118,6 +118,14 @@ class RescheduleRefundForfeitureTest extends TestCase
             'payment_type'       => 'full',
             'status'             => 'accepted',
             'payment_status'     => 'paid',
+            // Batch #28.1: hasConfirmedCollection() requires a real
+            // paid_amount, not just payment_status/downpayment_status —
+            // this suite is explicitly about paid-booking forfeiture
+            // policy, so its fixture must carry real collection evidence
+            // under the corrected rule (previously relied on
+            // downpayment_status='submitted' merely not being 'pending',
+            // which no longer implies anything was collected).
+            'paid_amount'        => 300,
             'downpayment_status' => 'submitted',
             'scheduled_start'    => $start,
             'scheduled_end'      => $blocks['scheduled_end'],

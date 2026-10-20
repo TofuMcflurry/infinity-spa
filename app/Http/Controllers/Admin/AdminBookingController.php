@@ -43,19 +43,51 @@ class AdminBookingController extends Controller
         return response()->json($bookings);
     }
 
+    // cancellation_type IN ('refunded','therapist') — customer-initiated
+    // refunds (type='refunded') and therapist-caused refunds (type=
+    // 'therapist', money refund-due per BookingCancellationService::
+    // cancelByTherapist()) are the only two cancellation shapes that can
+    // ever carry downpayment_status='refunded'. 'therapist' intentionally
+    // never gets rewritten to 'refunded' here — cancellation_type stays the
+    // truthful record of WHO/WHY cancelled; downpayment_status alone is
+    // this queue's "is money owed" signal, exactly as it already was for
+    // the customer-initiated case.
+    //
+    // Batch #28.1 — defense in depth: cancellation_type/downpayment_status
+    // alone are no longer trusted as proof money is actually owed (a stale
+    // dev-data record, or any future code path, could set 'refunded'
+    // without BookingCancellationService ever having verified real
+    // collection). Every row is independently re-checked against
+    // BookingCancellationService::hasConfirmedCollection() — the same
+    // Stripe-or-legacy-verified evidence check the cancellation paths
+    // themselves use — before it's allowed to surface here at all.
     public function pendingRefunds()
     {
         $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->where('status', 'cancelled')
-            ->where('cancellation_type', 'refunded')
+            ->whereIn('cancellation_type', ['refunded', 'therapist'])
             ->where('downpayment_status', 'refunded')
             ->orderByDesc('cancelled_at')
             ->get()
+            ->filter(fn ($b) => BookingCancellationService::hasConfirmedCollection($b))
+            ->values()
             ->map(fn($b) => $this->formatBooking($b));
 
         return response()->json($bookings);
     }
 
+    // Row-locked + re-checked inside the transaction so two concurrent
+    // mark-sent requests (a double-click, or a retried submit) for the same
+    // booking can't both pass the eligibility check before either commits —
+    // the second blocks on the lock, then sees downpayment_status already
+    // 'refund_sent' and aborts, never overwriting the first request's
+    // refund_reference/refund_sent_at.
+    //
+    // Batch #28.1: the hasConfirmedCollection() re-check below is the same
+    // defense-in-depth the queue above applies — never process a payout
+    // solely because cancellation_type/downpayment_status claims
+    // 'refunded'. Run inside the existing lock so it sees the same
+    // consistent row the status/type check above does.
     public function markRefundSent(Request $request)
     {
         $request->validate([
@@ -63,27 +95,53 @@ class AdminBookingController extends Controller
             'bank_reference' => 'required|string|max:100',
         ]);
 
-        $booking = Booking::with(['customer', 'service'])
-            ->findOrFail($request->booking_id);
+        $booking = DB::transaction(function () use ($request) {
+            $locked = Booking::where('id', $request->booking_id)->lockForUpdate()->firstOrFail();
 
-        abort_if(
-            $booking->cancellation_type !== 'refunded' || $booking->downpayment_status !== 'refunded',
-            422,
-            'This booking is not eligible for refund processing.'
-        );
+            abort_if(
+                !in_array($locked->cancellation_type, ['refunded', 'therapist']) || $locked->downpayment_status !== 'refunded',
+                422,
+                'This booking is not eligible for refund processing.'
+            );
 
-        $booking->update([
-            'downpayment_status' => 'refund_sent',
-            'refund_reference'   => $request->bank_reference,
-            'refund_sent_at'     => now(),
-        ]);
+            abort_if(
+                !BookingCancellationService::hasConfirmedCollection($locked),
+                422,
+                'This booking has no confirmed payment on record — refund cannot be processed.'
+            );
 
-        // ── Audit ──────────────────────────────────────────────────────────────
-        RefundSent::dispatch(
-            $booking->id,
-            $request->bank_reference,
-            $request,
-        );
+            // Batch #28 (final) — a distinct, stricter gate from the check
+            // above: this booking IS refund-eligible (an admin genuinely
+            // confirmed a legacy bank-transfer payment happened), but
+            // there is no independently proven NUMERIC amount to send —
+            // only the originally-requested downpayment_amount, never
+            // confirmed against what was actually received. Enforced here
+            // in the backend (not just a disabled frontend button) so this
+            // can never be bypassed via a direct API call. Stays visible
+            // in pendingRefunds() for admin review; only this action is
+            // blocked, until a safe, auditable way to establish the real
+            // amount exists.
+            abort_if(
+                !BookingCancellationService::hasVerifiedAmount($locked),
+                422,
+                'Manual payment verification required — this booking\'s exact collected amount is not independently recorded (legacy bank-transfer verification only confirms that a payment happened, not how much). It cannot be marked sent until the real amount is established.'
+            );
+
+            $locked->update([
+                'downpayment_status' => 'refund_sent',
+                'refund_reference'   => $request->bank_reference,
+                'refund_sent_at'     => now(),
+            ]);
+
+            // ── Audit ────────────────────────────────────────────────────────
+            RefundSent::dispatch(
+                $locked->id,
+                $request->bank_reference,
+                $request,
+            );
+
+            return $locked;
+        });
 
         return response()->json([
             'message' => 'Refund marked as sent.',
@@ -543,11 +601,21 @@ class AdminBookingController extends Controller
         ]);
     }
 
+    // Batch #28.1 follow-up: the whereNotNull('cancellation_type') filter
+    // this used to carry was dropped — BookingCancellationService::cancel()
+    // now leaves cancellation_type null for a customer cancelling an
+    // unpaid booking (no existing enum value truthfully describes "no
+    // money was ever involved" — see that method's own docblock), and
+    // excluding those rows here would silently erase an otherwise-accurate
+    // cancellation record from this history view. Confirmed every OTHER
+    // status='cancelled' code path (admin stale-resolution with a
+    // $forcedType, therapist cancellation, Stripe/booking expiry) still
+    // always sets cancellation_type, so this can never pull in anything
+    // else by relaxing the filter.
     public function cancelledHistory()
     {
         $bookings = Booking::with(['service', 'serviceVariant', 'therapist.user', 'customer', 'resolvedBy'])
             ->where('status', 'cancelled')
-            ->whereNotNull('cancellation_type')
             ->orderByDesc('cancelled_at')
             ->get()
             ->map(fn($b) => $this->formatBooking($b));
@@ -562,9 +630,15 @@ class AdminBookingController extends Controller
         return response()->json([
             'total_bookings'       => Booking::count(),
             'pending_verification' => Booking::where('downpayment_status', 'submitted')->count(),
+            // Batch #28.1: must agree with pendingRefunds()'s own
+            // eligibility check exactly, including the hasConfirmedCollection()
+            // re-verification — counted in PHP rather than SQL so the two
+            // can never silently drift apart.
             'pending_refunds'      => Booking::where('status', 'cancelled')
-                                             ->where('cancellation_type', 'refunded')
+                                             ->whereIn('cancellation_type', ['refunded', 'therapist'])
                                              ->where('downpayment_status', 'refunded')
+                                             ->get()
+                                             ->filter(fn ($b) => BookingCancellationService::hasConfirmedCollection($b))
                                              ->count(),
             'active_today'         => Booking::whereIn('status', ['accepted', 'en_route', 'arrived'])
                                              ->whereDate('scheduled_start', $today)
@@ -615,6 +689,14 @@ class AdminBookingController extends Controller
             'downpayment_amount'       => $b->downpayment_amount,
             'remaining_amount'         => $b->remaining_amount,
             'downpayment_status'       => $b->downpayment_status,
+            // Batch #28 (final) — true only for a Stripe-confirmed numeric
+            // amount (BookingCancellationService::hasVerifiedAmount()).
+            // Drives the Admin UI's distinction between "Mark Refund Sent"
+            // being available (verified) and a "manual verification
+            // required" warning with no send action (legacy bank-transfer,
+            // confirmed-but-unquantified) — the backend's own
+            // markRefundSent() enforces the same gate independently.
+            'refund_amount_verified'   => BookingCancellationService::hasVerifiedAmount($b),
             'payment_type'             => $b->payment_type,
             'payment_status'           => $b->payment_status,
             'is_voucher_covered'       => $b->is_voucher_covered,

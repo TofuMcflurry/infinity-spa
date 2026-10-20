@@ -25,6 +25,16 @@ class BookingNotification extends Notification
         // own scheduled_start stays unchanged throughout a pending proposal,
         // see RescheduleProposalService). Null for every other type.
         public ?Carbon $candidateScheduledStart = null,
+        // Only used by the therapist-caused 'cancelled' type — the return
+        // value of BookingCancellationService::cancelByTherapist()
+        // (refund_due/refund_amount/voucher_restored). Null for every other
+        // type, and null is also the safe default for 'cancelled' itself
+        // (falls back to the original no-refund-mentioned wording) so an
+        // existing caller that never passes this keeps behaving exactly as
+        // before (batch #28: the previous wording never distinguished a
+        // refund-due cancellation from an unpaid one, which risked reading
+        // as a false promise that money was already returned).
+        public ?array $cancellationOutcome = null,
     ) {}
 
     // In-app-only types: the therapist's "new request" alert and the
@@ -75,9 +85,16 @@ class BookingNotification extends Notification
             // passes type 'cancelled') — distinct from the customer's own
             // 'customer_cancelled', but was previously missing from this map
             // entirely and fell through to the generic "Booking Update" default.
+            //
+            // batch #28: the appended sentence must never claim money has
+            // already been returned — refund_due only ever means a refund
+            // has been decided as owed, to be sent manually by admin later
+            // (see AdminBookingController::markRefundSent()). No outcome
+            // passed (null) keeps the original, outcome-silent wording.
             'cancelled'             => [
                 'title'   => 'Booking Cancelled',
-                'message' => "Your {$serviceName} booking for {$sessionLabel} has been cancelled.",
+                'message' => "Your {$serviceName} booking for {$sessionLabel} has been cancelled."
+                    . $this->cancellationRefundSuffix(),
                 'icon'    => 'x-circle',
                 'color'   => 'red',
             ],
@@ -200,6 +217,31 @@ class BookingNotification extends Notification
         ];
     }
 
+    // Appended to the therapist-cancellation 'cancelled' message (database
+    // channel only — toMail() below handles its own line for the same
+    // data). Deliberately worded as "will be processed" / "is being
+    // processed", never "has been refunded" — markRefundSent() is a manual
+    // admin step that may not have happened yet.
+    private function cancellationRefundSuffix(): string
+    {
+        if ($this->cancellationOutcome === null) {
+            return '';
+        }
+
+        if (!empty($this->cancellationOutcome['refund_due'])) {
+            $amount = $this->cancellationOutcome['refund_amount'];
+            return $amount !== null
+                ? " A refund of AED {$amount} is being processed and will be sent to you."
+                : ' A refund is being processed and will be sent to you.';
+        }
+
+        if (!empty($this->cancellationOutcome['voucher_restored'])) {
+            return ' Your voucher has been restored for use on a future booking.';
+        }
+
+        return '';
+    }
+
     // A short, customer-facing-safe display name for the therapist's
     // notification — "Maria S." rather than the full legal name.
     private function shortCustomerDisplayName(): string
@@ -270,10 +312,24 @@ class BookingNotification extends Notification
                 ->line('Please book again with another available therapist.')
                 ->action('Book Again', url('/book-session')),
 
-            'cancelled' => $mail
-                ->line('Unfortunately, your booking has been **cancelled** by your therapist.')
-                ->line('Please book again with another available therapist.')
-                ->action('Book Again', url('/book-session')),
+            'cancelled' => (function () use ($mail) {
+                $mail->line('Unfortunately, your booking has been **cancelled** by your therapist.');
+
+                // See cancellationRefundSuffix()'s docblock — same
+                // "being processed", never "already refunded", wording.
+                if (!empty($this->cancellationOutcome['refund_due'])) {
+                    $amount = $this->cancellationOutcome['refund_amount'];
+                    $mail->line($amount !== null
+                        ? "A refund of **AED {$amount}** is being processed and will be sent to you."
+                        : 'A refund is being processed and will be sent to you.');
+                } elseif (!empty($this->cancellationOutcome['voucher_restored'])) {
+                    $mail->line('Your voucher has been **restored** for use on a future booking.');
+                }
+
+                return $mail
+                    ->line('Please book again with another available therapist.')
+                    ->action('Book Again', url('/book-session'));
+            })(),
 
             'en_route' => $mail
                 ->line("🚗 {$therapistName} is **on the way** to your location!")

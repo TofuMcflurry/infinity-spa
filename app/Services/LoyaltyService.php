@@ -221,13 +221,21 @@ class LoyaltyService
     }
 
     /**
-     * Restore a voucher back to 'unused' after its booking was cancelled
-     * within the cancellation grace period. Keeps the same code and
-     * original expires_at (does not extend it), and does NOT touch the
-     * loyalty reward cycle that was already started when the voucher was
-     * originally used — only the voucher record itself is restored.
+     * Restore a voucher back to 'unused' after its booking was cancelled.
+     * Keeps the same code and original expires_at (does not extend it), and
+     * does NOT touch the loyalty reward cycle that was already started when
+     * the voucher was originally used — only the voucher record itself is
+     * restored. Naturally idempotent: once restored, used_in_booking_id no
+     * longer matches this booking, so a second call for the same booking
+     * finds nothing and returns success=false.
+     *
+     * $cause distinguishes who/what caused the cancellation purely for the
+     * customer-facing notification wording below — 'customer' (default)
+     * keeps the original "you cancelled more than 24 hours before" message;
+     * 'therapist' explains the restoration was because the therapist
+     * cancelled, not a grace-period calculation.
      */
-    public static function restoreVoucher(int $bookingId, int $customerId): array
+    public static function restoreVoucher(int $bookingId, int $customerId, string $cause = 'customer'): array
     {
         $voucher = LoyaltyVoucher::where('customer_id', $customerId)
             ->where('used_in_booking_id', $bookingId)
@@ -244,10 +252,14 @@ class LoyaltyService
             'used_in_booking_id' => null,
         ]);
 
+        $message = $cause === 'therapist'
+            ? "Your voucher {$voucher->code} has been restored because your therapist cancelled this booking. You can use it on a future booking."
+            : "Your voucher {$voucher->code} has been restored since you cancelled more than 24 hours before your session. You can use it on a future booking.";
+
         $user = User::find($customerId);
         $user?->notify(new InAppNotification(
             title:   '🎫 Voucher Restored',
-            message: "Your voucher {$voucher->code} has been restored since you cancelled more than 24 hours before your session. You can use it on a future booking.",
+            message: $message,
         ));
 
         return [

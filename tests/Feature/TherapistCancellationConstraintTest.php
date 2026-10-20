@@ -78,6 +78,12 @@ class TherapistCancellationConstraintTest extends TestCase
             'payment_type'       => 'full',
             'status'             => 'accepted',
             'payment_status'     => 'paid',
+            // Batch #28.1: hasConfirmedCollection() requires a real
+            // paid_amount — without it, "existing customer/admin
+            // cancellation flow still works" below would exercise the
+            // (correct, post-fix) UNPAID branch instead of the paid
+            // refund/forfeit branch these tests are actually about.
+            'paid_amount'        => 300,
             'downpayment_status' => 'pending',
             'scheduled_start'    => now()->addDays(3),
             'scheduled_end'      => now()->addDays(3)->addHour(),

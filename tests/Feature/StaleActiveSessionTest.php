@@ -288,7 +288,22 @@ class StaleActiveSessionTest extends TestCase
 
     public function test_admin_can_mark_a_stale_booking_as_no_show_using_existing_forfeiture_rules(): void
     {
-        $booking = $this->flaggedArrivedBooking();
+        // Batch #28.1: hasConfirmedCollection() requires real evidence of
+        // collection before any monetary outcome (refunded OR forfeited)
+        // is recorded — this test is specifically about forfeiture policy
+        // for a booking that WAS paid, so it needs that evidence explicitly
+        // rather than relying on flaggedArrivedBooking()'s payment-agnostic
+        // defaults (which the sibling complete()/cancel() tests below
+        // intentionally don't care about).
+        $booking = $this->makeBooking([
+            'status'          => 'arrived',
+            'scheduled_start' => now()->subHours(4),
+            'scheduled_end'   => now()->subHours(3),
+            'flagged_at'      => now(),
+            'flag_reason'     => 'stale_arrived',
+            'payment_status'  => 'paid',
+            'paid_amount'     => 300,
+        ]);
 
         $response = $this->actingAs($this->admin)
             ->postJson("/admin/api/bookings/stale/{$booking->id}/no-show");
@@ -302,6 +317,26 @@ class StaleActiveSessionTest extends TestCase
         // is always well past its scheduled time, so this is always 'forfeited'.
         $this->assertSame('forfeited', $booking->downpayment_status);
         $this->assertNotNull($booking->resolved_at);
+    }
+
+    public function test_admin_marking_an_unpaid_stale_booking_as_no_show_does_not_invent_a_forfeiture(): void
+    {
+        // Batch #28.1 companion case: a stale booking with no confirmed
+        // payment at all must still be labeled 'no_show' (an operationally
+        // true fact, independent of money) but must NOT have
+        // downpayment_status forced to 'forfeited' — there was nothing to
+        // forfeit.
+        $booking = $this->flaggedArrivedBooking();
+
+        $response = $this->actingAs($this->admin)
+            ->postJson("/admin/api/bookings/stale/{$booking->id}/no-show");
+
+        $response->assertOk();
+        $booking->refresh();
+        $this->assertSame('cancelled', $booking->status);
+        $this->assertSame('no_show', $booking->cancellation_type);
+        $this->assertNotSame('forfeited', $booking->downpayment_status);
+        $this->assertNotSame('refunded', $booking->downpayment_status);
     }
 
     public function test_admin_cancel_requires_a_reason(): void

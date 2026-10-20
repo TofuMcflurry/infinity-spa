@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Notifications\BookingNotification;
 use App\Events\BookingStatusUpdated;
 use App\Console\Commands\FlagStaleActiveSessions;
+use App\Services\BookingCancellationService;
+use App\Events\Audit\BookingCancelled;
 use Illuminate\Support\Facades\DB;
 
 class TherapistBookingController extends Controller
@@ -137,34 +139,54 @@ class TherapistBookingController extends Controller
         return response()->json(['message' => 'Booking rejected.', 'booking' => $locked]);
     }
 
+    // Row-locks the booking and re-checks it's still cancellable inside the
+    // lock (mirrors accept()/reject()/start()'s pattern above) — a retried
+    // or double-submitted cancel can't run BookingCancellationService::
+    // cancelByTherapist() twice for the same booking, which is also what
+    // makes its refund-due marking and voucher restoration safe to run
+    // unconditionally (batch #28 fix — this previously hand-rolled the
+    // status update inline and never touched downpayment_status/vouchers
+    // at all, so a therapist-caused cancellation left the customer's money
+    // or voucher stranded with no way into the admin refund queue).
     public function cancel(Request $request, Booking $booking)
     {
         $this->authorizeTherapist($booking);
         $request->validate(['reason' => 'nullable|string|max:255']);
 
-        abort_if(
-            in_array($booking->status, ['completed', 'rejected', 'cancelled']),
-            422,
-            'This booking cannot be cancelled.'
-        );
+        $reason = $request->reason ?? 'Cancelled by therapist.';
 
-        $booking->update([
-            'status'            => 'cancelled',
-            'cancelled_at'      => now(),
-            'cancellation_type' => 'therapist',
-            'rejection_reason'  => $request->reason,
-        ]);
+        [$locked, $outcome] = DB::transaction(function () use ($booking, $reason, $request) {
+            $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
+
+            abort_if(
+                in_array($locked->status, ['completed', 'rejected', 'cancelled']),
+                422,
+                'This booking cannot be cancelled.'
+            );
+
+            $outcome = BookingCancellationService::cancelByTherapist($locked, $reason);
+
+            // rejection_reason is the pre-existing reason-storage field this
+            // action has always written (TherapistCancellationConstraintTest) —
+            // kept alongside the service's own cancellation_reason so nothing
+            // that already reads rejection_reason regresses.
+            $locked->update(['rejection_reason' => $reason]);
+
+            BookingCancelled::dispatch($locked->id, $locked->customer?->name ?? 'Unknown', $reason, $outcome, $request);
+
+            return [$locked, $outcome];
+        });
 
         // ✅ Load ONCE, outside the if — para may relations ang broadcast
-        $booking->load('customer', 'service', 'serviceVariant', 'therapist.user');
-        broadcast(new BookingStatusUpdated($booking));
+        $locked->load('customer', 'service', 'serviceVariant', 'therapist.user');
+        broadcast(new BookingStatusUpdated($locked));
 
         // ✅ Notify only if may customer
-        if ($booking->customer_id && $booking->customer) {
-            $booking->customer->notify(new BookingNotification($booking, 'cancelled'));
+        if ($locked->customer_id && $locked->customer) {
+            $locked->customer->notify(new BookingNotification($locked, 'cancelled', null, null, $outcome));
         }
 
-        return response()->json(['message' => 'Booking cancelled.', 'booking' => $booking]);
+        return response()->json(['message' => 'Booking cancelled.', 'booking' => $locked]);
     }
 
     // ── Start session: Upcoming → Active (en_route) ───────────────────────────
