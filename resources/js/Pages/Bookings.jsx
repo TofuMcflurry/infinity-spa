@@ -34,8 +34,26 @@ async function apiFetch(url) {
     return res.json();
 }
 
+// Batch #29 (final) — selectedDate is a pure CALENDAR-DAY label, not an
+// instant: react-day-picker's mode="single" onSelect constructs it as
+// `new Date(year, month, day)` in the browser's OWN local timezone,
+// specifically to represent "the grid cell the customer clicked," with no
+// Dubai semantics attached at all. Re-interpreting that Date object
+// through an explicit Asia/Dubai timeZone (the previous implementation)
+// treats it as if it were a precise instant that needs translating into
+// Dubai terms — which silently shifts the result backward by a full
+// calendar day for any device timezone AHEAD of Dubai (confirmed via
+// direct simulation: a Manila/UTC+8 device clicking "22" sent the API
+// date=2026-10-21, one day earlier than clicked; a Dubai or UTC device
+// was unaffected, since neither is ahead of Dubai). The correct fix reads
+// the Date object's own local Y/M/D fields directly — the exact numbers
+// react-day-picker used to construct it — with zero timezone math, so the
+// result can never depend on what timezone the device happens to be in.
 function toLocalDateString(date) {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(date);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 }
 
 export default function Bookings() {
@@ -258,17 +276,30 @@ export default function Bookings() {
                     setAvailableSlots([]);
                 } else {
                     const slots = data.slots ?? [];
+                    // "What day is it in Dubai RIGHT NOW" is genuinely an
+                    // instant-based question — new Date() (the actual
+                    // current instant) reinterpreted via an explicit
+                    // Asia/Dubai timeZone is correct here, unlike
+                    // selectedDate below, which is a calendar-day label,
+                    // not an instant (see toLocalDateString()'s own
+                    // docblock above for why it must never be run through
+                    // the same timeZone-reinterpretation pattern).
                     const todayDubai = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
-                    const selectedDateDubai = selectedDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+                    const selectedDateDubai = toLocalDateString(selectedDate);
                     const isToday = selectedDateDubai === todayDubai;
                     let filteredSlots = slots;
                     if (isToday) {
-                        const nowDubai = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
-                        const minTime = new Date(nowDubai.getTime() + 2 * 60 * 60 * 1000);
-                        filteredSlots = slots.filter(slot => {
-                            const slotDubai = new Date(new Date(slot.datetime).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
-                            return slotDubai >= minTime;
-                        });
+                        // Batch #29: slot.datetime now carries an explicit
+                        // +04:00 offset (BookingController::getAvailableSlots),
+                        // so new Date(slot.datetime) already resolves to the
+                        // correct absolute instant on every browser — no need
+                        // to round-trip through toLocaleString() to fake a
+                        // "Dubai-local" Date object (that trick silently
+                        // broke whenever the device's own timezone wasn't
+                        // Asia/Dubai, since both the construction AND the
+                        // reformatting step assumed device-local).
+                        const minTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+                        filteredSlots = slots.filter(slot => new Date(slot.datetime) >= minTime);
                     }
                     setAvailableSlots(filteredSlots);
                 }
@@ -398,9 +429,26 @@ export default function Bookings() {
         }
     }, [createdBookingId, selectedService, selectedTherapist, selectedAddress, selectedTime, selectedPayment, selectedPaymentType, appliedVoucher]);
 
-    const formattedDate = selectedDate
-        ? selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-        : null;
+    // Batch #29: once a slot is actually selected, selectedTime (the one
+    // authoritative value that's actually sent as the booking payload)
+    // wins — never selectedDate, which is merely the calendar DAY clicked
+    // and can legitimately be a different Dubai calendar date than the
+    // slot finally chosen (see toLocalDateString() above, which already
+    // converts selectedDate to ITS OWN Dubai-equivalent date for the slots
+    // API call; a late-night/crossover slot can land on the following
+    // Dubai date). Before a time is picked (Step 4's own header shows this
+    // while the slot grid is still being browsed), selectedTime is null,
+    // so this falls back to selectedDate — now also explicitly Dubai-
+    // zoned, where it previously had no timeZone at all (device-local).
+    // Previously formattedDate read selectedDate with no explicit
+    // timeZone while formattedTime forced Asia/Dubai — two different
+    // timezone bases for what's shown as one combined date+time, which is
+    // exactly what let the preview disagree with the real selection.
+    const formattedDate = selectedTime
+        ? new Date(selectedTime).toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : selectedDate
+            ? selectedDate.toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+            : null;
 
     const formattedTime = selectedTime
         ? new Date(selectedTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: 'numeric', minute: '2-digit', hour12: true })
@@ -432,7 +480,18 @@ export default function Bookings() {
             : [
                 `${selectedService.duration_minutes} ${t.minutes_suffix}`,
                 selectedTherapist?.name?.split(' ')[0] || null,
-                selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null,
+                // Batch #29: once a slot is actually chosen, selectedTime
+                // (the authoritative value) wins — a late-night/crossover
+                // slot can legitimately fall on the Dubai calendar day
+                // AFTER the one clicked on the calendar, so the summary
+                // must reflect what's really being booked. Before that,
+                // at step 3, fall back to selectedDate itself — still
+                // explicitly Dubai-zoned now (it previously had no
+                // timeZone at all, i.e. device-local), just not yet tied
+                // to a specific confirmed slot.
+                selectedTime
+                    ? new Date(selectedTime).toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: 'numeric', month: 'short' })
+                    : (selectedDate ? selectedDate.toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: 'numeric', month: 'short' }) : null),
                 formattedTime,
               ].filter(Boolean).join(' · ');
 

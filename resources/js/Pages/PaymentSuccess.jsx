@@ -16,23 +16,27 @@ async function apiFetch(url) {
     return res.json();
 }
 
-// ── Waiting / fallback card — shares the frame style used elsewhere in the booking flow ──
+// ── Waiting / fallback card — shares the frame style used elsewhere in the
+// booking flow (Batch #29: now .glass-card-strong + --theme-* tokens
+// instead of a hardcoded navy gradient, so it respects the customer's own
+// light/dark setting like SuccessScreen does — see that component's
+// docblock for the full reasoning). ──
 function StatusCard({ icon: Icon, iconColor, title, message, children }) {
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-3xl p-8 text-center mt-6"
-            style={{ background: 'linear-gradient(135deg, #0d1528 0%, #0a0f1e 100%)', border: '1px solid rgba(226,183,100,0.2)' }}
+            className="glass-card-strong relative overflow-hidden rounded-3xl p-8 text-center mt-6"
+            style={{ border: '1px solid rgba(226,183,100,0.25)' }}
         >
             <div className="relative z-10">
                 <div className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center"
                     style={{ background: `${iconColor}15` }}>
                     <Icon size={28} style={{ color: iconColor }} />
                 </div>
-                <h2 className="text-xl font-display font-semibold text-white mb-2">{title}</h2>
-                <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>{message}</p>
+                <h2 className="text-xl font-display font-semibold mb-2" style={{ color: 'var(--theme-text-head)' }}>{title}</h2>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--theme-text-muted)' }}>{message}</p>
                 {children}
             </div>
         </motion.div>
@@ -92,7 +96,13 @@ export default function PaymentSuccess() {
     return (
         <AuthenticatedLayout>
             <div className="min-h-screen bg-background">
-                <main className="px-6 pt-10 pb-10 max-w-2xl mx-auto">
+                {/* Batch #29: explicit safe-area-aware bottom clearance on
+                    top of CustomerLayout's own generic reservation — this
+                    page's content is short (a single centered card, unlike
+                    e.g. MyBookings' naturally long scroll), so on shorter
+                    iPhone viewports the card's last lines could otherwise
+                    sit right at the fixed BottomNav's covered zone. */}
+                <main className="px-6 pt-10 pb-[calc(2.5rem+76px+env(safe-area-inset-bottom))] max-w-2xl mx-auto">
 
                     {phase === 'loading' && (
                         <StatusCard
@@ -103,7 +113,7 @@ export default function PaymentSuccess() {
                         >
                             <div className="mt-5 flex items-center justify-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#e2b764' }} />
-                                <span className="text-xs" style={{ color: '#64748b' }}>Checking status…</span>
+                                <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Checking status…</span>
                             </div>
                         </StatusCard>
                     )}

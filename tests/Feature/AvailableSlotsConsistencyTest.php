@@ -156,7 +156,12 @@ class AvailableSlotsConsistencyTest extends TestCase
         $slots = $response->json('slots');
         $this->assertNotEmpty($slots);
         $this->assertSame('16:00', $slots[0]['time']);
-        $this->assertSame($date . ' 16:00:00', $slots[0]['datetime']);
+        // Batch #29: datetime is now toIso8601String() — explicit +04:00
+        // offset, unambiguous for every JS engine (was the bare
+        // "Y-m-d H:i:s" toDateTimeString(), whose parsing on the client is
+        // implementation-defined and was confirmed to misparse on at least
+        // one real customer's device not set to Asia/Dubai).
+        $this->assertSame($date . 'T16:00:00+04:00', $slots[0]['datetime']);
 
         $last = end($slots);
         // shiftEnd (04:00 next day) - duration(60) - buffer(30) = 02:30
@@ -438,6 +443,30 @@ class AvailableSlotsConsistencyTest extends TestCase
         $conflicted = $this->makeTherapist();
         $this->makeActiveBooking($conflicted, $date . ' 19:00:00');
         $this->assertGetAndPostAgree($conflicted, $date . ' 19:30:00');
+    }
+
+    // ── 11: the exact round-trip Bookings.jsx performs (Batch #29) ────────
+    // GET a slot's raw 'datetime' value, submit it UNMODIFIED as the
+    // booking payload (exactly what `datetime: selectedTime` in Bookings.jsx
+    // does), and confirm the stored scheduled_start is the same Dubai
+    // wall-clock moment the slot was advertised as — with no shift
+    // introduced by the offset-qualified format now returned.
+    public function test_a_slots_raw_datetime_value_round_trips_through_booking_creation_unchanged(): void
+    {
+        $therapist = $this->makeTherapist();
+        $date      = $this->nonDayOffDate();
+
+        $slots = $this->slotsByTime($this->getSlotsFor($therapist, $date));
+        $slot  = $slots['19:00'];
+
+        $this->assertSame($date . 'T19:00:00+04:00', $slot['datetime']);
+
+        $response = $this->actingAs($this->customer)
+            ->postJson('/api/bookings', $this->bookingPayload($therapist, $slot['datetime']));
+
+        $response->assertCreated();
+        $booking = Booking::where('customer_id', $this->customer->id)->latest('id')->first();
+        $this->assertSame($date . ' 19:00:00', $booking->scheduled_start->toDateTimeString());
     }
 
     private function assertGetAndPostAgree(Therapist $therapist, string $datetime): void

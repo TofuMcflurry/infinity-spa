@@ -225,7 +225,25 @@ class BookingController extends Controller
 
             $slots[] = [
                 'time'      => $slotDateTime->format('H:i'),
-                'datetime'  => $slotDateTime->toDateTimeString(),
+                // Batch #29: was toDateTimeString() — a bare "Y-m-d H:i:s"
+                // string with no offset/zone marker. That format is
+                // "implementation-defined" per the JS Date spec: some
+                // engines parse it as local time, others differ — on an
+                // iPhone not set to Asia/Dubai, re-parsing it client-side
+                // (new Date(slot.datetime)) silently shifted both the hour
+                // AND, combined with a separate bug in Bookings.jsx's
+                // date label, the displayed calendar day, while the raw
+                // string itself (sent back unmodified as the booking
+                // payload) was still interpreted correctly server-side by
+                // Carbon::parse()'s app.timezone fallback — so the booking
+                // that got created was always right; only the customer's
+                // own preview of their selection was wrong. toIso8601String()
+                // includes this server's own fixed +04:00 offset explicitly,
+                // which every JS engine is spec-required to parse
+                // identically — Carbon::parse() on the receiving end
+                // (BookingController::store()) already handles an
+                // offset-qualified ISO string correctly without any change.
+                'datetime'  => $slotDateTime->toIso8601String(),
                 'label'     => $slotDateTime->format('g:i A'),
                 'available' => $slotResult['available'],
                 'reason'    => $slotResult['reason'],
