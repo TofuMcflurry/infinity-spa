@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 // Audit Events
@@ -51,8 +52,10 @@ class AdminServiceController extends Controller
             'is_active'                   => 'boolean',
             'image'                       => 'nullable|image|max:4096',
             'variants'                    => 'required|array|min:1',
-            'variants.*.duration_minutes' => 'required|integer|min:1',
+            'variants.*.duration_minutes' => 'required|integer|min:1|distinct',
             'variants.*.price'            => 'required|numeric|min:0',
+        ], [
+            'variants.*.duration_minutes.distinct' => 'Duration options must be unique — remove the duplicate.',
         ]);
 
         if ($validator->fails()) {
@@ -85,6 +88,14 @@ class AdminServiceController extends Controller
             ServiceCreated::dispatch($service->id, $service->name, $request);
 
             return response()->json($this->transform($service->load('variants')), 201);
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            if (in_array($e->getCode(), ['23505', '23000'])) {
+                return response()->json([
+                    'errors' => ['variants' => ['Duration options for this service must be unique.']],
+                ], 422);
+            }
+            return response()->json(['message' => 'Unable to save service.'], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -104,21 +115,48 @@ class AdminServiceController extends Controller
             'image'                       => 'nullable|image|max:4096',
             'remove_image'                => 'nullable|boolean',
             'variants'                    => 'required|array|min:1',
-            'variants.*.id'               => 'nullable|integer',
-            'variants.*.duration_minutes' => 'required|integer|min:1',
+            'variants.*.id'               => [
+                'nullable',
+                'integer',
+                Rule::exists('service_variants', 'id')->where(fn($q) => $q->where('service_id', $service->id)),
+            ],
+            'variants.*.duration_minutes' => 'required|integer|min:1|distinct',
             'variants.*.price'            => 'required|numeric|min:0',
+            'variants.*.is_active'        => 'nullable|boolean',
+        ], [
+            'variants.*.id.exists'                 => 'One of the submitted duration options does not belong to this service.',
+            'variants.*.duration_minutes.distinct' => 'Duration options must be unique — remove the duplicate.',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $data          = $validator->validated();
+        $variantsInput = $data['variants'];
+        unset($data['variants'], $data['remove_image']);
+
+        // Variants still referenced by bookings must never be hard-deleted — omitting
+        // one from the payload retains it instead, so booking history stays intact.
+        // Admins disable a duration via its is_active toggle, not by removing it.
+        $existing    = $service->variants;
+        $incomingIds = collect($variantsInput)->pluck('id')->filter()->values()->all();
+        $toRemove    = $existing->whereNotIn('id', $incomingIds);
+        $retained    = $toRemove->filter(fn($variant) => $variant->bookings()->exists());
+        $toDelete    = $toRemove->reject(fn($variant) => $retained->contains('id', $variant->id));
+
+        if ($retained->isNotEmpty()) {
+            $submittedDurations = collect($variantsInput)->pluck('duration_minutes');
+            $collision = $retained->first(fn($variant) => $submittedDurations->contains($variant->duration_minutes));
+            if ($collision) {
+                return response()->json([
+                    'errors' => ['variants' => ["Duration {$collision->duration_minutes} min is already used by a duration option with booking history and can't be removed."]],
+                ], 422);
+            }
+        }
+
         DB::beginTransaction();
         try {
-            $data = $validator->validated();
-            $variantsInput = $data['variants'];
-            unset($data['variants'], $data['remove_image']);
-
             if ($request->hasFile('image')) {
                 if ($service->image) Storage::disk('public')->delete($service->image);
                 $data['image'] = $request->file('image')->store('services', 'public');
@@ -129,12 +167,13 @@ class AdminServiceController extends Controller
 
             $service->update($data);
 
-            $incomingIds = collect($variantsInput)->pluck('id')->filter()->all();
-            $service->variants()->whereNotIn('id', $incomingIds)->delete();
+            foreach ($toDelete as $variant) {
+                $variant->delete();
+            }
 
             foreach ($variantsInput as $v) {
                 if (!empty($v['id'])) {
-                    ServiceVariant::where('id', $v['id'])->update([
+                    $service->variants()->where('id', $v['id'])->update([
                         'duration_minutes' => $v['duration_minutes'],
                         'price'            => $v['price'],
                         'is_active'        => filter_var($v['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
@@ -155,6 +194,14 @@ class AdminServiceController extends Controller
             ServiceUpdated::dispatch($service->id, $service->name, [], $request);
 
             return response()->json($this->transform($service->load('variants')));
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            if (in_array($e->getCode(), ['23505', '23000'])) {
+                return response()->json([
+                    'errors' => ['variants' => ['Duration options for this service must be unique.']],
+                ], 422);
+            }
+            return response()->json(['message' => 'Unable to save service changes.'], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);

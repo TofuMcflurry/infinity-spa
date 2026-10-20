@@ -225,7 +225,7 @@ Route::middleware(['auth', 'admin'])
         Route::prefix('api/services')->name('api.services.')->group(function () {
             Route::get('/',                       [App\Http\Controllers\Admin\AdminServiceController::class, 'list'])->name('list');
             Route::post('/',                      [App\Http\Controllers\Admin\AdminServiceController::class, 'store'])->name('store');
-            Route::post('/{service}',             [App\Http\Controllers\Admin\AdminServiceController::class, 'update'])->name('update');
+            Route::match(['put', 'post'], '/{service}', [App\Http\Controllers\Admin\AdminServiceController::class, 'update'])->name('update');
             Route::post('/{service}/toggle',      [App\Http\Controllers\Admin\AdminServiceController::class, 'toggleActive'])->name('toggle');
             Route::post('/{service}/archive',     [App\Http\Controllers\Admin\AdminServiceController::class, 'archive'])->name('archive');
             Route::post('/{service}/restore',     [App\Http\Controllers\Admin\AdminServiceController::class, 'restore'])->name('restore');
