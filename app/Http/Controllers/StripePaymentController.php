@@ -28,10 +28,46 @@ class StripePaymentController extends Controller
             abort(403);
         }
 
+        // A booking that's already fully paid, or is no longer a live
+        // booking, must never be handed a fresh Stripe obligation — repeat
+        // calls to this endpoint are otherwise unguarded (see Batch #31A.1
+        // audit finding under "repeat checkout creation").
+        if ($booking->payment_status === 'paid') {
+            return response()->json(['message' => 'This booking has already been paid for.'], 422);
+        }
+
+        if (in_array($booking->status, ['cancelled', 'rejected', 'completed'], true)) {
+            return response()->json(['message' => 'This booking is no longer eligible for payment.'], 422);
+        }
+
         $paymentType = $request->payment_type;
-        $amount      = $paymentType === 'downpayment'
-            ? $booking->downpayment_amount
-            : $booking->serviceVariant->price;
+
+        // The request's payment_type must match what this booking was
+        // actually created with — downpayment_amount/remaining_amount were
+        // split according to the ORIGINAL choice at booking creation
+        // (BookingController::store()), so honoring a different value here
+        // would charge the wrong persisted amount for what was agreed.
+        if ($booking->payment_type !== null && $paymentType !== $booking->payment_type) {
+            return response()->json(['message' => 'Payment type does not match this booking\'s original payment plan.'], 422);
+        }
+
+        // The amount due via this checkout is always the booking's own
+        // persisted downpayment_amount — snapshotted once at creation and
+        // already set to the FULL price there when payment_type is 'full'
+        // (see BookingController::store()'s isFullPayment branch), so it is
+        // already correct for both branches. Never re-derive from the live
+        // serviceVariant price, which can drift after an Admin price edit.
+        $amount = $booking->downpayment_amount;
+
+        if ($amount === null) {
+            return response()->json([
+                'message' => 'This booking has no recorded payment amount and cannot be charged automatically. Please contact support.',
+            ], 422);
+        }
+
+        if ((float) $amount <= 0) {
+            return response()->json(['message' => 'There is nothing due for this booking.'], 422);
+        }
 
         $productName = "{$booking->service->group_name} ({$booking->serviceVariant->duration_minutes} min) - " . ucfirst($paymentType);
 

@@ -521,7 +521,16 @@ class BookingController extends Controller
                 'time_end'         => Carbon::parse($b->scheduled_end)->timezone('Asia/Dubai')->format('g:i A'),
                 'scheduled_start'  => $b->scheduled_start?->toIso8601String(),
                 'duration'         => $b->serviceVariant->duration_minutes ?? $b->service->duration_minutes,
-                'price'            => $b->serviceVariant->price ?? $b->service->price,
+                // The agreed total is whatever was persisted on this booking
+                // at creation (downpayment_amount + remaining_amount — 0/0 is
+                // the legitimate total for a voucher-covered booking) —
+                // never the live serviceVariant price, which drifts after an
+                // Admin price edit. A handful of legacy rows predate the
+                // downpayment fields and have neither populated; those report
+                // null rather than inventing a number.
+                'price'            => ($b->downpayment_amount !== null && $b->remaining_amount !== null)
+                    ? (float) $b->downpayment_amount + (float) $b->remaining_amount
+                    : null,
                 'location'         => $b->location,
                 'zone_name'        => $b->zone_name,
                 'payment_method'   => $b->payment_method,

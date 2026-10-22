@@ -617,7 +617,7 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                         <div className="flex justify-between items-center">
                             <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Total Amount</span>
                             <span className="text-sm font-display font-bold" style={{ color: 'var(--theme-link)' }}>
-                                AED {Number(booking.price).toLocaleString()}
+                                {booking.price == null ? 'Price unavailable' : `AED ${Number(booking.price).toLocaleString()}`}
                             </span>
                         </div>
 
@@ -1092,7 +1092,7 @@ function BookingCard({ booking, tab, onViewDetails, onCancel, onRequestReschedul
                         <div>
                             <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--theme-text-muted)' }}>Total</p>
                             <p className="text-lg font-display font-bold" style={{ color: 'var(--theme-link)' }}>
-                                AED {booking.price}
+                                {booking.price == null ? 'Price unavailable' : `AED ${booking.price}`}
                             </p>
                         </div>
                     )}

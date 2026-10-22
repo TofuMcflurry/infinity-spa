@@ -663,9 +663,17 @@ class AdminBookingController extends Controller
             'customer_phone'           => $b->customer?->phone,
             'therapist_name'           => $b->therapist?->user?->name,
             'service_name'             => $b->service?->name,
-            // service.price is a legacy pre-variant-refactor column, null on any
-            // variant-based booking — serviceVariant.price is the real source.
-            'service_price'            => $b->serviceVariant?->price ?? $b->service?->price,
+            // The agreed historical total — downpayment_amount + remaining_amount,
+            // persisted once at booking creation (0/0 is the legitimate total
+            // for a voucher-covered booking). Never serviceVariant/service
+            // price: both are live catalog values that drift after an Admin
+            // price edit, which would retroactively misrepresent what this
+            // booking actually agreed to. A handful of legacy rows predate
+            // the downpayment fields and have neither populated; those
+            // report null rather than inventing a number.
+            'service_price'            => ($b->downpayment_amount !== null && $b->remaining_amount !== null)
+                ? (float) $b->downpayment_amount + (float) $b->remaining_amount
+                : null,
             'status'                   => $b->status,
             'payment_method'           => $b->payment_method,
             'location'                 => $b->location,

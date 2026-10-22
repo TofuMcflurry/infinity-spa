@@ -1340,7 +1340,7 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, 
                         </button>
                     )}
                     <Section title="Payment">
-                        <Row icon={Banknote} label="Service Price" value={`AED ${Number(booking.service_price).toFixed(2)}`} accent="#e2b764" />
+                        <Row icon={Banknote} label="Service Price" value={booking.service_price == null ? 'Price unavailable' : `AED ${Number(booking.service_price).toFixed(2)}`} accent="#e2b764" />
                         {booking.is_voucher_covered ? (
                             <Row icon={Gift} label="Payment" value={`Redeemed via Voucher${booking.voucher_code ? ` (${booking.voucher_code})` : ''}`} accent="#10b981" />
                         ) : booking.payment_type === 'full' ? (
