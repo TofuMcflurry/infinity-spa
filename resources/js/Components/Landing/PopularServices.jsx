@@ -6,15 +6,23 @@ import gallery1 from "@/assets/gallery-1.jpg";
 import gallery2 from "@/assets/gallery-2.jpg";
 import gallery4 from "@/assets/gallery-4.jpg";
 
-// Real services have no uploaded images yet, so each is mapped to one of the
-// 4 existing landing-page photos by id (not name, since names can change).
-// Any future service id not listed here falls back to gallery1.
+// Transitional fallback only, while services.image remains unassigned in the
+// database: real services have no uploaded Admin photo yet, so each is mapped
+// to one of the 4 existing landing-page photos by id (not name, since names
+// can change). Once an Admin uploads a real photo for a service, the API's
+// image_url takes over for that id automatically (see resolveServiceImage
+// below) — this map is never read for an id that has one. Any future service
+// id not listed here falls back to FALLBACK_IMAGE.
 const SERVICE_IMAGES = {
     19: gallery1, // Couple Massage
     20: gallery2, // Full Body Scrub
     21: gallery4, // Swedish Massage
 };
 const FALLBACK_IMAGE = gallery1;
+
+// Admin-uploaded photo (image_url) wins when present; otherwise the
+// transitional per-id gallery mapping; otherwise the neutral fallback.
+const resolveServiceImage = (service) => service.image_url || SERVICE_IMAGES[service.id] || FALLBACK_IMAGE;
 
 // Guest (landing-page) bookings are always 60-minute sessions, so each card
 // shows only that variant's duration/price — never a range, never "from".
@@ -46,13 +54,21 @@ function SkeletonCard({ className }) {
 // bottom group) is identical so the two layouts can never drift apart again.
 function ServiceCard({ service: s, onSelectService, variant }) {
     const isCompact = variant === "compact";
+    // Local src state so a broken/unreachable storage URL (e.g. a stale
+    // Cloudflare-cached path) swaps to the neutral fallback instead of
+    // leaving an empty image box — resets whenever the underlying service
+    // (or its resolved image) changes.
+    const [imgSrc, setImgSrc] = useState(() => resolveServiceImage(s));
+    useEffect(() => { setImgSrc(resolveServiceImage(s)); }, [s.id, s.image_url]);
+
     return (
         <article
             className={`group flex h-full flex-col overflow-hidden border border-border/50 bg-card transition-smooth sm:hover:-translate-y-1 sm:hover:border-primary/50 sm:hover:shadow-luxe ${isCompact ? "rounded-[12px]" : "rounded-2xl"}`}
         >
             <div className={`relative overflow-hidden ${isCompact ? "h-[170px]" : "aspect-[4/3]"}`}>
                 <img
-                    src={SERVICE_IMAGES[s.id] || FALLBACK_IMAGE}
+                    src={imgSrc}
+                    onError={() => { if (imgSrc !== FALLBACK_IMAGE) setImgSrc(FALLBACK_IMAGE); }}
                     alt={s.name}
                     loading="lazy"
                     className="h-full w-full object-cover transition-smooth duration-700 group-hover:scale-110"

@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Service;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class GuestBookingController extends Controller
 {
@@ -31,6 +32,8 @@ class GuestBookingController extends Controller
                     'name'          => $service->name,
                     'description'   => $service->description,
                     'rating'        => $service->rating !== null ? (float) $service->rating : null,
+                    'image'         => $service->image,
+                    'image_url'     => $service->image ? Storage::disk('public')->url($service->image) : null,
                     'guest_variant' => $sixtyMinVariant ? [
                         'duration_minutes' => (int) $sixtyMinVariant->duration_minutes,
                         'price'             => (float) $sixtyMinVariant->price,
