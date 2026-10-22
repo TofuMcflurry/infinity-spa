@@ -92,6 +92,12 @@ class BookingApprovalFlowTest extends TestCase
             'payment_type'       => 'full',
             'status'             => 'pending_payment',
             'payment_status'     => 'pending',
+            // A real payment_type='full' booking always has downpayment_amount
+            // set to the full price at creation (BookingController::store())
+            // — Batch #31A.2B's webhook now verifies the incoming amount
+            // against this field before confirming payment.
+            'downpayment_amount' => 300,
+            'remaining_amount'   => 0,
             'scheduled_start'    => now()->addDay(),
             'scheduled_end'      => now()->addDay()->addHour(),
         ], $overrides));
@@ -128,6 +134,8 @@ class BookingApprovalFlowTest extends TestCase
                 'object' => [
                     'id'             => 'cs_test_123',
                     'amount_total'   => 30000,
+                    'currency'       => 'aed',
+                    'payment_status' => 'paid',
                     'payment_intent' => 'pi_test_123',
                     'metadata'       => [
                         'booking_id'   => (string) $booking->id,
@@ -160,6 +168,8 @@ class BookingApprovalFlowTest extends TestCase
                 'object' => [
                     'id'             => 'cs_test_456',
                     'amount_total'   => 30000,
+                    'currency'       => 'aed',
+                    'payment_status' => 'paid',
                     'payment_intent' => 'pi_test_456',
                     'metadata'       => [
                         'booking_id'   => (string) $booking->id,
@@ -193,6 +203,8 @@ class BookingApprovalFlowTest extends TestCase
                 'object' => [
                     'id'             => 'cs_test_789',
                     'amount_total'   => 30000,
+                    'currency'       => 'aed',
+                    'payment_status' => 'paid',
                     'payment_intent' => 'pi_test_789',
                     'metadata'       => [
                         'booking_id'   => (string) $booking->id,

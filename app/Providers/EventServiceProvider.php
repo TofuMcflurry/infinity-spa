@@ -16,6 +16,7 @@ use App\Events\Audit\RescheduleProposalExpired;
 use App\Events\Audit\RefundSent;
 use App\Events\Audit\BookingFlaggedStale;
 use App\Events\Audit\StaleBookingResolved;
+use App\Events\Audit\DuplicatePaymentDetected;
 use App\Events\Audit\ServiceCreated;
 use App\Events\Audit\ServiceUpdated;
 use App\Events\Audit\ServiceArchived;
@@ -53,6 +54,7 @@ class EventServiceProvider extends ServiceProvider
         RefundSent::class            => [AuditLogListener::class],
         BookingFlaggedStale::class   => [AuditLogListener::class],
         StaleBookingResolved::class  => [AuditLogListener::class],
+        DuplicatePaymentDetected::class => [AuditLogListener::class],
 
         // ── Service ───────────────────────────────────────────────────────────
         ServiceCreated::class        => [AuditLogListener::class],

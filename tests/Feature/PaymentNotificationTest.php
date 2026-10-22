@@ -102,6 +102,14 @@ class PaymentNotificationTest extends TestCase
             'payment_type'       => 'full',
             'status'             => 'pending_payment',
             'payment_status'     => 'pending',
+            // A real payment_type='full' booking always has downpayment_amount
+            // set to the full price at creation (BookingController::store())
+            // — Batch #31A.2B's webhook now verifies the incoming amount
+            // against this field before confirming payment, so a booking
+            // fixture without it no longer reflects how this booking shape
+            // actually arises in production.
+            'downpayment_amount' => 300,
+            'remaining_amount'   => 0,
             'scheduled_start'    => now()->addDay(),
             'scheduled_end'      => now()->addDay()->addHour(),
         ], $overrides));
@@ -132,6 +140,8 @@ class PaymentNotificationTest extends TestCase
                 'object' => [
                     'id'             => $booking->stripe_checkout_session_id,
                     'amount_total'   => 30000,
+                    'currency'       => 'aed',
+                    'payment_status' => 'paid',
                     'payment_intent' => 'pi_test_' . $booking->id,
                     'metadata'       => [
                         'booking_id'   => (string) $booking->id,

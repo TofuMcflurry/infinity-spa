@@ -44,6 +44,12 @@ return [
         'key'    => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // Batch #31A.2B — how long a checkout-session-creation reservation
+        // (bookings.checkout_reservation_token/expires_at) stays exclusive
+        // before it's treated as stale and recoverable. Bounds the worst-case
+        // customer wait after a crash/timeout mid-creation. Tune against
+        // observed Stripe Session::create() p95/p99 latency, not a guess.
+        'checkout_reservation_ttl' => env('STRIPE_CHECKOUT_RESERVATION_TTL', 60),
     ],
 
 ];
