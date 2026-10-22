@@ -40,6 +40,9 @@ class DownpaymentController extends Controller
 
             $result = \App\Services\BookingCancellationService::cancel($booking, $request->cancellation_reason);
 
+            // Keep free-text reasons out of audit metadata; persist atomically.
+            \App\Events\Audit\CustomerBookingCancelled::dispatch($booking->id, null, $request);
+
             return [$booking, $result];
         });
 

@@ -94,6 +94,9 @@ class TherapistBookingController extends Controller
 
             $locked->update(['status' => 'accepted']);
 
+            // Synchronous audit persistence shares the successful state transaction.
+            \App\Events\Audit\BookingAccepted::dispatch($locked->id, $locked->customer?->name ?? 'Guest', request());
+
             return $locked;
         });
 
@@ -128,6 +131,9 @@ class TherapistBookingController extends Controller
             );
 
             $locked->update(['status' => 'rejected', 'rejection_reason' => $request->reason]);
+
+            // Do not duplicate arbitrary free-text reasons in audit metadata.
+            \App\Events\Audit\BookingRejected::dispatch($locked->id, $locked->customer?->name ?? 'Guest', null, $request);
 
             return $locked;
         });
@@ -308,6 +314,8 @@ class TherapistBookingController extends Controller
             );
 
             \App\Services\BookingCompletionService::complete($locked);
+
+            \App\Events\Audit\BookingCompleted::dispatch($locked->id, $locked->customer?->name ?? 'Guest', request());
 
             return $locked;
         });

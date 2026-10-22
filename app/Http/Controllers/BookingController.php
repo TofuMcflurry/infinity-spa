@@ -401,7 +401,7 @@ class BookingController extends Controller
             // row already locked above.
             $this->assertVariantBookable(ServiceVariant::with('service')->findOrFail($variant->id));
 
-            return Booking::create([
+            $created = Booking::create([
                 'customer_id'        => auth()->id(),
                 'therapist_id'       => $request->therapist_id,
                 'service_id'         => $variant->service_id,
@@ -427,6 +427,13 @@ class BookingController extends Controller
                 'voucher_code'       => $request->voucher_code,
                 'is_voucher_covered' => $isVoucherCovered,
             ]);
+
+            // The synchronous audit row commits or rolls back with the booking.
+            \App\Events\Audit\CustomerBookingCreated::dispatch(
+                $created->id, $variant->service->name, $variant->duration_minutes, $request
+            );
+
+            return $created;
         });
 
         // Booking::create() above is a single, already-committed insert — the
