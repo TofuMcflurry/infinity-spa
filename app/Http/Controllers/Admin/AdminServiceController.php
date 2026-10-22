@@ -220,7 +220,12 @@ class AdminServiceController extends Controller
 
     public function archive(Request $request, Service $service)
     {
-        $service->update(['archived_at' => now(), 'is_active' => false]);
+        // archived_at alone is the authoritative "hidden from customers"
+        // signal everywhere it's checked (getServices(), getAvailableSlots(),
+        // store(), guest services()) — is_active is deliberately left
+        // untouched here so restore() can later give it back exactly as it
+        // was, instead of forcing every archived service through "active."
+        $service->update(['archived_at' => now()]);
 
         // ── Audit ──────────────────────────────────────────────────────────────
         ServiceArchived::dispatch($service->id, $service->name, $request);
@@ -230,7 +235,13 @@ class AdminServiceController extends Controller
 
     public function restore(Request $request, Service $service)
     {
-        $service->update(['archived_at' => null, 'is_active' => true]);
+        // Only clears archived_at — is_active is never touched here, so a
+        // service that was inactive before archiving comes back inactive,
+        // and one that was active comes back active. A record archived
+        // before this fix (is_active already forced false at archive time)
+        // restores to inactive, matching its last known true state; nothing
+        // here guesses or backfills what it "should" have been.
+        $service->update(['archived_at' => null]);
 
         // ── Audit ──────────────────────────────────────────────────────────────
         ServiceRestored::dispatch($service->id, $service->name, $request);

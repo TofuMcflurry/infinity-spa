@@ -19,7 +19,17 @@ class BookingController extends Controller
     // ── Step 1: Get all active services ──────────────────────────────────────
     public function getServices()
     {
+        // Batch #31B — archived_at must be checked explicitly here: it is
+        // no longer safe to assume archive() also forced is_active=false
+        // (restore() now preserves whatever is_active was before archiving
+        // instead of always reactivating). A service with zero active
+        // variants is excluded outright — "active" alone isn't bookable
+        // without at least one active duration to choose, matching the
+        // same whereHas() guard GuestBookingController::services() already
+        // uses.
         $services = Service::where('is_active', true)
+            ->whereNull('archived_at')
+            ->whereHas('variants', fn ($q) => $q->where('is_active', true))
             ->with(['variants' => fn($q) => $q->where('is_active', true)->orderBy('duration_minutes')])
             ->orderBy('group_name')
             ->get();
@@ -91,7 +101,9 @@ class BookingController extends Controller
             'therapist_id' => 'nullable|exists:therapists,id',
         ]);
 
-        $variant     = ServiceVariant::findOrFail($request->service_id);
+        $variant = ServiceVariant::with('service')->findOrFail($request->service_id);
+        $this->assertVariantBookable($variant);
+
         $date        = $request->date;
         $zoneName    = $request->zone_name;
         $therapistId = $request->therapist_id;
@@ -280,8 +292,9 @@ class BookingController extends Controller
             'is_voucher_covered' => 'nullable|boolean',
         ]);
 
-        $variant   = ServiceVariant::findOrFail($request->service_id);
+        $variant   = ServiceVariant::with('service')->findOrFail($request->service_id);
         $therapist = Therapist::findOrFail($request->therapist_id);
+        $this->assertVariantBookable($variant);
 
         $isVoucherCovered = $request->boolean('is_voucher_covered');
         $isFullPayment    = $request->input('payment_type', 'downpayment') === 'full';
@@ -375,6 +388,18 @@ class BookingController extends Controller
             )) {
                 abort(409, 'Sorry, this slot is no longer available.');
             }
+
+            // Re-checked fresh, inside the transaction, immediately before
+            // the insert — eligibility was already confirmed above, but an
+            // Admin could have deactivated/archived the service in the
+            // window between that check and this commit. A plain re-SELECT
+            // is enough: under READ COMMITTED this sees any already-
+            // committed Admin change, which is all that's needed to stop
+            // the insert — it does not need its own lock, and deliberately
+            // doesn't take one, to avoid introducing new cross-table lock
+            // ordering between services/service_variants and the therapist
+            // row already locked above.
+            $this->assertVariantBookable(ServiceVariant::with('service')->findOrFail($variant->id));
 
             return Booking::create([
                 'customer_id'        => auth()->id(),
@@ -608,6 +633,29 @@ class BookingController extends Controller
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
+
+    // Batch #31B — the Customer-facing listing endpoints (getServices(),
+    // GuestBookingController::services()) only ever SHOW eligible options;
+    // nothing previously stopped a direct request from naming an inactive
+    // variant, an inactive service, or an archived service's variant and
+    // having it accepted. Called from both getAvailableSlots() and store()
+    // — including a second time inside store()'s transaction, immediately
+    // before the insert, to close the window between the initial check and
+    // commit without introducing a new lock on services/service_variants.
+    private function assertVariantBookable(ServiceVariant $variant): void
+    {
+        if (!$variant->is_active) {
+            abort(409, 'This duration option is no longer available for booking.');
+        }
+
+        if (!$variant->service || $variant->service->archived_at !== null) {
+            abort(409, 'This service is no longer available for booking.');
+        }
+
+        if (!$variant->service->is_active) {
+            abort(409, 'This service is temporarily unavailable for booking.');
+        }
+    }
 
     private function canReview(Booking $booking, int $customerId): bool
     {
