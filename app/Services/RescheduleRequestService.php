@@ -100,7 +100,7 @@ class RescheduleRequestService
                 "This booking has a pending reschedule proposal awaiting the customer's response."
             );
 
-            return RescheduleRequest::create([
+            $created = RescheduleRequest::create([
                 'booking_id'           => $locked->id,
                 'requested_by_user_id' => $requester->id,
                 'requested_by_role'    => $role,
@@ -108,6 +108,12 @@ class RescheduleRequestService
                 'reason'               => $reason,
                 'status'               => 'pending',
             ]);
+
+            // Synchronous audit persistence shares this transaction, including
+            // an enclosing proposal-counter transaction when present.
+            \App\Events\Audit\RescheduleRequestSubmitted::dispatch($created->id, $locked->id, request());
+
+            return $created;
         });
     }
 }

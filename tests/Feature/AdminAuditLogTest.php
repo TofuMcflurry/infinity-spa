@@ -52,13 +52,25 @@ class AdminAuditLogTest extends TestCase
         $this->query(['event' => 'payment.unknown'])->assertOk()->assertJsonPath('total', 0);
     }
 
-    public function test_reschedule_group_includes_booking_and_proposal_events(): void
+    public function test_reschedule_group_includes_booking_proposal_and_request_events_only(): void
     {
-        foreach (['booking.rescheduled', 'reschedule_proposal.created', 'reschedule_proposal.responded', 'reschedule_proposal.expired', 'rescheduleXproposal.created', 'booking.accepted'] as $event) {
+        $included = ['booking.rescheduled', 'reschedule_proposal.created', 'reschedule_proposal.responded', 'reschedule_proposal.expired', 'reschedule_request.submitted', 'reschedule_request.rejected'];
+        $excluded = ['rescheduleXproposal.created', 'rescheduleXrequest.submitted', 'reschedule_request_extra.rejected', 'booking.rescheduled_extra', 'booking.accepted', 'payment.anomaly_detected'];
+        foreach ([...$included, ...$excluded] as $event) {
             $this->log($event);
         }
-        $this->query(['event' => 'reschedule'])->assertOk()->assertJsonPath('total', 4);
-        $this->query(['event' => 'reschedule_proposal.responded'])->assertOk()->assertJsonPath('total', 1);
+        $response = $this->query(['event' => 'reschedule'])->assertOk()->assertJsonPath('total', 6);
+        $this->assertSame(array_reverse($included), array_column($response->json('data'), 'event'));
+        foreach ($included as $event) {
+            $this->query(['event' => $event])->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.event', $event);
+        }
+        foreach (['reschedule_request.submitted', 'reschedule_request.rejected'] as $event) {
+            $this->query(['event' => 'reschedule', 'search' => $event])->assertOk()
+                ->assertJsonPath('total', 1)->assertJsonPath('data.0.event', $event);
+        }
+        foreach (['reschedule_request', 'reschedule_request.%', 'reschedule_proposal.%'] as $invalid) {
+            $this->query(['event' => $invalid])->assertUnprocessable();
+        }
     }
 
     public function test_timestamp_ties_have_deterministic_non_overlapping_pages(): void

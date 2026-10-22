@@ -390,6 +390,10 @@ class AdminBookingController extends Controller
                 'admin_notes'         => $request->admin_notes,
             ]);
 
+            \App\Events\Audit\RescheduleRequestRejected::dispatch(
+                $lockedRequest->id, $lockedRequest->booking_id, $request
+            );
+
             return $lockedRequest;
         });
 

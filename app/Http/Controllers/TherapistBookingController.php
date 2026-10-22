@@ -246,6 +246,8 @@ class TherapistBookingController extends Controller
 
             $locked->update(['status' => 'en_route']);
 
+            \App\Events\Audit\BookingEnRoute::dispatch($locked->id, request());
+
             return $locked;
         });
 
@@ -279,6 +281,8 @@ class TherapistBookingController extends Controller
             );
 
             $locked->update(['status' => 'arrived']);
+
+            \App\Events\Audit\BookingArrived::dispatch($locked->id, request());
 
             return $locked;
         });

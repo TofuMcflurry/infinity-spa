@@ -18,7 +18,7 @@ class AdminAuditController extends Controller
         'customer' => ['customer.'],
         'payment' => ['payment.'],
         'trust' => ['trust.'],
-        'reschedule' => ['reschedule_proposal.', 'booking.rescheduled'],
+        'reschedule' => ['reschedule_proposal.', 'reschedule_request.', 'booking.rescheduled'],
     ];
 
     public function index()
