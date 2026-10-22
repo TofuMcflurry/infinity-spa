@@ -41,9 +41,18 @@ export function computePaymentSummary(booking, totalAmountOverride = null) {
     const isFull    = booking.payment_type === 'full';
     const isPaid    = booking.payment_status === 'paid';
 
-    const totalAmount = Number(totalAmountOverride ?? booking.price ?? booking.service_price ?? 0);
+    // null here means "no reliable historical total exists" (a legacy row
+    // predating the downpayment fields, or a guest-shaped booking) — never
+    // coerce that into 0, which is reserved for a genuinely free (voucher)
+    // session. Status (isPaid/statusKey below) and amount are independent:
+    // an amount can be unknown on a booking of any payment status.
+    const rawTotal = totalAmountOverride ?? booking.price ?? booking.service_price ?? null;
+    const totalAmount = rawTotal == null ? null : Number(rawTotal);
+
     // The one authoritative "how much has actually been collected" figure.
     const paidAmount = booking.paid_amount != null ? Number(booking.paid_amount) : null;
+    const downpaymentAmount = booking.downpayment_amount != null ? Number(booking.downpayment_amount) : null;
+    const remainingAmount = booking.remaining_amount != null ? Number(booking.remaining_amount) : null;
 
     let statusKey;
     if (isVoucher) statusKey = 'voucher';
@@ -58,14 +67,16 @@ export function computePaymentSummary(booking, totalAmountOverride = null) {
         : !isPaid
             ? null // nothing confirmed yet — never render a currency figure for this
             : isFull
-                ? (paidAmount ?? totalAmount)
-                : (paidAmount ?? Number(booking.downpayment_amount ?? 0));
+                ? (paidAmount ?? totalAmount) // null ?? null stays null — never fabricated
+                : (paidAmount ?? downpaymentAmount); // same — no invented 0 when both are unknown
 
     const remaining = isVoucher || (isPaid && isFull)
         ? 0
         : !isPaid
-            ? totalAmount
-            : Number(booking.remaining_amount ?? Math.max(totalAmount - (totalPaid ?? 0), 0));
+            ? totalAmount // may be null — "unknown," not "nothing owed"
+            : (remainingAmount ?? (totalAmount == null || totalPaid == null
+                ? null // can't safely derive a balance from an unknown total or an unknown paid amount
+                : Math.max(totalAmount - totalPaid, 0)));
 
     return {
         statusKey,
@@ -73,8 +84,8 @@ export function computePaymentSummary(booking, totalAmountOverride = null) {
         isFull,
         isPaid,
         totalAmount,
-        totalPaid,               // null => not yet paid; render that, not a currency figure
-        remaining,
+        totalPaid,               // null => not yet paid OR not reliably known — render that, not a currency figure
+        remaining,                // null => unknown — never render as "AED 0.00"
         // A downpayment-specific breakdown (20% paid / 80% remaining) is
         // only ever meaningful for a non-voucher, non-full booking.
         showDownpaymentSection: !isVoucher && !isFull,

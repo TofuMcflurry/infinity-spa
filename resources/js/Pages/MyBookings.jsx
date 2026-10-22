@@ -626,13 +626,13 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                                 <div className="flex justify-between items-center">
                                     <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Total Paid</span>
                                     <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? 'var(--theme-success)' : 'var(--theme-link)' }}>
-                                        {pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'}
+                                        {!pay.isPaid ? 'Not yet paid' : (formatAed(pay.totalPaid) ?? 'Amount unavailable')}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[11px]" style={{ color: 'var(--theme-text-2)' }}>Remaining</span>
                                     <span className="text-[11px] font-semibold" style={{ color: pay.isPaid ? 'var(--theme-success)' : 'var(--theme-link)' }}>
-                                        {pay.isPaid ? 'AED 0.00 — Fully Paid' : formatAed(pay.remaining)}
+                                        {pay.isPaid ? 'AED 0.00 — Fully Paid' : (formatAed(pay.remaining) ?? 'Amount unavailable')}
                                     </span>
                                 </div>
                             </>
@@ -1940,7 +1940,7 @@ export default function MyBookings() {
                                         }
 
                                         const amountLabel = pay.isFull ? 'payment' : 'downpayment';
-                                        const paidAed = formatAed(pay.totalPaid);
+                                        const paidAed = formatAed(pay.totalPaid) ?? 'an unavailable amount';
 
                                         return withinGrace ? (
                                             <div className="flex items-start gap-3 p-4 rounded-xl"

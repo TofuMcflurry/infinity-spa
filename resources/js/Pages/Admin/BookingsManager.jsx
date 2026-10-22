@@ -1354,8 +1354,8 @@ function BookingDrawer({ booking, onClose, onRefundSent, refunding, onProposed, 
                                 const pay = computePaymentSummary(booking);
                                 return (
                                     <>
-                                        <Row icon={Banknote} label="Total Paid" value={pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
-                                        <Row icon={Banknote} label="Remaining" value={pay.isPaid ? 'AED 0.00 — Fully Paid' : formatAed(pay.remaining)} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
+                                        <Row icon={Banknote} label="Total Paid" value={!pay.isPaid ? 'Not yet paid' : (formatAed(pay.totalPaid) ?? 'Amount unavailable')} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
+                                        <Row icon={Banknote} label="Remaining" value={pay.isPaid ? 'AED 0.00 — Fully Paid' : (formatAed(pay.remaining) ?? 'Amount unavailable')} accent={pay.isPaid ? '#10b981' : '#f59e0b'} />
                                     </>
                                 );
                             })()

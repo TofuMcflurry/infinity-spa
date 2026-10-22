@@ -325,10 +325,18 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
 
-    // Price now lives on ServiceVariant, not Service (services.price is a
-    // leftover column, left NULL since the variant refactor). Fall back to
-    // the legacy field only for pre-refactor bookings that never got a variant.
-    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? null;
+    // The agreed total — downpayment_amount + remaining_amount, persisted
+    // once at booking creation (0/0 is the legitimate total for a
+    // voucher-covered booking). Never service_variant/service price: both
+    // are live catalog values that drift after an Admin price edit, which
+    // would misrepresent what this booking actually agreed to and could
+    // instruct the therapist to collect the wrong amount on-site (Batch
+    // #31A.2 audit finding). A handful of legacy rows predate the
+    // downpayment fields and have neither populated; those resolve to
+    // null rather than inventing a number.
+    const servicePrice = (booking.downpayment_amount != null && booking.remaining_amount != null)
+        ? Number(booking.downpayment_amount) + Number(booking.remaining_amount)
+        : null;
 
     const paymentStatus = getPaymentStatus(booking);
 
@@ -513,7 +521,7 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
 
                     {section('Payment Breakdown', <>
                         <DetailRow icon={Building2}   label="Service"       value={booking.service?.name}  accent="#e2b764" />
-                        <DetailRow icon={Banknote}     label="Service Price" value={servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'} accent="#10b981" />
+                        <DetailRow icon={Banknote}     label="Service Price" value={servicePrice != null ? `AED ${Number(servicePrice).toFixed(2)}` : '—'} accent="#10b981" />
                         {/* payment_method is a label, not the actual collection path — every
                             non-voucher booking is charged through Stripe regardless of what
                             was picked at booking time, so say so rather than imply cash means
@@ -560,7 +568,9 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                                 // also has remaining_amount=0 at creation,
                                 // which must not be read as already settled.
                                 const pay = computePaymentSummary(booking, servicePrice);
-                                return pay.isPaid ? 'None — fully paid' : `AED ${Number(servicePrice ?? 0).toFixed(2)} — awaiting payment`;
+                                if (pay.isPaid) return 'None — fully paid';
+                                const dueText = servicePrice != null ? `AED ${Number(servicePrice).toFixed(2)}` : 'Amount unavailable';
+                                return `${dueText} — awaiting payment`;
                             })()}
                             accent="#f59e0b"
                         />
@@ -773,8 +783,11 @@ export function BookingReviewModal({ booking, onClose, onAction, actionLoading }
     const isLoading = (a) => actionLoading === `${booking.id}-${a}`;
     const anyLoading = !!actionLoading;
 
-    // Same price/duration derivation as BookingModal — see its comment above.
-    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? null;
+    // Same persisted-fields price derivation as BookingModal — see its
+    // comment above. Duration derivation below is unchanged.
+    const servicePrice = (booking.downpayment_amount != null && booking.remaining_amount != null)
+        ? Number(booking.downpayment_amount) + Number(booking.remaining_amount)
+        : null;
     const durationMinutes = booking.service_variant?.duration_minutes ?? booking.service?.duration_minutes ?? null;
 
     const field = (label, value) => (
@@ -835,7 +848,7 @@ export function BookingReviewModal({ booking, onClose, onAction, actionLoading }
                     {booking.location_notes && field('Client notes', booking.location_notes)}
                     {field('Session value', (
                         <span style={{ color: '#e2b764', fontWeight: 700 }}>
-                            {servicePrice ? `AED ${Number(servicePrice).toFixed(2)}` : '—'}
+                            {servicePrice != null ? `AED ${Number(servicePrice).toFixed(2)}` : '—'}
                         </span>
                     ))}
                 </div>
@@ -885,7 +898,11 @@ export function BookingReviewModal({ booking, onClose, onAction, actionLoading }
 // ── Table Row ────────────────────────────────────────────────────────────────
 function TableRow({ booking, onView, index }) {
     const paymentStatus = getPaymentStatus(booking);
-    const servicePrice = booking.service_variant?.price ?? booking.service?.price ?? 0;
+    // Same persisted-fields derivation as BookingModal/BookingReviewModal —
+    // never the live service_variant/service price (Batch #31A.2).
+    const servicePrice = (booking.downpayment_amount != null && booking.remaining_amount != null)
+        ? Number(booking.downpayment_amount) + Number(booking.remaining_amount)
+        : null;
 
     return (
         <motion.tr
@@ -928,7 +945,7 @@ function TableRow({ booking, onView, index }) {
                         return (
                             <>
                                 <p className="text-sm font-medium" style={{ color: pay.isPaid ? 'var(--theme-text-head)' : '#f59e0b' }}>
-                                    {pay.totalPaid != null ? formatAed(pay.totalPaid) : 'Not yet paid'}
+                                    {!pay.isPaid ? 'Not yet paid' : (formatAed(pay.totalPaid) ?? 'Amount unavailable')}
                                 </p>
                                 <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
                                     Full · {booking.payment_method ?? '—'}
@@ -942,7 +959,7 @@ function TableRow({ booking, onView, index }) {
                             AED {Number(booking.downpayment_amount).toFixed(2)}
                         </p>
                         <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--theme-text-muted)' }}>
-                            / AED {Number(servicePrice).toFixed(2)} · {booking.payment_method ?? '—'}
+                            / {servicePrice != null ? `AED ${Number(servicePrice).toFixed(2)}` : 'total unavailable'} · {booking.payment_method ?? '—'}
                         </p>
                     </>
                 ) : (
