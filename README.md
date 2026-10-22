@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Laravel-11-red?logo=laravel" alt="Laravel">
+  <img src="https://img.shields.io/badge/Laravel-12-red?logo=laravel" alt="Laravel">
   <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React">
   <img src="https://img.shields.io/badge/Inertia.js-SSR-purple" alt="Inertia">
   <img src="https://img.shields.io/badge/PostgreSQL-Database-336791?logo=postgresql" alt="PostgreSQL">
@@ -67,7 +67,14 @@ Built as a capstone and portfolio project to demonstrate full-stack development 
 - **Stripe Checkout** — Redirect-based checkout session per booking, priced from the `ServiceVariant`, confirmed server-to-server via a signed webhook (`checkout.session.completed`) rather than the client redirect
 - **Flexible & Resilient** — 20% downpayment or full payment upfront, idempotent webhook processing, partial refunds on cancellation, and automatic cleanup of abandoned checkouts (session expiry + scheduled sweep)
 
-📄 For a detailed technical write-up of the payment architecture and webhook flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+#### Payment Security Highlights
+- **Reservation-Based Concurrency Protection** — Before any Stripe API call, the booking row is claimed under a short, atomically-guarded database lock (`checkout_reservation_token` + expiry), so two concurrent "Pay Now" clicks — or a retried request — can never race into creating two Stripe Checkout Sessions for the same booking.
+- **Stable Idempotency Keys** — Every session-creation attempt is scoped to a unique `checkout:{booking_id}:{reservation_token}` key, reused verbatim on a single automatic retry if Stripe's response is ambiguous (a network-level failure, not a rejection) — Stripe's own idempotency guarantee resolves the ambiguity instead of guessing at it.
+- **Verified Webhooks & Server-Side Validation** — Every webhook is HMAC-signature-verified, then its `payment_status`, `currency`, and `amount_total` are checked against the booking's own persisted `downpayment_amount` before being trusted — a payment is never auto-confirmed on event type alone.
+- **PaymentIntent-Based Duplicate Detection** — Redelivered webhooks for an already-recorded payment are recognized as safe no-ops by comparing `stripe_payment_intent_id`, while a genuinely different second successful payment is detected and flagged rather than silently overwriting the original financial record.
+- **Audit Logging & Async Reconciliation** — Anomalies (duplicate payments, amount mismatches, payments on cancelled bookings) are recorded via `PaymentAnomalyService` into the existing Audit Log, and a queued job (`ReconcileRedundantCheckoutSession`) best-effort cleans up superseded Stripe sessions outside of any database lock.
+
+📄 For the full technical write-up — reservation outcomes, idempotency retry logic, anomaly detection, and known operational limitations — see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ### 🎁 Loyalty Voucher Redemption
 - **Earn & Redeem** — Every 10 completed bookings unlocks a free 60-minute session via a unique voucher code (`IHS-FREE-XXXX`), applied in the booking wizard's payment step for a fully comped, instantly confirmed booking
@@ -100,7 +107,7 @@ Built as a capstone and portfolio project to demonstrate full-stack development 
 
 | Layer | Technology |
 |---|---|
-| Backend | Laravel 11 (PHP 8.2) |
+| Backend | Laravel 12 (PHP 8.2) |
 | Frontend | React 18 + Inertia.js |
 | Database | PostgreSQL |
 | Real-time | Laravel Reverb (WebSocket) |
