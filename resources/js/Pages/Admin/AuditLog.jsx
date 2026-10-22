@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Shield, Search, Filter, RefreshCw, Loader2,
     LogIn, LogOut, AlertTriangle, Wrench, Users,
@@ -12,16 +12,32 @@ function getCsrf() {
     return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
 }
 
-async function apiFetch(url) {
+async function apiFetch(url, signal) {
     const res = await fetch(url, {
         credentials: 'same-origin',
+        signal,
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': getCsrf() },
     });
+    if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || `Request failed (${res.status}). Please try again.`);
+    }
     return res.json();
 }
 
 // ── Event config — icon, color, label per event type ─────────────────────────
 const EVENT_CONFIG = {
+    'payment.anomaly_detected':     { icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Payment Anomaly Detected' },
+    'trust.warning_issued':         { icon: Shield, color: '#f97316', bg: 'rgba(249,115,22,0.1)', label: 'Trust Warning Issued' },
+    'trust.temp_block_issued':      { icon: Shield, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Trust Temporary Block Issued' },
+    'trust.permanent_block_issued': { icon: Shield, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Trust Permanent Block Issued' },
+    'trust.restriction_lifted':     { icon: Shield, color: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Trust Restriction Lifted' },
+    'booking.rescheduled':         { icon: Activity, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', label: 'Booking Rescheduled' },
+    'booking.flagged_stale':       { icon: AlertTriangle, color: '#f97316', bg: 'rgba(249,115,22,0.1)', label: 'Booking Flagged Stale' },
+    'booking.stale_resolved':      { icon: Activity, color: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Stale Booking Resolved' },
+    'reschedule_proposal.created': { icon: Activity, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', label: 'Reschedule Proposal Created' },
+    'reschedule_proposal.responded': { icon: Activity, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', label: 'Reschedule Proposal Responded' },
+    'reschedule_proposal.expired': { icon: Activity, color: '#f97316', bg: 'rgba(249,115,22,0.1)', label: 'Reschedule Proposal Expired' },
     'auth.login':                   { icon: LogIn,         color: '#22c55e', bg: 'rgba(34,197,94,0.1)',      label: 'Login' },
     'auth.logout':                  { icon: LogOut,        color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',    label: 'Logout' },
     'auth.login_failed':            { icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)',      label: 'Login Failed' },
@@ -55,6 +71,9 @@ const EVENT_GROUPS = [
     { label: 'Services', value: 'service' },
     { label: 'Therapists', value: 'therapist' },
     { label: 'Customers', value: 'customer' },
+    { label: 'Payment', value: 'payment' },
+    { label: 'Trust', value: 'trust' },
+    { label: 'Reschedule', value: 'reschedule' },
 ];
 
 const ROLES = [
@@ -178,6 +197,9 @@ export default function AuditLog() {
     const [page, setPage]       = useState(1);
     const [lastPage, setLastPage] = useState(1);
     const [total, setTotal]     = useState(0);
+    const [error, setError] = useState('');
+    const [statsError, setStatsError] = useState('');
+    const activeRequest = useRef(null);
 
     const [search, setSearch]   = useState('');
     const [eventGroup, setEventGroup] = useState('');
@@ -196,28 +218,49 @@ export default function AuditLog() {
     }, [search, eventGroup, role, from, to]);
 
     const load = useCallback((p = 1) => {
+        activeRequest.current?.abort();
+        const controller = new AbortController();
+        activeRequest.current = controller;
         setLoading(true);
-        apiFetch(buildUrl(p))
+        setError('');
+        apiFetch(buildUrl(p), controller.signal)
             .then(res => {
+                if (controller.signal.aborted) return;
                 setLogs(res.data);
                 setTotal(res.total);
                 setLastPage(res.last_page);
                 setPage(res.current_page);
             })
-            .finally(() => setLoading(false));
+            .catch(err => {
+                if (controller.signal.aborted) return;
+                setError(`Unable to load audit logs. ${err.message}`);
+                setLogs([]);
+                setTotal(0);
+                setLastPage(1);
+            })
+            .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, [buildUrl]);
 
     useEffect(() => {
-        apiFetch('/admin/api/audit-logs/stats').then(setStats);
+        const controller = new AbortController();
+        apiFetch('/admin/api/audit-logs/stats', controller.signal)
+            .then(data => { if (!controller.signal.aborted) setStats(data); })
+            .catch(() => { if (!controller.signal.aborted) setStatsError('Unable to load global audit totals. Reload the page to retry.'); });
+        return () => controller.abort();
     }, []);
 
-    useEffect(() => { load(1); }, [search, eventGroup, role, from, to]);
+    useEffect(() => {
+        load(1);
+        return () => activeRequest.current?.abort();
+    }, [load]);
 
     return (
         <AdminLayout title="Audit Log">
             <div className="space-y-5">
 
                 {/* KPI Cards */}
+                <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Global audit totals — independent of the filters below.</p>
+                {statsError && <p role="alert" className="text-sm" style={{ color: '#ef4444' }}>{statsError}</p>}
                 {stats && (
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <KpiCard icon={Activity}      label="Total Events"    value={stats.total}         color="#e2b764" />
@@ -253,6 +296,7 @@ export default function AuditLog() {
                     </select>
 
                     {/* Date range */}
+                    <span className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>Dates (Dubai)</span>
                     <input type="date" value={from} onChange={e => setFrom(e.target.value)}
                         className="px-3 py-2 rounded-xl text-sm outline-none"
                         style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)', color: 'var(--theme-text-2)' }}
@@ -292,6 +336,10 @@ export default function AuditLog() {
                         <div className="flex items-center justify-center py-16">
                             <Loader2 size={24} className="animate-spin" style={{ color: '#e2b764' }} />
                         </div>
+                    ) : error ? (
+                        <div role="alert" className="text-center py-16 px-4 text-sm" style={{ color: '#ef4444' }}>
+                            {error} Use refresh above to retry.
+                        </div>
                     ) : logs.length === 0 ? (
                         <div className="text-center py-16">
                             <Shield size={28} className="mx-auto mb-3" style={{ color: 'var(--theme-text-muted)', opacity: 0.3 }} />
@@ -325,12 +373,12 @@ export default function AuditLog() {
                                 Page {page} of {lastPage}
                             </p>
                             <div className="flex gap-2">
-                                <button onClick={() => load(page - 1)} disabled={page <= 1}
+                                <button onClick={() => load(page - 1)} disabled={loading || page <= 1}
                                     className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-40"
                                     style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                                     <ChevronLeft size={14} style={{ color: 'var(--theme-text-2)' }} />
                                 </button>
-                                <button onClick={() => load(page + 1)} disabled={page >= lastPage}
+                                <button onClick={() => load(page + 1)} disabled={loading || page >= lastPage}
                                     className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-40"
                                     style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
                                     <ChevronRight size={14} style={{ color: 'var(--theme-text-2)' }} />

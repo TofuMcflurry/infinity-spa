@@ -5,10 +5,22 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class AdminAuditController extends Controller
 {
+    private const CATEGORIES = [
+        'auth' => ['auth.'],
+        'booking' => ['booking.'],
+        'service' => ['service.'],
+        'therapist' => ['therapist.'],
+        'customer' => ['customer.'],
+        'payment' => ['payment.'],
+        'trust' => ['trust.'],
+        'reschedule' => ['reschedule_proposal.', 'booking.rescheduled'],
+    ];
+
     public function index()
     {
         return Inertia::render('Admin/AuditLog');
@@ -19,6 +31,20 @@ class AdminAuditController extends Controller
      */
     public function list(Request $request)
     {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            // Legacy category values and exact dotted event names share this parameter.
+            'event' => ['bail', 'nullable', 'string', 'max:255', function ($attribute, $value, $fail) {
+                if (!isset(self::CATEGORIES[$value]) && !preg_match('/\A[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+\z/', $value)) {
+                    $fail('Select a supported category or an exact dotted event name.');
+                }
+            }],
+            'role' => ['nullable', Rule::in(['admin', 'therapist', 'customer'])],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', ...($request->filled('from') ? ['after_or_equal:from'] : [])],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = AuditLog::query()
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where(function ($q2) use ($request) {
@@ -27,11 +53,28 @@ class AdminAuditController extends Controller
                        ->orWhere('ip_address', 'ilike', '%' . $request->search . '%');
                 });
             })
-            ->when($request->filled('event'), fn($q) => $q->where('event', $request->event))
+            ->when($request->filled('event'), function ($q) use ($request) {
+                $event = $request->input('event');
+                if (!isset(self::CATEGORIES[$event])) {
+                    $q->where('event', $event);
+                    return;
+                }
+                $q->where(function ($group) use ($event) {
+                    foreach (self::CATEGORIES[$event] as $prefix) {
+                        // Only server-owned prefixes become LIKE patterns; escape underscores.
+                        if (str_ends_with($prefix, '.')) {
+                            $group->orWhere('event', 'like', str_replace('_', '\\_', $prefix) . '%');
+                        } else {
+                            $group->orWhere('event', $prefix);
+                        }
+                    }
+                });
+            })
             ->when($request->filled('role'),  fn($q) => $q->where('user_role', $request->role))
             ->when($request->filled('from'),  fn($q) => $q->whereDate('created_at', '>=', $request->from))
             ->when($request->filled('to'),    fn($q) => $q->whereDate('created_at', '<=', $request->to))
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(50);
 
         return response()->json([
