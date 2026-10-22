@@ -20,6 +20,7 @@ class AuditLogListener
             targetId:   $event->targetId,
             metadata:   $event->metadata,
             request:    $event->request,
+            systemOrigin: $event->systemOrigin,
         );
     }
 }

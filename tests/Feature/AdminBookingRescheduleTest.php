@@ -114,6 +114,66 @@ class AdminBookingRescheduleTest extends TestCase
 
     // ── 1-4: valid reschedule + correct recomputation ───────────────────────
 
+    public function test_identical_start_and_equivalent_offsets_are_second_precision_no_ops(): void
+    {
+        $this->travelTo(Carbon::parse('2026-12-07 12:00:00', 'Asia/Dubai'));
+        \Illuminate\Support\Facades\Notification::fake();
+        $booking = $this->makeBooking();
+        $before = $booking->fresh()->getRawOriginal();
+        $this->assertSame(self::ORIGINAL_START, $before['scheduled_start']);
+        $this->assertSame('timestamp without time zone', \DB::selectOne(
+            "SELECT data_type FROM information_schema.columns WHERE table_name='bookings' AND column_name='scheduled_start' AND table_schema='public'"
+        )->data_type);
+        $writes = [];
+        \DB::listen(function ($query) use (&$writes) {
+            if (preg_match('/^\s*(update|insert|delete)\b/i', $query->sql)) $writes[] = $query->sql;
+        });
+        foreach ([self::ORIGINAL_START, '2026-12-07T16:00:00Z', '2026-12-07T15:00:00-01:00', '2026-12-07T20:00:00.987654+04:00'] as $start) {
+            $this->reschedule($booking, $start)->assertOk()->assertJsonPath('message', 'Booking rescheduled.');
+            $this->assertSame($before, $booking->fresh()->getRawOriginal());
+        }
+        $this->assertSame([], $writes);
+        $this->assertNull($booking->fresh()->refund_forfeited_at);
+        $this->assertSame(0, AuditLog::where('event', 'booking.rescheduled')->count());
+        \Illuminate\Support\Facades\Notification::assertNothingSent();
+    }
+
+    public function test_real_offset_reschedule_then_replay_changes_and_notifies_only_once(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $booking = $this->makeBooking();
+        $this->reschedule($booking, '2026-12-09T16:00:00Z')->assertOk();
+        $this->assertSame('2026-12-09 20:00:00', $booking->fresh()->scheduled_start->toDateTimeString());
+        $this->assertSame('2026-12-09 21:00:00', $booking->fresh()->scheduled_end->toDateTimeString());
+        $this->assertSame('2026-12-09 19:30:00', $booking->fresh()->travel_start->toDateTimeString());
+        $this->assertSame('2026-12-09 21:30:00', $booking->fresh()->buffer_end->toDateTimeString());
+        $before = $booking->fresh()->getRawOriginal();
+        $this->reschedule($booking, '2026-12-09T20:00:00+04:00')->assertOk();
+        $this->assertSame($before, $booking->fresh()->getRawOriginal());
+        $row = AuditLog::where('event', 'booking.rescheduled')->sole();
+        $this->assertSame($this->admin->id, $row->user_id);
+        \Illuminate\Support\Facades\Notification::assertSentTimes(\App\Notifications\BookingNotification::class, 2);
+    }
+
+    public function test_identical_time_does_not_bypass_invalid_state_past_date_or_pending_proposal(): void
+    {
+        $booking = $this->makeBooking(['status' => 'completed']);
+        $this->reschedule($booking, self::ORIGINAL_START)->assertUnprocessable();
+        $booking->update(['status' => 'accepted']);
+        $proposal = \App\Models\RescheduleProposal::create([
+            'booking_id' => $booking->id, 'proposed_by_user_id' => $this->admin->id,
+            'proposed_start_at' => '2026-12-09 20:00:00', 'expires_at' => now()->addDay(), 'status' => 'pending',
+        ]);
+        $this->reschedule($booking, self::ORIGINAL_START)->assertConflict();
+        $proposal->update(['status' => 'cancelled']);
+        $this->actingAs($this->customer)->postJson('/admin/api/bookings/'.$booking->id.'/reschedule', [
+            'scheduled_start' => self::ORIGINAL_START,
+        ])->assertRedirect('/');
+        $this->travelTo(Carbon::parse('2026-12-08 12:00:00'));
+        $this->reschedule($booking, self::ORIGINAL_START)->assertUnprocessable();
+        $this->assertSame(0, AuditLog::where('event', 'booking.rescheduled')->count());
+    }
+
     public function test_valid_admin_reschedule_succeeds_and_recomputes_all_time_blocks(): void
     {
         $booking = $this->makeBooking();

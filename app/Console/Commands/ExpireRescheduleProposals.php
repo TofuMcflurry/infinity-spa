@@ -10,15 +10,12 @@ use App\Services\BookingRescheduleService;
 use App\Models\RescheduleProposal;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Follows FlagStaleActiveSessions' atomic-claim pattern: the UPDATE that
- * flips a proposal to 'expired' re-applies the exact same WHERE criteria
- * used to select it, scoped to that one row, so only one process can ever
- * win the claim — safe against two overlapping cron runs, and against a
- * customer's accept()/counter()/cancel() landing on the same row at the
- * same moment (RescheduleProposalService::lockPending() independently
- * re-checks status + expiry under its own row lock either way).
+ * Locks proposal then booking, matching customer response paths. Expiry,
+ * cancellation and synchronous audit persistence commit together; failed
+ * work remains pending for the next run. Notifications follow the commit.
  *
  * Per the approved design (docs/design/INFINITY-HOME-SPA-UI-HANDOFF.md
  * §8.10): the booking's schedule is NEVER touched by an expiry — it is
@@ -38,52 +35,51 @@ class ExpireRescheduleProposals extends Command
 
         $expiredCount   = 0;
         $cancelledCount = 0;
+        $failureCount   = 0;
 
         foreach ($candidates as $proposal) {
-            $claimed = RescheduleProposal::where('id', $proposal->id)
-                ->where('status', 'pending')
-                ->where('expires_at', '<', now())
-                ->update(['status' => 'expired', 'responded_at' => now()]);
+            try {
+                $outcome = DB::transaction(function () use ($proposal) {
+                    $locked = RescheduleProposal::where('id', $proposal->id)->lockForUpdate()->first();
+                    if (!$locked || $locked->status !== 'pending' || !$locked->expires_at->lt(now())) {
+                        return null;
+                    }
 
-            if ($claimed !== 1) {
-                continue; // already resolved by the customer, or claimed by another run
+                    $booking = Booking::where('id', $locked->booking_id)->lockForUpdate()->first();
+                    $result = null;
+                    if ($booking && in_array($booking->status, BookingRescheduleService::RESCHEDULABLE_STATUSES, true)) {
+                        $result = BookingCancellationService::cancel(
+                            $booking,
+                            'Reschedule proposal expired without a customer response.',
+                            'expired'
+                        );
+                    }
+
+                    $locked->update(['status' => 'expired', 'responded_at' => now()]);
+                    RescheduleProposalExpired::dispatch(
+                        $locked->id,
+                        $locked->booking_id,
+                        $locked->proposed_start_at->toDateTimeString(),
+                        $locked->expires_at->toDateTimeString(),
+                        $result['cancellation_type'] ?? null,
+                    );
+
+                    return [$booking, $result];
+                }, 3);
+            } catch (\Throwable $e) {
+                $failureCount++;
+                Log::error('Reschedule proposal expiry transaction failed.', [
+                    'proposal_id' => $proposal->id, 'exception_type' => $e::class,
+                ]);
+                $this->error("Failed to expire proposal {$proposal->id}; transaction rolled back.");
+                continue;
             }
 
+            if ($outcome === null) {
+                continue;
+            }
             $expiredCount++;
-
-            [$booking, $result] = DB::transaction(function () use ($proposal) {
-                $booking = Booking::where('id', $proposal->booking_id)->lockForUpdate()->first();
-
-                // The booking may have moved on independently since the
-                // proposal was created (e.g. completed, or cancelled via a
-                // different path) — the proposal is still correctly marked
-                // 'expired' above either way, but there is nothing left to
-                // cancel here.
-                if (!$booking || !in_array($booking->status, BookingRescheduleService::RESCHEDULABLE_STATUSES, true)) {
-                    return [$booking, null];
-                }
-
-                // 'expired' is the existing bookings_cancellation_type_check
-                // value already used for every other system-driven,
-                // time-based, no-human-response auto-cancellation in this
-                // app (AutoCancelPastDueBookings, ExpireStalePendingPaymentBookings)
-                // — the constraint has no 'expired_proposal' value.
-                $result = BookingCancellationService::cancel(
-                    $booking,
-                    'Reschedule proposal expired without a customer response.',
-                    'expired'
-                );
-
-                RescheduleProposalExpired::dispatch(
-                    $proposal->id,
-                    $booking->id,
-                    $proposal->proposed_start_at->toDateTimeString(),
-                    $proposal->expires_at->toDateTimeString(),
-                    $result['cancellation_type'],
-                );
-
-                return [$booking, $result];
-            });
+            [$booking, $result] = $outcome;
 
             if ($result === null) {
                 continue;
@@ -91,14 +87,22 @@ class ExpireRescheduleProposals extends Command
 
             $cancelledCount++;
 
-            $booking->loadMissing('customer', 'service', 'serviceVariant', 'therapist.user');
-            if ($booking->customer) {
-                $booking->customer->notify(new BookingNotification($booking, 'reschedule_proposal_expired'));
+            try {
+                $booking->loadMissing('customer', 'service', 'serviceVariant', 'therapist.user');
+                if ($booking->customer) {
+                    $booking->customer->notify(new BookingNotification($booking, 'reschedule_proposal_expired'));
+                }
+            } catch (\Throwable $e) {
+                $failureCount++;
+                Log::error('Reschedule proposal expiry notification failed after commit.', [
+                    'proposal_id' => $proposal->id, 'exception_type' => $e::class,
+                ]);
+                $this->error("Proposal {$proposal->id} expired; notification failed after commit.");
             }
         }
 
         $this->info("Expired {$expiredCount} reschedule proposal(s), cancelled {$cancelledCount} booking(s).");
 
-        return self::SUCCESS;
+        return $failureCount > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

@@ -11,5 +11,6 @@ abstract class AuditEvent
         public readonly ?int    $targetId   = null,
         public readonly array   $metadata   = [],
         public readonly ?Request $request   = null,
+        public readonly bool $systemOrigin = false,
     ) {}
 }

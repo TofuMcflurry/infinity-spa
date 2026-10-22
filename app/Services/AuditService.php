@@ -23,8 +23,9 @@ class AuditService
         ?int    $targetId   = null,
         array   $metadata   = [],
         ?Request $request   = null,
+        bool $systemOrigin = false,
     ): void {
-        $user = Auth::user();
+        $user = $systemOrigin ? null : Auth::user();
 
         AuditLog::create([
             'user_id'     => $user?->id,

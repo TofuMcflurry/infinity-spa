@@ -650,4 +650,144 @@ class RescheduleProposalTest extends TestCase
         $booking->refresh();
         $this->assertSame('2026-12-09 20:00:00', $booking->scheduled_start->toDateTimeString());
     }
+    private function dueProposal(Booking $booking): RescheduleProposal
+    {
+        return RescheduleProposal::create([
+            'booking_id' => $booking->id, 'proposed_by_user_id' => $this->admin->id,
+            'proposed_start_at' => '2026-12-09 20:00:00', 'expires_at' => now()->subMinute(), 'status' => 'pending',
+        ]);
+    }
+
+    public static function expiryFailures(): array
+    {
+        return ['cancel' => ['cancel', false], 'audit' => ['audit', false],
+            'voucher cancel' => ['cancel', true], 'voucher audit' => ['audit', true]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('expiryFailures')]
+    public function test_failed_expiry_rolls_back_and_next_run_retries_once(string $failure, bool $voucherCovered): void
+    {
+        $this->travelTo(Carbon::parse('2026-12-01 12:00:00'));
+        // Exercise real database notifications, including voucher rollback.
+        // The verified test environment uses the array mailer, never SMTP.
+        $this->assertSame('array', config('mail.default'));
+        $booking = $this->makeBooking(['is_voucher_covered' => $voucherCovered]);
+        $proposal = $this->dueProposal($booking);
+        $voucher = null;
+        if ($voucherCovered) {
+            $reward = \App\Models\LoyaltyReward::create(['customer_id' => $this->customer->id]);
+            $voucher = \App\Models\LoyaltyVoucher::create([
+                'customer_id' => $this->customer->id, 'loyalty_reward_id' => $reward->id,
+                'code' => 'IHS-RETRY', 'status' => 'used', 'covered_duration_minutes' => 60,
+                'expires_at' => now()->addMonths(2), 'used_at' => now(), 'used_in_booking_id' => $booking->id,
+            ]);
+        }
+        $before = $booking->fresh()->getRawOriginal();
+        $fail = true;
+        \Illuminate\Support\Facades\Event::listen(
+            $failure === 'cancel' ? 'eloquent.updating: '.Booking::class : 'eloquent.creating: '.AuditLog::class,
+            function ($model) use (&$fail, $failure) {
+                if ($fail && ($failure === 'cancel' || $model->event === 'reschedule_proposal.expired')) {
+                    $fail = false;
+                    throw new \RuntimeException('Expiry failure probe');
+                }
+            }
+        );
+        $this->assertSame(1, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame('pending', $proposal->fresh()->status);
+        $this->assertNull($proposal->fresh()->responded_at);
+        $this->assertSame($before, $booking->fresh()->getRawOriginal());
+        $this->assertSame(0, AuditLog::where('event', 'reschedule_proposal.expired')->count());
+        $this->assertSame(0, \DB::table('notifications')->count());
+        if ($voucher) {
+            $this->assertSame('used', $voucher->fresh()->status);
+            $this->assertSame($booking->id, $voucher->fresh()->used_in_booking_id);
+        }
+        $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame('expired', $proposal->fresh()->status);
+        $this->assertSame('cancelled', $booking->fresh()->status);
+        $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame(1, AuditLog::where('event', 'reschedule_proposal.expired')->count());
+        $this->assertSame($voucher ? 2 : 1, \DB::table('notifications')->count());
+        if ($voucher) {
+            $this->assertSame('unused', $voucher->fresh()->status);
+        }
+    }
+
+    public function test_expiry_audits_ineligible_booking_with_system_actor_even_when_admin_is_authenticated(): void
+    {
+        NotificationFacade::fake();
+        $booking = $this->makeBooking(['status' => 'completed']);
+        $proposal = $this->dueProposal($booking);
+        $this->actingAs($this->admin);
+        $before = $booking->fresh()->getRawOriginal();
+        $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+        $row = AuditLog::where('event', 'reschedule_proposal.expired')->sole();
+        $this->assertNull($row->user_id);
+        $this->assertNull($row->user_name);
+        $this->assertNull($row->user_role);
+        $this->assertSame($this->admin->id, auth()->id());
+        $this->assertSame('Booking', $row->target_type);
+        $this->assertSame($booking->id, $row->target_id);
+        $this->assertSame([
+            'proposal_id' => $proposal->id, 'proposed_start_at' => '2026-12-09 20:00:00',
+            'expires_at' => $proposal->expires_at->toDateTimeString(), 'cancellation_type' => null,
+        ], $row->metadata);
+        $this->assertSame($before, $booking->fresh()->getRawOriginal());
+        $this->assertSame('expired', $proposal->fresh()->status);
+        NotificationFacade::assertNothingSent();
+    }
+
+    public function test_expiry_failure_does_not_prevent_processing_another_due_proposal(): void
+    {
+        NotificationFacade::fake();
+        $first = $this->dueProposal($this->makeBooking());
+        $second = $this->dueProposal($this->makeBooking());
+        \Illuminate\Support\Facades\Event::listen('eloquent.creating: '.AuditLog::class, function ($row) use ($first) {
+            if ($row->event === 'reschedule_proposal.expired' && $row->metadata['proposal_id'] === $first->id) {
+                throw new \RuntimeException('First proposal audit failure');
+            }
+        });
+        $this->assertSame(1, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame('pending', $first->fresh()->status);
+        $this->assertSame('expired', $second->fresh()->status);
+        $this->assertSame($second->id, AuditLog::where('event', 'reschedule_proposal.expired')->sole()->metadata['proposal_id']);
+    }
+
+    public function test_overlapping_candidate_snapshots_recheck_proposal_under_lock(): void
+    {
+        NotificationFacade::fake();
+        $proposal = $this->dueProposal($this->makeBooking());
+        $compete = true;
+        $locks = [];
+        \DB::listen(function ($query) use (&$compete, &$locks) {
+            if (str_contains($query->sql, 'for update')) $locks[] = $query->sql;
+            // Interleave another run after the first candidate SELECT has
+            // executed, so the first run resumes with a stale pending snapshot.
+            if ($compete && str_starts_with($query->sql, 'select') && str_contains($query->sql, '"reschedule_proposals"') && !str_contains($query->sql, 'for update')) {
+                $compete = false;
+                $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+            }
+        });
+        $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame('expired', $proposal->fresh()->status);
+        $this->assertSame(1, AuditLog::where('event', 'reschedule_proposal.expired')->count());
+        NotificationFacade::assertSentTimes(BookingNotification::class, 1);
+        $this->assertStringContainsString('"reschedule_proposals"', $locks[0]);
+        $this->assertStringContainsString('"bookings"', $locks[1]);
+        $this->assertStringContainsString('"reschedule_proposals"', $locks[2]);
+    }
+
+    public function test_notification_failure_keeps_expiry_committed_and_is_not_replayed(): void
+    {
+        $proposal = $this->dueProposal($this->makeBooking());
+        NotificationFacade::shouldReceive('send')->once()->andThrow(new \RuntimeException('Email delivery failed'));
+        $this->assertSame(1, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame('expired', $proposal->fresh()->status);
+        $this->assertSame('cancelled', $proposal->fresh()->booking->status);
+        $this->assertSame(1, AuditLog::where('event', 'reschedule_proposal.expired')->count());
+        $this->assertSame(0, Artisan::call('bookings:expire-reschedule-proposals'));
+        $this->assertSame(1, AuditLog::where('event', 'reschedule_proposal.expired')->count());
+    }
+
 }

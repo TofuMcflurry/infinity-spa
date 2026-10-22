@@ -16,6 +16,6 @@ class RescheduleProposalExpired extends AuditEvent
             'proposed_start_at' => $proposedStartAt,
             'expires_at'        => $expiresAt,
             'cancellation_type' => $cancellationType,
-        ], $request);
+        ], $request, systemOrigin: true);
     }
 }

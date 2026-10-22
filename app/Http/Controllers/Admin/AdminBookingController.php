@@ -161,7 +161,9 @@ class AdminBookingController extends Controller
             'reason'          => 'nullable|string|max:500',
         ]);
 
-        $newStart = Carbon::parse($request->scheduled_start);
+        // Persistence uses Dubai wall time (timestamp without time zone),
+        // and Eloquent serializes dates to seconds. Preserve explicit offsets.
+        $newStart = Carbon::parse($request->scheduled_start)->timezone('Asia/Dubai')->startOfSecond();
 
         // DB::transaction() only returns when the closure completes without
         // throwing — i.e. only after a successful commit. Any validation or
@@ -169,7 +171,7 @@ class AdminBookingController extends Controller
         // throws, the transaction rolls back, and the exception propagates
         // straight out of this statement — so nothing below it (including
         // the notify() calls) ever runs for a failed reschedule.
-        [$updated, $previousStart] = DB::transaction(function () use ($request, $booking, $newStart) {
+        [$updated, $previousStart, $changed] = DB::transaction(function () use ($request, $booking, $newStart) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->firstOrFail();
 
             // A pending Reschedule Proposal (admin → customer, awaiting their
@@ -189,15 +191,28 @@ class AdminBookingController extends Controller
             $previousEnd          = $locked->scheduled_end;
             $previousForfeitedAt  = $locked->refund_forfeited_at;
 
+            abort_if(
+                !in_array($locked->status, BookingRescheduleService::RESCHEDULABLE_STATUSES, true),
+                422,
+                'This booking is not in a reschedulable state.'
+            );
+            abort_if($newStart->lte(now()), 422, 'The new schedule must be in the future.');
+
+            if ($previousStart !== null && $previousStart->copy()->startOfSecond()->equalTo($newStart)) {
+                return [$locked, $previousStart, false];
+            }
+
             $updated = BookingRescheduleService::reschedule($locked, $newStart, $request->reason);
 
             $this->recordRescheduleAudit($updated, $previousStart, $previousEnd, $request->reason, $request, $previousForfeitedAt);
 
-            return [$updated, $previousStart];
+            return [$updated, $previousStart, true];
         });
 
         // ── Post-commit notifications ────────────────────────────────────────
-        $this->notifyRescheduled($updated, $previousStart);
+        if ($changed) {
+            $this->notifyRescheduled($updated, $previousStart);
+        }
 
         return response()->json([
             'message' => 'Booking rescheduled.',
