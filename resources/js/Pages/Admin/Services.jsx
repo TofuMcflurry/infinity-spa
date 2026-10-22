@@ -4,6 +4,7 @@ import {
     Power, AlertTriangle, RotateCcw,
 } from 'lucide-react';
 import AdminLayout from '@/Layouts/AdminLayout';
+import { useFallbackImage } from '@/lib/serviceImageFallback';
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -71,14 +72,24 @@ function Toggle({ value, onChange, label }) {
 
 // ── Service Modal ─────────────────────────────────────────────────────────────
 function ServiceModal({ open, onClose, onSaved, service }) {
-    const [form, setForm]                 = useState(EMPTY_FORM);
-    const [imageFile, setImageFile]       = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
-    const [removeImage, setRemoveImage]   = useState(false);
-    const [saving, setSaving]             = useState(false);
-    const [errors, setErrors]             = useState({});
+    const [form, setForm]                       = useState(EMPTY_FORM);
+    const [imageFile, setImageFile]             = useState(null);
+    const [localPreviewUrl, setLocalPreviewUrl] = useState(null);
+    const [removeImage, setRemoveImage]         = useState(false);
+    const [saving, setSaving]                   = useState(false);
+    const [errors, setErrors]                   = useState({});
     const fileRef = useRef(null);
     const isEdit  = !!service;
+
+    // Same Admin-upload → service-specific mapped photo fallback chain
+    // ServiceCard already uses (resources/js/lib/serviceImageFallback.js) —
+    // without this, the modal previously set its preview straight from
+    // service.image_url with no fallback at all, so a dead Cloudflare URL
+    // (services 19/20/21's current state) rendered as a broken-image icon
+    // even though ServiceCard, reading the exact same data, correctly shows
+    // the mapped photo.
+    const { src: remoteImageSrc, onError: handleRemoteImageError } =
+        useFallbackImage(service, { includeNeutralFallback: false });
 
     useEffect(() => {
         if (!open) return;
@@ -99,17 +110,30 @@ function ServiceModal({ open, onClose, onSaved, service }) {
                     }))
                     : [{ id: null, duration_minutes: 60, price: '', is_active: true }],
             });
-            setImagePreview(service.image_url ?? null);
         } else {
             setForm(EMPTY_FORM);
-            setImagePreview(null);
         }
         setImageFile(null);
+        setLocalPreviewUrl(null);
         setRemoveImage(false);
         setErrors({});
     }, [open, service]);
 
+    // Revoke the previous object URL whenever it's replaced or the modal
+    // closes, so selecting several files in a row (or across modal opens)
+    // never leaks blob URLs.
+    useEffect(() => {
+        if (!localPreviewUrl) return;
+        return () => URL.revokeObjectURL(localPreviewUrl);
+    }, [localPreviewUrl]);
+
     if (!open) return null;
+
+    // A newly selected local file always wins and is never overridden by a
+    // failed remote load; an explicit removal shows the placeholder; only
+    // otherwise does the remote/mapped photo (with its own fallback chain)
+    // apply — mirrors ServiceCard's exact priority order.
+    const displaySrc = localPreviewUrl ?? (removeImage ? null : remoteImageSrc);
 
     const setVariant = (i, key, val) => {
         setForm(f => {
@@ -129,7 +153,14 @@ function ServiceModal({ open, onClose, onSaved, service }) {
         if (!file) return;
         setImageFile(file);
         setRemoveImage(false);
-        setImagePreview(URL.createObjectURL(file));
+        setLocalPreviewUrl(URL.createObjectURL(file));
+    };
+
+    const handleRemoveImage = () => {
+        setImageFile(null);
+        setLocalPreviewUrl(null);
+        setRemoveImage(true);
+        if (fileRef.current) fileRef.current.value = '';
     };
 
     const handleSubmit = async (e) => {
@@ -213,8 +244,15 @@ function ServiceModal({ open, onClose, onSaved, service }) {
                             style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}
                             onClick={() => fileRef.current?.click()}
                         >
-                            {imagePreview
-                                ? <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                            {displaySrc
+                                ? (
+                                    <img
+                                        src={displaySrc}
+                                        onError={localPreviewUrl ? undefined : handleRemoteImageError}
+                                        alt="Preview"
+                                        className="w-full h-full object-cover"
+                                    />
+                                )
                                 : (
                                     <div className="flex flex-col items-center gap-2">
                                         <ImagePlus size={24} style={{ color: 'var(--theme-text-muted)', opacity: 0.5 }} />
@@ -231,10 +269,10 @@ function ServiceModal({ open, onClose, onSaved, service }) {
                                 <span className="text-xs font-semibold text-white">Change image</span>
                             </div>
                         </div>
-                        {imagePreview && (
+                        {displaySrc && (
                             <button
                                 type="button"
-                                onClick={() => { setImageFile(null); setImagePreview(null); setRemoveImage(true); if (fileRef.current) fileRef.current.value = ''; }}
+                                onClick={handleRemoveImage}
                                 className="text-xs mt-1.5"
                                 style={{ color: '#ef4444' }}
                             >
@@ -496,6 +534,13 @@ function ArchiveModal({ open, onClose, onConfirm, service, loading, error }) {
 
 // ── Service Card ──────────────────────────────────────────────────────────────
 function ServiceCard({ service, onEdit, onArchive, onToggle }) {
+    // Tries the Admin-managed upload first, falls back to this service's own
+    // mapped Landing Page photograph if that fails to load, and shows the
+    // existing placeholder icon only when neither is available/loadable —
+    // see resources/js/lib/serviceImageFallback.js (shared with the Landing
+    // Page so both ever display the same photo for the same service).
+    const { src: imgSrc, onError: handleImgError } = useFallbackImage(service, { includeNeutralFallback: false });
+
     return (
         <div
             className="rounded-2xl overflow-hidden flex flex-col"
@@ -504,8 +549,8 @@ function ServiceCard({ service, onEdit, onArchive, onToggle }) {
             {/* Image */}
             <div className="relative h-44 flex items-center justify-center"
                 style={{ background: 'var(--theme-btn-bg)' }}>
-                {service.image_url
-                    ? <img src={service.image_url} alt={service.name} className="w-full h-full object-cover" />
+                {imgSrc
+                    ? <img src={imgSrc} onError={handleImgError} alt={service.name} className="w-full h-full object-cover" />
                     : <ImagePlus size={28} style={{ color: 'var(--theme-text-muted)', opacity: 0.3 }} />
                 }
                 {service.category && (
