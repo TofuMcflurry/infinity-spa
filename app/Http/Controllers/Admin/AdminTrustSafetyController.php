@@ -46,7 +46,8 @@ class AdminTrustSafetyController extends Controller
         $users = User::where('role', 'customer')
             ->where(function ($q) {
                 $q->where('restriction_level', '!=', 'none')
-                  ->orWhere('strike_count', '>=', 2);
+                  ->orWhere('strike_count', '>=', 2)
+                  ->orWhere('is_blocked', true);
             })
             ->with(['violations' => fn($q) => $q->orderByDesc('created_at')->limit(5)])
             ->orderByDesc('strike_count')

@@ -35,6 +35,23 @@ const LEVEL_CONFIG = {
     permanently_blocked: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.2)',   label: 'Permanently Blocked', icon: Ban },
 };
 
+// Administrative block (e.g. Customers → Block Account) is independent of the
+// strike/restriction_level pipeline — it needs its own badge so it isn't
+// mistaken for "No Restriction" when restriction_level is still 'none'/'warned'.
+const ADMIN_BLOCKED_CONFIG = { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)', label: 'Administratively Blocked', icon: Ban };
+
+function isAdminBlocked(user) {
+    return !!user.is_blocked && !['temp_blocked', 'permanently_blocked'].includes(user.restriction_level);
+}
+
+// A 'none' restriction_level carries no independent meaning once an admin
+// block is active, so it must not stand as its own primary badge alongside
+// "Administratively Blocked" — the block becomes the single primary status.
+function primaryBadge(user) {
+    if (user.restriction_level === 'none' && isAdminBlocked(user)) return ADMIN_BLOCKED_CONFIG;
+    return LEVEL_CONFIG[user.restriction_level] ?? LEVEL_CONFIG.none;
+}
+
 const VIOLATION_LEVEL = {
     warning:        { color: '#e2b764', bg: 'rgba(226,183,100,0.1)', label: 'Warning' },
     temp_block:     { color: '#f97316', bg: 'rgba(249,115,22,0.1)',  label: 'Temp Block' },
@@ -250,7 +267,7 @@ function UserDrawer({ user, onClose, onUpdated }) {
 
     if (!user) return null;
 
-    const levelCfg = LEVEL_CONFIG[user.restriction_level] ?? LEVEL_CONFIG.none;
+    const levelCfg = primaryBadge(user);
     const LevelIcon = levelCfg.icon;
 
     const handleSuccess = (res) => {
@@ -280,12 +297,19 @@ function UserDrawer({ user, onClose, onUpdated }) {
                                     {user.name}
                                 </h2>
                                 <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{user.email}</p>
-                                <div className="flex items-center gap-1.5 mt-1">
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                     <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                                         style={{ background: levelCfg.bg, border: `1px solid ${levelCfg.border}`, color: levelCfg.color }}>
                                         <LevelIcon size={10} />
                                         {levelCfg.label}
                                     </span>
+                                    {isAdminBlocked(user) && user.restriction_level !== 'none' && (
+                                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                            style={{ background: ADMIN_BLOCKED_CONFIG.bg, border: `1px solid ${ADMIN_BLOCKED_CONFIG.border}`, color: ADMIN_BLOCKED_CONFIG.color }}>
+                                            <Ban size={10} />
+                                            {ADMIN_BLOCKED_CONFIG.label}
+                                        </span>
+                                    )}
                                     <span className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>
                                         {user.strike_count} strike{user.strike_count !== 1 ? 's' : ''}
                                     </span>
@@ -527,7 +551,7 @@ export default function TrustSafety() {
                     ) : (
                         <div className="divide-y" style={{ borderColor: 'var(--theme-border)' }}>
                             {users.map(u => {
-                                const lcfg = LEVEL_CONFIG[u.restriction_level] ?? LEVEL_CONFIG.none;
+                                const lcfg = primaryBadge(u);
                                 const LIcon = lcfg.icon;
                                 return (
                                     <div key={u.id}
@@ -560,12 +584,21 @@ export default function TrustSafety() {
                                             </p>
                                         </div>
 
-                                        {/* Level badge */}
-                                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0"
-                                            style={{ background: lcfg.bg, border: `1px solid ${lcfg.border}`, color: lcfg.color }}>
-                                            <LIcon size={10} />
-                                            {lcfg.label}
-                                        </span>
+                                        {/* Level badge(s) */}
+                                        <div className="flex flex-wrap items-center justify-end gap-1 flex-shrink-0">
+                                            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full"
+                                                style={{ background: lcfg.bg, border: `1px solid ${lcfg.border}`, color: lcfg.color }}>
+                                                <LIcon size={10} />
+                                                {lcfg.label}
+                                            </span>
+                                            {isAdminBlocked(u) && u.restriction_level !== 'none' && (
+                                                <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full"
+                                                    style={{ background: ADMIN_BLOCKED_CONFIG.bg, border: `1px solid ${ADMIN_BLOCKED_CONFIG.border}`, color: ADMIN_BLOCKED_CONFIG.color }}>
+                                                    <Ban size={10} />
+                                                    {ADMIN_BLOCKED_CONFIG.label}
+                                                </span>
+                                            )}
+                                        </div>
 
                                         <ChevronRight size={14} style={{ color: 'var(--theme-text-muted)', flexShrink: 0 }} />
                                     </div>
