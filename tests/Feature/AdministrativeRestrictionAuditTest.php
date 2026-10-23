@@ -73,7 +73,7 @@ class AdministrativeRestrictionAuditTest extends TestCase
         $this->assertNull($unblocked->block_reason);
         $this->assertActor(AuditLog::where('event', 'customer.unblocked')->sole(), $blocked->id);
         $this->assertDatabaseCount('audit_logs', 2);
-        Notification::assertNothingSent();
+        Notification::assertCount(2);
         $this->assertFalse($unblocked->isFillable('is_blocked'));
         $this->assertFalse($unblocked->isFillable('restriction_level'));
     }
@@ -385,10 +385,15 @@ class AdministrativeRestrictionAuditTest extends TestCase
 
     public function test_outer_rollback_discards_notifications_and_success_audits(): void
     {
+        // Exercise real database writes: NotificationFake cannot roll back its memory.
+        \Illuminate\Support\Facades\Mail::fake();
+        config(['mail.default' => 'array', 'queue.connections.database.connection' => null]);
+        Notification::swap(new \Illuminate\Notifications\ChannelManager($this->app));
         try {
             DB::transaction(function () {
                 TrustSafetyService::issueTempBlock($this->customer, 7, 'PRIVATE');
-                Notification::assertNothingSent();
+                $this->assertDatabaseCount('notifications', 1);
+                $this->assertDatabaseCount('jobs', 1);
                 throw new \RuntimeException('Outer rollback');
             });
         } catch (\RuntimeException $e) {
@@ -397,6 +402,7 @@ class AdministrativeRestrictionAuditTest extends TestCase
         $this->assertFalse($this->customer->fresh()->is_blocked);
         $this->assertDatabaseCount('audit_logs', 0);
         $this->assertDatabaseCount('user_violations', 0);
-        Notification::assertNothingSent();
+        $this->assertDatabaseCount('notifications', 0);
+        $this->assertDatabaseCount('jobs', 0);
     }
 }

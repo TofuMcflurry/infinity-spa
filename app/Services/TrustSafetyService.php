@@ -40,8 +40,7 @@ class TrustSafetyService
                 self::audit('trust.warning_issued', $locked, $before, [
                     'violation_id' => $violation->id, 'strike_number' => $violation->strike_number, 'suggest_block' => $suggest,
                 ]);
-                self::notifyAfterCommit($locked, "⚠️ Account Warning — Strike {$violation->strike_number}",
-                    "Your account has received a formal warning: {$reason}. Repeated violations may result in account suspension.");
+                self::notifyEnforcement($locked, 'warning');
             }
 
             return ['violation' => $violation, 'strike_number' => $violation->strike_number, 'suggest_temp_block' => $suggest];
@@ -74,8 +73,7 @@ class TrustSafetyService
             self::audit('trust.temp_block_issued', $locked, $before, [
                 'violation_id' => $violation->id, 'duration_days' => $durationDays, 'expires_at' => $expiresAt->toDateTimeString(),
             ]);
-            self::notifyAfterCommit($locked, '🚫 Account Temporarily Suspended',
-                "Your account has been temporarily suspended for {$durationDays} days due to: {$reason}. Access will be restored on ".$expiresAt->format('M d, Y').'.');
+            self::notifyEnforcement($locked, 'temporary', $durationDays);
 
             return $violation;
         });
@@ -98,8 +96,7 @@ class TrustSafetyService
             $locked->block_reason = "Permanent block: {$reason}";
             self::persist($locked);
             self::audit('trust.permanent_block_issued', $locked, $before, ['violation_id' => $violation->id]);
-            self::notifyAfterCommit($locked, '🚫 Account Permanently Suspended',
-                'Your account has been permanently suspended due to serious violations of our community standards: '.$reason.'.');
+            self::notifyEnforcement($locked, 'permanent');
 
             return $violation;
         });
@@ -117,8 +114,7 @@ class TrustSafetyService
             }
             self::persist($locked);
             self::audit('trust.restriction_lifted', $locked, $before);
-            self::notifyAfterCommit($locked, '✅ Account Restriction Lifted',
-                'Your account restriction has been lifted. You may continue using Infinity Home Spa.');
+            self::notifyEnforcement($locked, 'lifted');
         });
     }
 
@@ -138,7 +134,7 @@ class TrustSafetyService
                 self::persist($locked);
                 $locked->violations()->where('level', 'temp_block')->where('is_active', true)->update(['is_active' => false]);
                 self::audit('trust.restriction_lifted', $locked, $before, ['source' => 'automatic_expiry'], true);
-                self::notifyAfterCommit($locked, '✅ Suspension Lifted', 'Your temporary suspension has expired. Your account is now active again.');
+                self::notifyEnforcement($locked, 'lifted');
                 return 1;
             });
         }
@@ -191,8 +187,39 @@ class TrustSafetyService
         ], $extra), systemOrigin: $systemOrigin);
     }
 
-    private static function notifyAfterCommit(User $user, string $title, string $message): void
+    /** Called only for a confirmed transition, while its row lock is held. */
+    public static function notifyEnforcement(User $user, string $action, ?int $durationDays = null): void
     {
-        DB::afterCommit(fn () => $user->notify(new \App\Notifications\InAppNotification(title: $title, message: $message)));
+        // The database notice and queued mail must commit with enforcement.
+        // Fail closed if queue configuration would write outside this transaction.
+        if (DB::transactionLevel() < 1
+            || config('queue.connections.database.driver') !== 'database'
+            || (config('queue.connections.database.connection') ?? config('database.default')) !== config('database.default')) {
+            throw new \RuntimeException('Enforcement notices require the shared database queue.');
+        }
+
+        $standing = match (true) {
+            $user->restriction_level === 'permanently_blocked' => 'Your account is permanently restricted.',
+            $user->restriction_level === 'temp_blocked' => 'Your account is temporarily restricted.'
+                . ($user->restricted_until ? ' The recorded restriction end is '.$user->restricted_until->format('d M Y H:i T').'.' : ''),
+            $user->isAccessRestricted() => 'Access to your account is restricted.',
+            $user->restriction_level === 'warned' => 'Your account has a warning. Access remains available.',
+            default => 'Your account has no active access restriction.',
+        };
+        $title = match ($action) {
+            'warning' => 'Account warning issued',
+            'temporary' => 'Temporary account restriction',
+            'permanent' => 'Permanent account restriction',
+            'blocked' => 'Account access restricted',
+            'unblocked' => 'Administrative block removed',
+            'lifted' => 'Account restriction lifted',
+            default => throw new \InvalidArgumentException('Unknown enforcement notification action.'),
+        };
+        $message = ($action === 'warning' ? 'A formal warning has been issued. ' : '')
+            .$standing
+            .($action === 'temporary' && $durationDays !== null ? " Restriction duration: {$durationDays} days." : '')
+            .' Please contact support for assistance or to request a review.';
+
+        $user->notify(new \App\Notifications\EnforcementNotification($title, $message));
     }
 }

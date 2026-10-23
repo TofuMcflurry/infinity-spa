@@ -141,6 +141,7 @@ class AdminCustomerController extends Controller
                 throw new \RuntimeException('Account restriction could not be saved.');
             }
             \App\Events\Audit\CustomerRestrictionChanged::dispatch($locked->id, true, $request);
+            \App\Services\TrustSafetyService::notifyEnforcement($locked, 'blocked');
         });
 
         return response()->json([
@@ -168,6 +169,7 @@ class AdminCustomerController extends Controller
             }
             if ($wasBlocked) {
                 \App\Events\Audit\CustomerRestrictionChanged::dispatch($locked->id, false, $request);
+                \App\Services\TrustSafetyService::notifyEnforcement($locked, 'unblocked');
             }
         });
 
