@@ -162,7 +162,8 @@ class AdministrativeRestrictionAuditTest extends TestCase
         $this->assertFalse($after->fresh()->is_blocked);
         $this->assertTrue($after->fresh()->isAccessRestricted());
         $this->post('/logout')->assertRedirect('/');
-        $this->post('/login', ['email' => $after->email, 'password' => 'password'])->assertSessionHasErrors('code');
+        $this->post('/login', ['email' => $after->email, 'password' => 'password'])
+            ->assertSessionHasErrors(['email' => 'Your account is permanently blocked. Please contact support for assistance.']);
         $this->assertGuest();
         $this->actingAs($after->fresh())->getJson('/api/profile-data')->assertUnauthorized();
         $this->assertGuest();

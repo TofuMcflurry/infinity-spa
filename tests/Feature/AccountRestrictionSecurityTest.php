@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\OtpCode;
 use App\Models\User;
+use App\Models\UserViolation;
 use App\Services\TrustSafetyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -49,13 +50,59 @@ class AccountRestrictionSecurityTest extends TestCase
     #[DataProvider('restrictedStates')]
     public function test_restricted_password_login_remains_guest_and_has_no_success_audit(array $state): void
     {
-        $user = $this->user($state);
+        $user = $this->user(array_merge($state, ['block_reason' => 'PRIVATE-REASON']));
+        $before = $user->getRawOriginal();
+        $message = match ($state['restriction_level'] ?? null) {
+            'temp_blocked' => 'Your account is temporarily restricted. Please contact support for assistance.',
+            'permanently_blocked' => 'Your account is permanently blocked. Please contact support for assistance.',
+            default => 'Access to your account is restricted. Please contact support for assistance.',
+        };
         $this->post('/login', ['email' => $user->email, 'password' => 'password', 'remember' => true])
-            ->assertSessionHasErrors('code');
+            ->assertSessionHasErrors(['email' => $message])
+            ->assertSessionMissing('auth.pending_flow')
+            ->assertSessionMissing('auth.completed_verification');
         $this->assertGuest();
+        $this->get('/dashboard')->assertRedirect(route('login'));
+        $this->assertSame($before, $user->fresh()->getRawOriginal());
         $this->assertDatabaseMissing('audit_logs', ['event' => 'auth.login']);
         $this->assertDatabaseHas('audit_logs', ['event' => 'auth.login_failed']);
         $this->assertDatabaseCount('otp_codes', 0);
+    }
+
+    public function test_unknown_email_and_wrong_password_for_blocked_account_have_identical_generic_errors(): void
+    {
+        $user = $this->user(['is_blocked' => true, 'block_reason' => 'PRIVATE-REASON']);
+        foreach (['unknown@example.test', $user->email] as $email) {
+            $this->postJson('/login', ['email' => $email, 'password' => 'wrong-password'])
+                ->assertUnprocessable()
+                ->assertExactJson([
+                    'message' => trans('auth.failed'),
+                    'errors' => ['email' => [trans('auth.failed')]],
+                ]);
+            $this->assertGuest();
+        }
+        $this->assertDatabaseCount('otp_codes', 0);
+        $this->assertDatabaseMissing('audit_logs', ['event' => 'auth.login']);
+    }
+
+    public static function incompleteVerification(): array
+    {
+        return ['OTP required' => [['is_otp_enabled' => true]], 'email unverified' => [['email_verified_at' => null]]];
+    }
+
+    #[DataProvider('incompleteVerification')]
+    public function test_restriction_details_are_withheld_when_password_is_not_sufficient(array $attributes): void
+    {
+        $user = $this->user(['is_blocked' => true, 'restriction_level' => 'permanently_blocked'], $attributes);
+        $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertUnprocessable()
+            ->assertExactJson([
+                'message' => 'Unable to authenticate this account.',
+                'errors' => ['code' => ['Unable to authenticate this account.']],
+            ]);
+        $this->assertGuest();
+        $this->assertDatabaseCount('otp_codes', 0);
+        $this->get('/dashboard')->assertRedirect(route('login'));
     }
 
     public static function protectedPaths(): array
@@ -102,7 +149,8 @@ class AccountRestrictionSecurityTest extends TestCase
         $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect(route('otp.form'));
         $otp = OtpCode::where('user_id', $user->id)->sole();
         $user->forceFill(['is_blocked' => true])->save();
-        $this->postJson('/otp/verify', ['code' => $otp->code])->assertUnprocessable();
+        $this->postJson('/otp/verify', ['code' => $otp->code])->assertUnprocessable()
+            ->assertJsonValidationErrors(['code' => 'Verification session expired. Please sign in again.']);
         $this->assertGuest();
         $this->assertFalse($otp->fresh()->is_used);
         $this->assertDatabaseMissing('audit_logs', ['event' => 'auth.otp_verified']);
@@ -124,7 +172,8 @@ class AccountRestrictionSecurityTest extends TestCase
         $driver = Mockery::mock();
         $driver->shouldReceive('user')->once()->andReturn($identity);
         Socialite::shouldReceive('driver')->with('google')->once()->andReturn($driver);
-        $this->get('/auth/google/callback')->assertRedirect(route('login'));
+        $this->get('/auth/google/callback')->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => 'Failed to authenticate with Google.']);
         $this->assertGuest();
         $this->assertSame($linked ? 'stable-subject' : null, $user->fresh()->google_id);
         $this->assertDatabaseCount('users', 1);
@@ -135,10 +184,18 @@ class AccountRestrictionSecurityTest extends TestCase
     public function test_warning_only_account_can_complete_login_and_access_customer_api(): void
     {
         $user = $this->user(['restriction_level' => 'warned', 'strike_count' => 2]);
+        $warning = UserViolation::create([
+            'user_id' => $user->id, 'issued_by' => User::factory()->create(['role' => 'admin'])->id,
+            'level' => 'warning', 'reason' => 'PRIVATE-WARNING', 'is_active' => true,
+        ]);
+        $before = $warning->fresh()->getRawOriginal();
         $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect('/dashboard');
         $this->assertAuthenticatedAs($user);
         $this->getJson('/api/profile-data')->assertOk();
         $this->assertDatabaseHas('audit_logs', ['event' => 'auth.login', 'user_id' => $user->id]);
+        $this->assertSame($before, $warning->fresh()->getRawOriginal());
+        $this->assertSame('warned', $user->fresh()->restriction_level);
+        $this->assertSame(2, $user->fresh()->strike_count);
     }
 
     public function test_logout_and_token_recovery_remain_available_without_lifting_block(): void
@@ -153,7 +210,8 @@ class AccountRestrictionSecurityTest extends TestCase
             'password' => 'new-password', 'password_confirmation' => 'new-password',
         ])->assertRedirect(route('login'));
         $this->assertTrue($user->fresh()->is_blocked);
-        $this->post('/login', ['email' => $user->email, 'password' => 'new-password'])->assertSessionHasErrors('code');
+        $this->post('/login', ['email' => $user->email, 'password' => 'new-password'])
+            ->assertSessionHasErrors(['email' => 'Access to your account is restricted. Please contact support for assistance.']);
         $this->assertGuest();
     }
 

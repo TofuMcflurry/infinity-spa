@@ -59,6 +59,17 @@ class LoginRequest extends FormRequest
         RateLimiter::clear($this->throttleKey());
 
         $user = Auth::guard()->getLastAttempted();
+        // Password proof is sufficient only when no further verification is required.
+        // Keep shared OAuth/OTP guards generic and never include private evidence here.
+        if ($user->isAccessRestricted() && $user->email_verified_at && !$user->is_otp_enabled) {
+            $message = match ($user->restriction_level) {
+                'temp_blocked' => 'Your account is temporarily restricted. Please contact support for assistance.',
+                'permanently_blocked' => 'Your account is permanently blocked. Please contact support for assistance.',
+                default => 'Access to your account is restricted. Please contact support for assistance.',
+            };
+
+            throw ValidationException::withMessages(['email' => $message]);
+        }
         app(AuthenticationFlowService::class)->assertAllowed($user);
         Auth::guard()->getProvider()->rehashPasswordIfRequired($user, $this->only('password'));
 
