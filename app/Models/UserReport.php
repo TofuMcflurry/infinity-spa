@@ -11,6 +11,7 @@ class UserReport extends Model
         'reporter_type',
         'reported_user_id',
         'reported_type',
+        'booking_id',
         'reason',
         'description',
         'status',
@@ -36,5 +37,10 @@ class UserReport extends Model
     public function reviewedBy()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function booking()
+    {
+        return $this->belongsTo(Booking::class);
     }
 }

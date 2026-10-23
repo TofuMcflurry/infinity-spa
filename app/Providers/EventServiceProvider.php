@@ -45,6 +45,8 @@ use App\Events\Audit\CustomerDownpaymentUploaded;
 use App\Events\Audit\CustomerReviewSubmitted;
 use App\Events\Audit\CustomerProfileUpdated;
 use App\Events\Audit\CustomerRestrictionChanged;
+use App\Events\Audit\CustomerReportSubmitted;
+use App\Events\Audit\TherapistReportSubmitted;
 
 // Listener
 use App\Listeners\AuditLogListener;
@@ -101,6 +103,10 @@ class EventServiceProvider extends ServiceProvider
         CustomerReviewSubmitted::class     => [AuditLogListener::class],
         CustomerProfileUpdated::class      => [AuditLogListener::class],
         CustomerRestrictionChanged::class  => [AuditLogListener::class],
+        CustomerReportSubmitted::class     => [AuditLogListener::class],
+
+        // ── Therapist self-service ───────────────────────────────────────────
+        TherapistReportSubmitted::class    => [AuditLogListener::class],
 
         // ── Trust & Safety ────────────────────────────────────────────────────
         \App\Events\Audit\TrustWarningIssued::class       => [AuditLogListener::class],

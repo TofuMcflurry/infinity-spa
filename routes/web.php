@@ -59,6 +59,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/reviews/check',                [ReviewController::class, 'checkEligibility'])->name('api.reviews.check');
         Route::post('/reviews',                     [ReviewController::class, 'store'])->name('api.reviews.store');
         Route::get('/reviews/pending',              [ReviewController::class, 'pendingReviews'])->name('api.reviews.pending');
+        Route::post('/bookings/{booking}/report',   [App\Http\Controllers\ReportController::class, 'store'])->name('api.bookings.report.store');
+        Route::get('/bookings/{booking}/report',    [App\Http\Controllers\ReportController::class, 'show'])->name('api.bookings.report.show');
         Route::get('/addresses',                    [AddressController::class, 'index'])->name('api.addresses');
         Route::post('/addresses',                   [AddressController::class, 'store'])->name('api.addresses.store');
         Route::put('/addresses/{address}',          [AddressController::class, 'update'])->name('api.addresses.update');
@@ -105,6 +107,10 @@ Route::middleware(['auth', 'verified', 'therapist'])
 
             // ── GPS v1 (ingestion only — see docs/architecture/GPS-ARCHITECTURE.md) ─
             Route::post('/bookings/{booking}/location',     [App\Http\Controllers\TherapistLocationController::class, 'update'])->name('bookings.location');
+
+            // ── Reporting ─────────────────────────────────────────────────────
+            Route::post('/bookings/{booking}/report',       [App\Http\Controllers\TherapistReportController::class, 'store'])->name('bookings.report.store');
+            Route::get('/bookings/{booking}/report',         [App\Http\Controllers\TherapistReportController::class, 'show'])->name('bookings.report.show');
 
             // ── Profile ───────────────────────────────────────────────────────
             Route::get('/profile',                          [TherapistBookingController::class, 'profile'])->name('profile');
