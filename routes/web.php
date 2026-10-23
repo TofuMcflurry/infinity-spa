@@ -133,7 +133,9 @@ Route::middleware(['auth', 'verified', 'therapist'])
 Route::get('otp/verify',  [App\Http\Controllers\Auth\OtpController::class, 'showForm'])->name('otp.form');
 Route::post('otp/send',   [App\Http\Controllers\Auth\OtpController::class, 'sendOtp'])->name('otp.send');
 Route::post('otp/verify', [App\Http\Controllers\Auth\OtpController::class, 'verifyOtp'])->name('otp.verify');
-Route::post('/account/set-password', [App\Http\Controllers\Auth\PasswordController::class, 'setPasswordForGoogleUser'])->name('account.set.password');
+Route::post('/account/set-password', [App\Http\Controllers\Auth\PasswordController::class, 'setPasswordForGoogleUser'])
+    ->middleware('auth')
+    ->name('account.set.password');
 
 Route::prefix('auth')->group(function () {
     Route::get('google',          [App\Http\Controllers\Auth\SocialiteController::class, 'redirectToGoogle'])->name('auth.google');

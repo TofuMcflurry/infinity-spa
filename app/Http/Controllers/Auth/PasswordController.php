@@ -29,18 +29,8 @@ class PasswordController extends Controller
 
     public function setPasswordForGoogleUser(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ]);
-
-        $user = User::where('email', $request->email)->first();
-
-        // Update password
-        $user->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        return response()->json(['message' => 'Password set successfully']);
+        // The legacy guest form provides no proof of account ownership.
+        // Keep direct setup disabled; do not revive the email-selected write.
+        abort(403, 'Direct password setup is unavailable. Use the password reset flow.');
     }
 }
