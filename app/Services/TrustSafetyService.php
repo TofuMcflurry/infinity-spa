@@ -2,258 +2,197 @@
 
 namespace App\Services;
 
-use App\Models\Notification;
 use App\Models\User;
 use App\Models\UserViolation;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TrustSafetyService
 {
-    // Auto-escalation threshold
     const STRIKES_BEFORE_TEMP_BLOCK = 3;
-    const ESCALATION_WINDOW_MONTHS  = 6;
+    const ESCALATION_WINDOW_MONTHS = 6;
 
-    /**
-     * Issue a Warning (Strike 1 or 2).
-     * If 3 warnings within 6 months, suggest temp block to admin.
-     */
-    public static function issueWarning(
-        User    $user,
-        string  $reason,
-        ?string $description = null,
-        ?int    $reportId    = null,
-    ): array {
-        $strikeNumber = $user->strike_count + 1;
+    public static function issueWarning(User $user, string $reason, ?string $description = null, ?int $reportId = null): array
+    {
+        return DB::transaction(function () use ($user, $reason, $description, $reportId) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            // A report identifies one incident. Without a report, issuing another
+            // warning remains an intentional new strike, as in the existing API.
+            $violation = $reportId === null ? null : $locked->violations()
+                ->where('level', 'warning')->where('report_id', $reportId)->first();
+            $before = self::state($locked);
+            $changed = $violation === null;
+            if ($changed) {
+                $strikeNumber = $locked->strike_count + 1;
+                $violation = self::violation($locked, 'warning', $reason, $description, $reportId, ['strike_number' => $strikeNumber]);
+                $locked->strike_count = $strikeNumber;
+                // A warning must not replace a stored block, even after its
+                // deadline. Only the expiry/lift transition may clear it.
+                if (in_array($locked->restriction_level, ['none', 'warned'], true)) {
+                    $locked->restriction_level = 'warned';
+                }
+                self::persist($locked);
+            }
+            $recentStrikes = $locked->violations()->where('level', 'warning')
+                ->where('created_at', '>=', now()->subMonths(self::ESCALATION_WINDOW_MONTHS))->count();
+            $suggest = $recentStrikes >= self::STRIKES_BEFORE_TEMP_BLOCK;
+            if ($changed) {
+                self::audit('trust.warning_issued', $locked, $before, [
+                    'violation_id' => $violation->id, 'strike_number' => $violation->strike_number, 'suggest_block' => $suggest,
+                ]);
+                self::notifyAfterCommit($locked, "⚠️ Account Warning — Strike {$violation->strike_number}",
+                    "Your account has received a formal warning: {$reason}. Repeated violations may result in account suspension.");
+            }
 
-        // Create the violation record
-        $violation = UserViolation::create([
-            'user_id'       => $user->id,
-            'issued_by'     => Auth::id(),
-            'level'         => 'warning',
-            'reason'        => $reason,
-            'description'   => $description,
-            'report_id'     => $reportId,
-            'strike_number' => $strikeNumber,
-            'is_active'     => true,
-        ]);
+            return ['violation' => $violation, 'strike_number' => $violation->strike_number, 'suggest_temp_block' => $suggest];
+        });
+    }
 
-        // Update user strike count + restriction level
-        $user->update([
-            'strike_count'      => $strikeNumber,
-            'restriction_level' => 'warned',
-        ]);
+    public static function issueTempBlock(User $user, int $durationDays, string $reason, ?string $description = null, ?int $reportId = null): UserViolation
+    {
+        return DB::transaction(function () use ($user, $durationDays, $reason, $description, $reportId) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $existing = self::matchingViolation($locked, 'temp_block', $reason, $description, $reportId)
+                ->where('duration_days', $durationDays)->where('expires_at', '>', now())->first();
+            if ($existing && $locked->is_blocked && $locked->restriction_level === 'temp_blocked'
+                && $locked->restricted_until?->equalTo($existing->expires_at)) {
+                return $existing;
+            }
+            $before = self::state($locked);
+            $expiresAt = now()->addDays($durationDays);
+            $strikeNumber = $locked->strike_count + 1;
+            $violation = self::violation($locked, 'temp_block', $reason, $description, $reportId, [
+                'duration_days' => $durationDays, 'expires_at' => $expiresAt, 'strike_number' => $strikeNumber,
+            ]);
+            $locked->strike_count = $strikeNumber;
+            $locked->restriction_level = 'temp_blocked';
+            $locked->restricted_until = $expiresAt;
+            $locked->is_blocked = true;
+            $locked->blocked_at = now();
+            $locked->block_reason = "Temporary block ({$durationDays} days): {$reason}";
+            self::persist($locked);
+            self::audit('trust.temp_block_issued', $locked, $before, [
+                'violation_id' => $violation->id, 'duration_days' => $durationDays, 'expires_at' => $expiresAt->toDateTimeString(),
+            ]);
+            self::notifyAfterCommit($locked, '🚫 Account Temporarily Suspended',
+                "Your account has been temporarily suspended for {$durationDays} days due to: {$reason}. Access will be restored on ".$expiresAt->format('M d, Y').'.');
 
-        // Notify the customer
-        self::notifyUser($user,
-            title:   "⚠️ Account Warning — Strike {$strikeNumber}",
-            message: "Your account has received a formal warning: {$reason}. Repeated violations may result in account suspension.",
-        );
+            return $violation;
+        });
+    }
 
-        // Check if auto-escalation threshold reached
-        $recentStrikes = UserViolation::where('user_id', $user->id)
-            ->where('level', 'warning')
-            ->where('created_at', '>=', now()->subMonths(self::ESCALATION_WINDOW_MONTHS))
-            ->count();
+    public static function issuePermanentBlock(User $user, string $reason, ?string $description = null, ?int $reportId = null): UserViolation
+    {
+        return DB::transaction(function () use ($user, $reason, $description, $reportId) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $existing = self::matchingViolation($locked, 'permanent_block', $reason, $description, $reportId)->first();
+            if ($existing && $locked->is_blocked && $locked->restriction_level === 'permanently_blocked') {
+                return $existing;
+            }
+            $before = self::state($locked);
+            $violation = self::violation($locked, 'permanent_block', $reason, $description, $reportId);
+            $locked->restriction_level = 'permanently_blocked';
+            $locked->restricted_until = null;
+            $locked->is_blocked = true;
+            $locked->blocked_at = now();
+            $locked->block_reason = "Permanent block: {$reason}";
+            self::persist($locked);
+            self::audit('trust.permanent_block_issued', $locked, $before, ['violation_id' => $violation->id]);
+            self::notifyAfterCommit($locked, '🚫 Account Permanently Suspended',
+                'Your account has been permanently suspended due to serious violations of our community standards: '.$reason.'.');
 
-        $shouldSuggestBlock = $recentStrikes >= self::STRIKES_BEFORE_TEMP_BLOCK;
+            return $violation;
+        });
+    }
 
-        // Log to audit trail
-        AuditService::log(
-            event:      'trust.warning_issued',
-            targetType: 'User',
-            targetId:   $user->id,
-            metadata:   [
-                'user_name'    => $user->name,
-                'reason'       => $reason,
-                'strike_number'=> $strikeNumber,
-                'suggest_block'=> $shouldSuggestBlock,
-            ],
-        );
+    public static function liftRestriction(User $user, string $note = ''): void
+    {
+        DB::transaction(function () use ($user) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $before = self::state($locked);
+            $active = $locked->violations()->where('is_active', true)->update(['is_active' => false]);
+            self::clearRestriction($locked);
+            if (!$locked->isDirty() && !$active) {
+                return;
+            }
+            self::persist($locked);
+            self::audit('trust.restriction_lifted', $locked, $before);
+            self::notifyAfterCommit($locked, '✅ Account Restriction Lifted',
+                'Your account restriction has been lifted. You may continue using Infinity Home Spa.');
+        });
+    }
 
+    public static function checkAndExpireTempBlocks(): int
+    {
+        $count = 0;
+        $ids = User::where('restriction_level', 'temp_blocked')->where('restricted_until', '<=', now())->orderBy('id')->pluck('id');
+        foreach ($ids as $id) {
+            $count += DB::transaction(function () use ($id) {
+                $locked = User::whereKey($id)->lockForUpdate()->first();
+                if (!$locked || $locked->restriction_level !== 'temp_blocked'
+                    || !$locked->restricted_until || $locked->restricted_until->isFuture()) {
+                    return 0;
+                }
+                $before = self::state($locked);
+                self::clearRestriction($locked);
+                self::persist($locked);
+                $locked->violations()->where('level', 'temp_block')->where('is_active', true)->update(['is_active' => false]);
+                self::audit('trust.restriction_lifted', $locked, $before, ['source' => 'automatic_expiry'], true);
+                self::notifyAfterCommit($locked, '✅ Suspension Lifted', 'Your temporary suspension has expired. Your account is now active again.');
+                return 1;
+            });
+        }
+
+        return $count;
+    }
+
+    private static function matchingViolation(User $user, string $level, string $reason, ?string $description, ?int $reportId)
+    {
+        return $user->violations()->where('is_active', true)->where('level', $level)
+            ->where('reason', $reason)->where('description', $description)->where('report_id', $reportId);
+    }
+
+    private static function violation(User $user, string $level, string $reason, ?string $description, ?int $reportId, array $extra = []): UserViolation
+    {
+        return UserViolation::create(array_merge([
+            'user_id' => $user->id, 'issued_by' => Auth::id(), 'level' => $level,
+            'reason' => $reason, 'description' => $description, 'report_id' => $reportId, 'is_active' => true,
+        ], $extra));
+    }
+
+    private static function persist(User $user): void
+    {
+        if (!$user->saveOrFail()) {
+            throw new \RuntimeException('Account restriction could not be saved.');
+        }
+    }
+
+    private static function clearRestriction(User $user): void
+    {
+        $user->is_blocked = false;
+        $user->blocked_at = null;
+        $user->block_reason = null;
+        $user->restriction_level = 'none';
+        $user->restricted_until = null;
+    }
+
+    private static function state(User $user): array
+    {
         return [
-            'violation'           => $violation,
-            'strike_number'       => $strikeNumber,
-            'suggest_temp_block'  => $shouldSuggestBlock,
+            'is_blocked' => (bool) $user->is_blocked, 'restriction_level' => $user->restriction_level,
+            'strike_count' => (int) $user->strike_count, 'restricted_until' => $user->restricted_until?->toDateTimeString(),
         ];
     }
 
-    /**
-     * Issue a Temporary Block (7 or 30 days).
-     * Customer cannot login or make bookings during this period.
-     */
-    public static function issueTempBlock(
-        User    $user,
-        int     $durationDays,
-        string  $reason,
-        ?string $description = null,
-        ?int    $reportId    = null,
-    ): UserViolation {
-        $expiresAt    = now()->addDays($durationDays);
-        $strikeNumber = $user->strike_count + 1;
-
-        $violation = UserViolation::create([
-            'user_id'       => $user->id,
-            'issued_by'     => Auth::id(),
-            'level'         => 'temp_block',
-            'duration_days' => $durationDays,
-            'reason'        => $reason,
-            'description'   => $description,
-            'report_id'     => $reportId,
-            'expires_at'    => $expiresAt,
-            'strike_number' => $strikeNumber,
-            'is_active'     => true,
-        ]);
-
-        $user->update([
-            'strike_count'      => $strikeNumber,
-            'restriction_level' => 'temp_blocked',
-            'restricted_until'  => $expiresAt,
-            'is_blocked'        => true,
-            'blocked_at'        => now(),
-            'block_reason'      => "Temporary block ({$durationDays} days): {$reason}",
-        ]);
-
-        self::notifyUser($user,
-            title:   "🚫 Account Temporarily Suspended",
-            message: "Your account has been temporarily suspended for {$durationDays} days due to: {$reason}. Access will be restored on " . $expiresAt->format('M d, Y') . ".",
-        );
-
-        AuditService::log(
-            event:      'trust.temp_block_issued',
-            targetType: 'User',
-            targetId:   $user->id,
-            metadata:   [
-                'user_name'     => $user->name,
-                'reason'        => $reason,
-                'duration_days' => $durationDays,
-                'expires_at'    => $expiresAt->toDateTimeString(),
-            ],
-        );
-
-        return $violation;
-    }
-
-    /**
-     * Issue a Permanent Block.
-     * Customer cannot login ever again.
-     */
-    public static function issuePermanentBlock(
-        User    $user,
-        string  $reason,
-        ?string $description = null,
-        ?int    $reportId    = null,
-    ): UserViolation {
-        $violation = UserViolation::create([
-            'user_id'       => $user->id,
-            'issued_by'     => Auth::id(),
-            'level'         => 'permanent_block',
-            'reason'        => $reason,
-            'description'   => $description,
-            'report_id'     => $reportId,
-            'is_active'     => true,
-        ]);
-
-        $user->update([
-            'restriction_level' => 'permanently_blocked',
-            'restricted_until'  => null,
-            'is_blocked'        => true,
-            'blocked_at'        => now(),
-            'block_reason'      => "Permanent block: {$reason}",
-        ]);
-
-        self::notifyUser($user,
-            title:   "🚫 Account Permanently Suspended",
-            message: "Your account has been permanently suspended due to serious violations of our community standards: {$reason}.",
-        );
-
-        AuditService::log(
-            event:      'trust.permanent_block_issued',
-            targetType: 'User',
-            targetId:   $user->id,
-            metadata:   [
-                'user_name' => $user->name,
-                'reason'    => $reason,
-            ],
-        );
-
-        return $violation;
-    }
-
-    /**
-     * Lift a restriction (manual unblock by admin).
-     */
-    public static function liftRestriction(User $user, string $note = ''): void
+    private static function audit(string $event, User $user, array $before, array $extra = [], bool $systemOrigin = false): void
     {
-        // Deactivate all active violations
-        UserViolation::where('user_id', $user->id)
-            ->where('is_active', true)
-            ->update(['is_active' => false]);
-
-        $user->update([
-            'is_blocked'        => false,
-            'blocked_at'        => null,
-            'block_reason'      => null,
-            'restriction_level' => 'none',
-            'restricted_until'  => null,
-        ]);
-
-        self::notifyUser($user,
-            title:   '✅ Account Restriction Lifted',
-            message: 'Your account restriction has been lifted. You may continue using Infinity Home Spa.',
-        );
-
-        AuditService::log(
-            event:      'trust.restriction_lifted',
-            targetType: 'User',
-            targetId:   $user->id,
-            metadata:   [
-                'user_name' => $user->name,
-                'note'      => $note,
-            ],
-        );
+        AuditService::log($event, 'User', $user->id, array_merge([
+            'before' => $before, 'after' => self::state($user),
+        ], $extra), systemOrigin: $systemOrigin);
     }
 
-    /**
-     * Auto-expire temp blocks (run via scheduler or on login check).
-     */
-    public static function checkAndExpireTempBlocks(): int
+    private static function notifyAfterCommit(User $user, string $title, string $message): void
     {
-        $expired = User::where('restriction_level', 'temp_blocked')
-            ->where('restricted_until', '<=', now())
-            ->get();
-
-        foreach ($expired as $user) {
-            $user->update([
-                'is_blocked'        => false,
-                'blocked_at'        => null,
-                'block_reason'      => null,
-                'restriction_level' => 'none',
-                'restricted_until'  => null,
-            ]);
-
-            UserViolation::where('user_id', $user->id)
-                ->where('level', 'temp_block')
-                ->where('is_active', true)
-                ->update(['is_active' => false]);
-
-            self::notifyUser($user,
-                title:   '✅ Suspension Lifted',
-                message: 'Your temporary suspension has expired. Your account is now active again.',
-            );
-        }
-
-        return $expired->count();
-    }
-
-    /**
-     * Send an in-app notification to the user.
-     */
-    private static function notifyUser(User $user, string $title, string $message): void
-    {
-        $user->notify(new \App\Notifications\InAppNotification(
-            title:   $title,
-            message: $message,
-        ));
+        DB::afterCommit(fn () => $user->notify(new \App\Notifications\InAppNotification(title: $title, message: $message)));
     }
 }

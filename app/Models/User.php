@@ -118,6 +118,13 @@ class User extends Authenticatable
         return !is_null($this->google_id);
     }
 
+    public function isAccessRestricted(): bool
+    {
+        // A deadline alone never lifts a stored block. TrustSafetyService must
+        // commit the expiry transition first. Warning-only accounts retain access.
+        return $this->is_blocked || !in_array($this->restriction_level ?? 'none', ['none', 'warned'], true);
+    }
+
     protected $casts = [
         'is_blocked'       => 'boolean',
         'blocked_at'       => 'datetime',

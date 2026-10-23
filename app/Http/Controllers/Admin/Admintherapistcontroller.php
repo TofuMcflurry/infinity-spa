@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserReport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 // Audit Events
@@ -76,28 +77,50 @@ class AdminTherapistController extends Controller
 
     public function approve(Request $request, Therapist $therapist)
     {
-        $therapist->update(['is_active' => true]);
-        TherapistApproved::dispatch($therapist->id, $therapist->user->name, $request);
+        DB::transaction(function () use ($request, $therapist) {
+            User::whereKey($therapist->user_id)->lockForUpdate()->firstOrFail();
+            $locked = Therapist::whereKey($therapist->id)->lockForUpdate()->firstOrFail();
+            if ($locked->is_active) {
+                return;
+            }
+            $locked->is_active = true;
+            if (!$locked->saveOrFail()) {
+                throw new \RuntimeException('Therapist state could not be saved.');
+            }
+            TherapistApproved::dispatch($locked->id, $locked->user->name, $request);
+        });
         return back()->with('success', "{$therapist->user->name} has been approved.");
     }
 
     public function deactivate(Request $request, Therapist $therapist)
     {
-        $therapist->update(['is_active' => false]);
-        TherapistDeactivated::dispatch($therapist->id, $therapist->user->name, $request);
+        DB::transaction(function () use ($request, $therapist) {
+            User::whereKey($therapist->user_id)->lockForUpdate()->firstOrFail();
+            $locked = Therapist::whereKey($therapist->id)->lockForUpdate()->firstOrFail();
+            if (!$locked->is_active) {
+                return;
+            }
+            $locked->is_active = false;
+            if (!$locked->saveOrFail()) {
+                throw new \RuntimeException('Therapist state could not be saved.');
+            }
+            TherapistDeactivated::dispatch($locked->id, $locked->user->name, $request);
+        });
         return back()->with('success', "{$therapist->user->name} has been deactivated.");
     }
 
     public function reject(Request $request, Therapist $therapist)
     {
-        $name        = $therapist->user->name;
-        $therapistId = $therapist->id;
-        $userId      = $therapist->user_id;
-
-        TherapistRejected::dispatch($therapistId, $name, $request);
-
-        $therapist->delete();
-        User::find($userId)?->delete();
+        $name = DB::transaction(function () use ($request, $therapist) {
+            $user = User::whereKey($therapist->user_id)->lockForUpdate()->firstOrFail();
+            $locked = Therapist::whereKey($therapist->id)->lockForUpdate()->firstOrFail();
+            $name = $user->name;
+            if (!$locked->delete() || !$user->delete()) {
+                throw new \RuntimeException('Therapist rejection could not be completed.');
+            }
+            TherapistRejected::dispatch($locked->id, $name, $request);
+            return $name;
+        });
 
         return back()->with('success', "{$name} has been rejected and removed.");
     }

@@ -51,6 +51,7 @@ class SocialiteController extends Controller
                             throw new \RuntimeException('Conflicting Google identity.');
                         }
                         if ($user) {
+                            $this->flows->assertAllowed($user);
                             $user->update(['google_id' => $googleUser->getId()]);
                         } else {
                             $user = User::create([
@@ -60,6 +61,7 @@ class SocialiteController extends Controller
                             ])->refresh();
                         }
                     }
+                    $this->flows->assertAllowed($user);
                     return $user;
                 });
                 if ($user->is_otp_enabled || !$user->email_verified_at) {

@@ -41,6 +41,7 @@ use App\Events\Audit\CustomerBookingCancelled;
 use App\Events\Audit\CustomerDownpaymentUploaded;
 use App\Events\Audit\CustomerReviewSubmitted;
 use App\Events\Audit\CustomerProfileUpdated;
+use App\Events\Audit\CustomerRestrictionChanged;
 
 // Listener
 use App\Listeners\AuditLogListener;
@@ -93,6 +94,7 @@ class EventServiceProvider extends ServiceProvider
         CustomerDownpaymentUploaded::class => [AuditLogListener::class],
         CustomerReviewSubmitted::class     => [AuditLogListener::class],
         CustomerProfileUpdated::class      => [AuditLogListener::class],
+        CustomerRestrictionChanged::class  => [AuditLogListener::class],
 
         // ── Trust & Safety ────────────────────────────────────────────────────
         \App\Events\Audit\TrustWarningIssued::class       => [AuditLogListener::class],

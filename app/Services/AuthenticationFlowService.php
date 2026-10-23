@@ -30,7 +30,7 @@ class AuthenticationFlowService
 
     public function completeForSession(User $user, Request $request): bool
     {
-        if (!$user->email_verified_at) {
+        if ($user->isAccessRestricted() || !$user->email_verified_at) {
             return false;
         }
         if (!$user->is_otp_enabled) {
@@ -53,6 +53,7 @@ class AuthenticationFlowService
 
     public function begin(User $user, Request $request, string $method, bool $remember = false): void
     {
+        $this->assertAllowed($user);
         $this->assertIssuanceBoundary();
         $this->budget([
             ['issue:user:'.$user->id, 4, 900],
@@ -62,6 +63,7 @@ class AuthenticationFlowService
         $id = Str::random(64);
         $this->atomic(['flow:'.$id], function () use ($user, $expected, $id, $method, $remember) {
             $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $this->assertAllowed($locked);
             if (!hash_equals($expected, $this->fingerprint($locked))) {
                 $this->invalid();
             }
@@ -176,6 +178,7 @@ class AuthenticationFlowService
 
     private function authenticate(User $user, Request $request, string $method, bool $remember, bool $otp): void
     {
+        $this->assertAllowed($user);
         if (!$user->email_verified_at || ($user->is_otp_enabled && !$otp)) {
             $this->invalid();
         }
@@ -208,13 +211,20 @@ class AuthenticationFlowService
                 $this->invalid();
             }
             $user = User::whereKey($flow['user_id'])->lockForUpdate()->first();
-            if (!$user || !hash_equals($flow['fingerprint'], $this->fingerprint($user))) {
+            if (!$user || $user->isAccessRestricted() || !hash_equals($flow['fingerprint'], $this->fingerprint($user))) {
                 $request->session()->forget(self::PENDING);
                 $this->invalid();
             }
 
             return $action($flow, $user, $id);
         });
+    }
+
+    public function assertAllowed(User $user): void
+    {
+        if ($user->isAccessRestricted()) {
+            throw ValidationException::withMessages(['code' => 'Unable to authenticate this account.']);
+        }
     }
 
     private function budget(array $limits): void

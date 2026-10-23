@@ -59,6 +59,7 @@ class LoginRequest extends FormRequest
         RateLimiter::clear($this->throttleKey());
 
         $user = Auth::guard()->getLastAttempted();
+        app(AuthenticationFlowService::class)->assertAllowed($user);
         Auth::guard()->getProvider()->rehashPasswordIfRequired($user, $this->only('password'));
 
         return $user;

@@ -17,7 +17,10 @@ class EnsureVerifiedAuthentication extends Authenticate
                 return $next($request);
             }
             $flows = app(AuthenticationFlowService::class);
-            if (!$flows->completeForSession($request->user(), $request)) {
+            // Reload: an account may have been restricted since this guard's
+            // identity was loaded (including long-lived/in-process sessions).
+            $user = $request->user()->fresh();
+            if (!$user || !$flows->completeForSession($user, $request)) {
                 $flows->clear($request);
                 Auth::logout();
                 $request->session()->invalidate();
@@ -27,6 +30,8 @@ class EnsureVerifiedAuthentication extends Authenticate
                     ? response()->json(['message' => 'Authentication verification required.'], 401)
                     : redirect()->guest(route('login'));
             }
+
+            Auth::setUser($user);
 
             return $next($request);
         }, ...$guards);

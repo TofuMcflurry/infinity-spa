@@ -129,11 +129,19 @@ class AdminCustomerController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
-        $user->update([
-            'is_blocked'   => true,
-            'blocked_at'   => now(),
-            'block_reason' => $request->reason,
-        ]);
+        DB::transaction(function () use ($request, $user) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if ($locked->is_blocked) {
+                return;
+            }
+            $locked->is_blocked = true;
+            $locked->blocked_at = now();
+            $locked->block_reason = $request->reason;
+            if (!$locked->saveOrFail()) {
+                throw new \RuntimeException('Account restriction could not be saved.');
+            }
+            \App\Events\Audit\CustomerRestrictionChanged::dispatch($locked->id, true, $request);
+        });
 
         return response()->json([
             'message'  => "{$user->name} has been blocked.",
@@ -144,13 +152,24 @@ class AdminCustomerController extends Controller
     /**
      * POST /admin/api/customers/{user}/unblock
      */
-    public function unblock(User $user)
+    public function unblock(Request $request, User $user)
     {
-        $user->update([
-            'is_blocked'   => false,
-            'blocked_at'   => null,
-            'block_reason' => null,
-        ]);
+        DB::transaction(function () use ($request, $user) {
+            $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if (!$locked->is_blocked && $locked->blocked_at === null && $locked->block_reason === null) {
+                return;
+            }
+            $wasBlocked = (bool) $locked->is_blocked;
+            $locked->is_blocked = false;
+            $locked->blocked_at = null;
+            $locked->block_reason = null;
+            if (!$locked->saveOrFail()) {
+                throw new \RuntimeException('Account restriction could not be saved.');
+            }
+            if ($wasBlocked) {
+                \App\Events\Audit\CustomerRestrictionChanged::dispatch($locked->id, false, $request);
+            }
+        });
 
         return response()->json([
             'message'  => "{$user->name} has been unblocked.",
