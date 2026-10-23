@@ -9,12 +9,13 @@ import {
     XCircle, AlertCircle, RefreshCw, Sparkles,
     CreditCard, Banknote, X, AlertTriangle,
     Receipt, Image, ExternalLink, CalendarClock,
-    ArrowRight, ChevronLeft, Bell, Info
+    ArrowRight, ChevronLeft, Bell, Info, Flag
 } from 'lucide-react';
 import { computePaymentSummary, PAYMENT_STATUS_LABELS, formatAed } from '@/lib/paymentSummary';
 import TherapistLiveMap from '@/Components/Customer/TherapistLiveMap';
 import MobileMenuSheet from '@/Components/Customer/MobileMenuSheet';
 import MobileMenuTrigger from '@/Components/Customer/MobileMenuTrigger';
+import ReportIssueModal from '@/Components/ReportIssueModal';
 
 // ── API helper ─────────────────────────────────────────────────────────────
 function getCsrf() {
@@ -467,6 +468,7 @@ function StatusBadge({ status }) {
 // ── Booking Details Modal ──────────────────────────────────────────────────
 function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProposal, onCancelViaProposal }) {
     const [showProof, setShowProof] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const bookingRef = `IHS-${String(booking.id).padStart(5, '0')}`;
 
     // Shared payment contract (see resources/js/lib/paymentSummary.js —
@@ -812,8 +814,23 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="px-5 pb-5 pt-3 border-t flex-shrink-0"
+                <div className="px-5 pb-5 pt-3 border-t flex-shrink-0 space-y-2"
                     style={{ borderColor: 'var(--theme-border)' }}>
+                    {/* Restrained — a quiet text link, not a loud action button;
+                        reporting is available on any booking shown here since
+                        this list is already scoped to the signed-in customer's
+                        own bookings, but the server remains the sole authority
+                        on eligibility and ownership. */}
+                    <button
+                        onClick={() => setShowReportModal(true)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors"
+                        style={{ color: 'var(--theme-text-muted)' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-2)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
+                    >
+                        <Flag size={12} />
+                        Report an Issue
+                    </button>
                     <button
                         onClick={onClose}
                         className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
@@ -823,6 +840,18 @@ function BookingDetailsModal({ booking, onClose, onAcceptProposal, onCounterProp
                     </button>
                 </div>
             </motion.div>
+
+            {/* ── Report an Issue (Mission #40C) ──
+                Rendered as a sibling overlay, not nested, so it never
+                stacks/traps focus inside this modal's own scroll region. */}
+            {showReportModal && (
+                <ReportIssueModal
+                    bookingId={booking.id}
+                    role="customer"
+                    subjectLabel={booking.therapist ? `your therapist, ${booking.therapist}` : 'your assigned therapist'}
+                    onClose={() => setShowReportModal(false)}
+                />
+            )}
         </div>
     );
 }

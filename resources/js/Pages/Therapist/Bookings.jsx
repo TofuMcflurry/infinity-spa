@@ -6,10 +6,11 @@ import {
     XCircle, Loader2, Banknote, Star, AlertCircle, X, Car,
     Eye, Image as ImageIcon,
     Navigation, ClipboardList, Download, RefreshCw, Phone,
-    FileText, CreditCard, Building2, Hourglass, Gift,
+    FileText, CreditCard, Building2, Hourglass, Gift, Flag,
 } from 'lucide-react';
 import { computePaymentSummary, formatAed } from '@/lib/paymentSummary';
 import { useTherapistGps } from '@/hooks/useTherapistGps';
+import ReportIssueModal from '@/Components/ReportIssueModal';
 
 // ── CSRF + API helper ────────────────────────────────────────────────────────
 function getCsrf() {
@@ -315,6 +316,7 @@ function RejectConfirmModal({ onConfirm, onClose, loading }) {
 export function BookingModal({ booking, onClose, onAction, actionLoading }) {
     const [showReject, setShowReject] = useState(false);
     const [imgZoom, setImgZoom] = useState(false);
+    const [showReport, setShowReport] = useState(false);
 
     useEffect(() => {
         const handle = (e) => { if (e.key === 'Escape') onClose(); };
@@ -703,6 +705,22 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                             </div>
                         </div>
                     )}
+
+                    {/* Restrained — a quiet text link, not mixed into the
+                        Actions box above. This booking is already scoped to
+                        this signed-in therapist's own assignments, but the
+                        server remains the sole authority on eligibility and
+                        ownership. */}
+                    <button
+                        onClick={() => setShowReport(true)}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors"
+                        style={{ color: 'var(--theme-text-muted)' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text-2)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
+                    >
+                        <Flag size={12} />
+                        Report an Issue
+                    </button>
                 </div>
             </motion.div>
 
@@ -761,6 +779,21 @@ export function BookingModal({ booking, onClose, onAction, actionLoading }) {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* ── Report an Issue (Mission #40C) ──
+                Rendered as a sibling overlay, not nested, so it never
+                stacks/traps focus inside this drawer's own scroll region.
+                Deliberately generic about the customer — no name, phone, or
+                email is passed into the modal even though this drawer
+                already displays them elsewhere. */}
+            {showReport && (
+                <ReportIssueModal
+                    bookingId={booking.id}
+                    role="therapist"
+                    subjectLabel="the customer for this booking"
+                    onClose={() => setShowReport(false)}
+                />
+            )}
         </motion.div>
     );
 }
