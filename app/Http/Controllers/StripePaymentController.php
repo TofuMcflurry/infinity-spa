@@ -307,13 +307,13 @@ class StripePaymentController extends Controller
                 // token for the remainder of its TTL does not, by itself,
                 // prove no session exists; this flag is the record that
                 // the question was never answered, for manual follow-up.
-                DB::transaction(function () use ($booking, $token, $idempotencyKey, $e2) {
+                DB::transaction(function () use ($booking, $token, $idempotencyKey) {
                     $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
                     if ($locked) {
                         PaymentAnomalyService::record($locked, 'unconfirmed_session_creation', $idempotencyKey, [
                             'reservation_token' => $token,
                             'idempotency_key'   => $idempotencyKey,
-                            'reason'            => 'Session::create() failed twice with a connection error; session existence could not be confirmed: ' . $e2->getMessage(),
+                            'diagnostic_code'   => 'checkout_creation_unconfirmed_after_retry',
                         ]);
                     }
                 });
@@ -377,12 +377,15 @@ class StripePaymentController extends Controller
         try {
             $session->expire();
         } catch (ApiErrorException $e) {
-            DB::transaction(function () use ($booking, $session, $e) {
+            Log::warning('Stripe checkout: orphaned session expiry failed', [
+                'booking_id' => $booking->id, 'session_id' => $session->id, 'error' => $e->getMessage(),
+            ]);
+            DB::transaction(function () use ($booking, $session) {
                 $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
                 if ($locked) {
                     PaymentAnomalyService::record($locked, 'unconfirmed_expiry', $session->id, [
                         'orphaned_session_id' => $session->id,
-                        'reason'              => 'lost reservation race; Session::expire() also failed: ' . $e->getMessage(),
+                        'diagnostic_code'     => 'orphaned_checkout_expiry_unconfirmed',
                     ]);
                 }
             });
