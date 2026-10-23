@@ -502,7 +502,7 @@ class StripePaymentController extends Controller
             || ($session->currency ?? null) !== 'aed'
             || (int) ($session->amount_total ?? -1) !== $expectedAmountFils;
 
-        $outcome = DB::transaction(function () use ($booking, $session, $paymentIntentId, $amountOrCurrencyMismatch, $expectedAmountFils) {
+        $outcome = DB::transaction(function () use ($booking, $session, $event, $paymentIntentId, $amountOrCurrencyMismatch, $expectedAmountFils) {
             $locked = Booking::where('id', $booking->id)->lockForUpdate()->first();
             if (!$locked) {
                 return ['action' => 'none'];
@@ -516,7 +516,7 @@ class StripePaymentController extends Controller
                     'payment_intent_id' => $paymentIntentId,
                     'amount_total'      => $session->amount_total ?? null,
                     'currency'          => $session->currency ?? null,
-                ]);
+                ], systemOrigin: true);
                 return ['action' => 'flagged'];
             }
 
@@ -528,7 +528,7 @@ class StripePaymentController extends Controller
                     'amount_total'         => $session->amount_total ?? null,
                     'currency'             => $session->currency ?? null,
                     'expected_amount_fils' => $expectedAmountFils,
-                ]);
+                ], systemOrigin: true);
                 return ['action' => 'flagged'];
             }
 
@@ -548,7 +548,7 @@ class StripePaymentController extends Controller
                     'new_amount_total'            => $session->amount_total ?? null,
                     'original_payment_intent_id'  => $locked->stripe_payment_intent_id,
                     'original_paid_amount'        => (string) $locked->paid_amount,
-                ]);
+                ], systemOrigin: true);
                 return ['action' => 'flagged'];
             }
 
@@ -567,6 +567,11 @@ class StripePaymentController extends Controller
                 'checkout_reservation_token'       => null,
                 'checkout_reservation_expires_at'  => null,
             ], $statusUpdate));
+
+            \App\Events\Audit\PaymentConfirmed::dispatch(
+                $locked->id, $event->id, $session->id, $paymentIntentId,
+                (int) $session->amount_total, $session->currency, $locked->payment_type,
+            );
 
             return [
                 'action'               => 'recorded',
@@ -609,7 +614,7 @@ class StripePaymentController extends Controller
 
         $bookingId = $session->metadata->booking_id ?? null;
 
-        $booking = DB::transaction(function () use ($bookingId, $session) {
+        $booking = DB::transaction(function () use ($bookingId, $session, $event) {
             $locked = Booking::where('id', $bookingId)
                 ->where('stripe_checkout_session_id', $session->id)
                 ->lockForUpdate()
@@ -633,6 +638,8 @@ class StripePaymentController extends Controller
                 'cancellation_type' => 'expired',
                 'cancelled_at'      => now(),
             ]);
+
+            \App\Events\Audit\CheckoutExpired::dispatch($locked->id, $event->id, $session->id);
 
             return $locked;
         });

@@ -124,7 +124,7 @@ class ReconcileRedundantCheckoutSession implements ShouldQueue
                 return;
             }
 
-            PaymentAnomalyService::record($locked, $kind, $identity, $details);
+            PaymentAnomalyService::record($locked, $kind, $identity, $details, systemOrigin: true);
         });
     }
 }

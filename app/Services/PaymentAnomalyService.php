@@ -22,7 +22,7 @@ use App\Models\Booking;
  */
 class PaymentAnomalyService
 {
-    public static function record(Booking $lockedBooking, string $kind, string $identity, array $details): void
+    public static function record(Booking $lockedBooking, string $kind, string $identity, array $details, bool $systemOrigin = false): void
     {
         $alreadyRecorded = AuditLog::where('event', 'payment.anomaly_detected')
             ->where('target_type', 'Booking')
@@ -37,7 +37,7 @@ class PaymentAnomalyService
         DuplicatePaymentDetected::dispatch($lockedBooking->id, array_merge([
             'kind'     => $kind,
             'identity' => $identity,
-        ], $details));
+        ], $details), null, $systemOrigin);
 
         $lockedBooking->update([
             'payment_anomaly_flagged_at' => $lockedBooking->payment_anomaly_flagged_at ?? now(),
