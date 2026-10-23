@@ -1,10 +1,12 @@
 import TherapistLayout from '@/Layouts/TherapistLayout';
 import { useState, useEffect, useRef } from 'react';
+import { usePage } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     User, Mail, Phone, Briefcase, Star, MapPin,
     Clock, Calendar, Edit3, Camera, Save, X,
     CheckCircle2, AlertCircle, Shield, ToggleLeft, ToggleRight,
+    ShieldCheck, AlertTriangle, Ban,
 } from 'lucide-react';
 
 // ── CSRF + API helper ────────────────────────────────────────────────────────
@@ -112,8 +114,60 @@ function Skeleton() {
     );
 }
 
+// ── Account standing ──────────────────────────────────────────────────────────
+// State-derived wording only — never surfaces an admin's raw reason text (the
+// enforcement email/notification already withholds it too, see
+// TrustSafetyService::notifyEnforcement). Vocabulary matches the Admin Trust &
+// Safety dashboard's own LEVEL_CONFIG for consistency across the app.
+// A temp/permanent/administrative restriction blocks login entirely, so in
+// practice only "warned" and "good standing" are ever reachable from an
+// authenticated page — the rest is kept only as a defensive fallback.
+function accountStanding(user) {
+    if (!user) return null;
+    const level = user.restriction_level ?? 'none';
+    if (level === 'permanently_blocked') {
+        return {
+            label: 'Account Restricted', color: '#ef4444', icon: Ban,
+            detail: 'Your account access has been permanently restricted following confirmed policy violations.',
+            showSupport: true,
+        };
+    }
+    if (level === 'temp_blocked') {
+        const until = user.restricted_until
+            ? new Date(user.restricted_until).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+            : null;
+        return {
+            label: 'Temporarily Restricted', color: '#f97316', icon: Clock,
+            detail: `Your account access is temporarily restricted${until ? ` until ${until}` : ''}.`,
+            showSupport: true,
+        };
+    }
+    if (user.is_blocked) {
+        return {
+            label: 'Administratively Restricted', color: '#ef4444', icon: Ban,
+            detail: 'Your account access has been restricted by our administrative team.',
+            showSupport: true,
+        };
+    }
+    if (level === 'warned') {
+        return {
+            label: 'Warning on File', color: '#e2b764', icon: AlertTriangle,
+            detail: 'A formal warning does not automatically restrict your access.',
+            strikeCount: user.strike_count ?? 0,
+            showSupport: true,
+        };
+    }
+    return {
+        label: 'Good Standing', color: '#22c55e', icon: ShieldCheck,
+        detail: 'No active warnings or restrictions on your account.',
+        showSupport: false,
+    };
+}
+
 // ── Main Profile page ─────────────────────────────────────────────────────────
 export default function Profile() {
+    const { props: pageProps } = usePage();
+    const standing = accountStanding(pageProps?.auth?.user);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
@@ -528,6 +582,35 @@ export default function Profile() {
                                     </AnimatePresence>
                                 </div>
                             </Card>
+
+                            {/* Account Standing */}
+                            {standing && (
+                                <Card>
+                                    <div className="p-5">
+                                        <SectionLabel>Account Standing</SectionLabel>
+                                        <div className="flex items-center justify-between gap-2.5 p-3 rounded-lg" style={{ background: 'var(--theme-btn-bg)', border: '1px solid var(--theme-border)' }}>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <standing.icon size={16} style={{ color: standing.color, flexShrink: 0 }} />
+                                                <p className="text-sm font-medium" style={{ color: 'var(--theme-text-head)' }}>Current Status</p>
+                                            </div>
+                                            <span className="flex-none px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: `${standing.color}1a`, color: standing.color }}>
+                                                {standing.label}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs mt-3" style={{ color: 'var(--theme-text-muted)' }}>{standing.detail}</p>
+                                        {typeof standing.strikeCount === 'number' && (
+                                            <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>
+                                                {standing.strikeCount} strike{standing.strikeCount !== 1 ? 's' : ''} on file. Repeated confirmed violations may lead to admin review.
+                                            </p>
+                                        )}
+                                        {standing.showSupport && (
+                                            <p className="text-xs mt-1" style={{ color: 'var(--theme-text-muted)' }}>
+                                                Need help? Contact support to request a review. Recent notices are also in your notifications.
+                                            </p>
+                                        )}
+                                    </div>
+                                </Card>
+                            )}
                         </div>
                     ) : null}
                 </div>
