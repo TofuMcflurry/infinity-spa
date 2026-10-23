@@ -85,6 +85,9 @@ export default function Login({ status, canResetPassword }) {
 
                     {/* Form */}
                     <form className="space-y-8" onSubmit={submit}>
+                        <div role="alert">
+                            <InputError message={errors.code} />
+                        </div>
                         <div>
                             <FloatingInput 
                                 id="email" 

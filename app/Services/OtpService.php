@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\OtpCode;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class OtpService
@@ -42,32 +43,41 @@ class OtpService
     /**
      * Verify OTP code
      */
-    public function verifyOtp(User $user, string $code): bool
+    public function verifyOtp(User $user, string $code, int $challengeId): bool
     {
-        $otp = OtpCode::where('user_id', $user->id)
-            ->where('code', $code)
-            ->where('is_used', false)
-            ->where('expires_at', '>', Carbon::now())
-            ->latest()
-            ->first();
+        return DB::transaction(function () use ($user, $code, $challengeId) {
+            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $otp = OtpCode::where('user_id', $user->id)
+                ->whereKey($challengeId)
+                ->where('is_used', false)
+                ->where('expires_at', '>', Carbon::now())
+                ->latest()
+                ->lockForUpdate()
+                ->first();
 
-        if (!$otp) {
-            return false;
-        }
+            if (!$otp) {
+                return false;
+            }
 
-        // Mark OTP as used
-        $otp->update(['is_used' => true]);
+            // Recheck after waiting for the row lock: the challenge may have expired.
+            if (!$otp->isValid() || !hash_equals($otp->code, $code)) {
+                return false;
+            }
 
-        // Mark user as OTP verified
-        $user->markOtpAsVerified();
-        
-        // ✅ AUTO- VERIFY EMAIL - SET EMAIL_VERIFIED_AT
-        if (!$user->email_verified_at) {
-            $user->email_verified_at = Carbon::now();
-            $user->save();
-        }
+            // Mark OTP as used
+            $otp->update(['is_used' => true]);
 
-        return true;
+            // Mark user as OTP verified
+            $user->refresh()->markOtpAsVerified();
+
+            // ✅ AUTO- VERIFY EMAIL - SET EMAIL_VERIFIED_AT
+            if (!$user->email_verified_at) {
+                $user->email_verified_at = Carbon::now();
+                $user->save();
+            }
+
+            return true;
+        });
     }
 
     /**

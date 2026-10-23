@@ -31,6 +31,6 @@ class RegistrationTest extends TestCase
 
         $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
         $this->assertGuest();
-        $response->assertRedirect(route('otp.form', ['email' => 'test@example.com']));
+        $response->assertRedirect(route('otp.form'));
     }
 }

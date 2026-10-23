@@ -34,6 +34,7 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        app(\App\Services\AuthenticationFlowService::class)->clear($request);
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',

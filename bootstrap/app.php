@@ -10,9 +10,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', ['middleware' => ['web', 'auth']])
     ->withSchedule(function (Schedule $schedule): void {
         // Safety net for abandoned Stripe checkouts — the webhook handles
         // the common case immediately, this catches what it misses.
@@ -48,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
         $middleware->alias([
+            'auth' => \App\Http\Middleware\EnsureVerifiedAuthentication::class,
             'therapist' => \App\Http\Middleware\EnsureUserIsTherapist::class,
             'customer'  => \App\Http\Middleware\EnsureUserIsCustomer::class,
             'admin'     => \App\Http\Middleware\AdminMiddleware::class,

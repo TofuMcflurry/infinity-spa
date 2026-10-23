@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
-use App\Services\OtpService;
+use App\Services\AuthenticationFlowService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,14 +19,14 @@ class RegisteredUserController extends Controller
     /**
      * OtpService instance
      */
-    protected $otpService;  // <--- NASA LOOB NG CLASS
+    protected $flows;  // <--- NASA LOOB NG CLASS
 
     /**
      * Constructor
      */
-    public function __construct(OtpService $otpService)  // <--- NASA LOOB NG CLASS
+    public function __construct(AuthenticationFlowService $flows)  // <--- NASA LOOB NG CLASS
     {
-        $this->otpService = $otpService;
+        $this->flows = $flows;
     }
 
     /**
@@ -42,6 +42,7 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request)
     {
+        $this->flows->clear($request);
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255',
@@ -90,8 +91,8 @@ class RegisteredUserController extends Controller
             ]);
 
         // Generate and send OTP - GAMITIN ANG CONSTRUCTOR
-        $this->otpService->generateOtp($user);  // <--- ITO ANG TAMA
+        $this->flows->begin($user->refresh(), $request, 'registration');  // <--- ITO ANG TAMA
 
-        return redirect()->route('otp.form', ['email' => $user->email]);
+        return redirect()->route('otp.form');
     }
 }

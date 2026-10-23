@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Services\OtpService;
+use App\Services\AuthenticationFlowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -12,17 +12,16 @@ use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 
 // Audit Events
-use App\Events\Audit\UserLoggedIn;
 use App\Events\Audit\UserLoggedOut;
 use App\Events\Audit\LoginFailed;
 
 class AuthenticatedSessionController extends Controller
 {
-    protected $otpService;
+    protected $flows;
 
-    public function __construct(OtpService $otpService)
+    public function __construct(AuthenticationFlowService $flows)
     {
-        $this->otpService = $otpService;
+        $this->flows = $flows;
     }
 
     public function create()
@@ -36,40 +35,26 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request)
     {
         try {
-            $request->authenticate();
+            $user = $request->authenticate();
         } catch (ValidationException $e) {
             // ── Audit: failed login attempt ────────────────────────────────────
             LoginFailed::dispatch($request->input('email', ''), $request);
             throw $e;
         }
 
-        $request->session()->regenerate();
-
-        $user = Auth::user();
-
-        // ── Audit: successful login ────────────────────────────────────────────
-        UserLoggedIn::dispatch($user->id, $user->name, $user->role, $request);
-
-        // Check if email is verified
-        if (!$user->email_verified_at) {
-            Auth::logout();
-            $this->otpService->generateOtp($user);
-            return redirect()->route('otp.form', ['email' => $user->email]);
+        if ($user->is_otp_enabled || !$user->email_verified_at) {
+            $this->flows->begin($user, $request, 'password', $request->boolean('remember'));
+            return redirect()->route('otp.form');
         }
 
-        if ($user->role === 'admin') {
-            $destination = '/admin';
-        } elseif ($user->isTherapist()) {
-            $destination = '/therapist/dashboard';
-        } else {
-            $destination = '/dashboard';
-        }
+        $this->flows->signIn($user, $request, 'password', $request->boolean('remember'));
 
-        return redirect()->intended($destination);
+        return redirect()->intended($this->flows->destination($user));
     }
 
     public function destroy(Request $request)
     {
+        $this->flows->clear($request);
         $user = Auth::user();
 
         // ── Audit: logout ──────────────────────────────────────────────────────

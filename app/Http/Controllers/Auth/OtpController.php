@@ -3,19 +3,17 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Services\OtpService;
+use App\Services\AuthenticationFlowService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
 
 class OtpController extends Controller
 {
-    protected $otpService;
+    protected $flows;
 
-    public function __construct(OtpService $otpService)
+    public function __construct(AuthenticationFlowService $flows)
     {
-        $this->otpService = $otpService;
+        $this->flows = $flows;
     }
 
     /**
@@ -23,56 +21,27 @@ class OtpController extends Controller
      */
     public function showForm(Request $request)
     {
-        return Inertia::render('Auth/OtpVerification', [
-            'email' => $request->query('email'),
-        ]);
+        try {
+            $user = $this->flows->pendingUser($request);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('login')->withErrors($e->errors());
+        }
+        return Inertia::render('Auth/OtpVerification', ['email' => $user->email]);
     }
 
-    /**
-     * Send OTP to user
-     */
     public function sendOtp(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-        ]);
+        $this->flows->resend($request);
 
-        $user = User::where('email', $request->email)->first();
-
-        // Generate and send OTP
-        $this->otpService->generateOtp($user, 'email');
-
-        return response()->json([
-            'message' => 'OTP sent to your email'
-        ]);
+        return response()->json(['message' => 'OTP sent to your email']);
     }
 
-    /**
-     * Verify OTP
-     */
     public function verifyOtp(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-            'code' => 'required|string|size:6',
-        ]);
+        $request->validate(['code' => ['required', 'string', 'regex:/^[0-9]{6}$/D']]);
+        $user = $this->flows->verify($request, $request->string('code')->toString());
 
-        $user = User::where('email', $request->email)->first();
-
-        if ($this->otpService->verifyOtp($user, $request->code)) {
-            // Log the user in
-            Auth::login($user, $request->boolean('remember'));
-
-            // Regenerate session
-            $request->session()->regenerate();
-
-            $destination = $user->isTherapist() ? '/therapist/dashboard' : '/dashboard';
-            return redirect()->intended($destination);
-        }
-
-        return back()->withErrors([
-            'code' => 'The provided OTP code is invalid or expired.',
-        ]);
+        return redirect()->intended($this->flows->destination($user));
     }
 
     /**

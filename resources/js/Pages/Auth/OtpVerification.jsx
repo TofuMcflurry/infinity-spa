@@ -3,12 +3,16 @@ import { Head, useForm } from '@inertiajs/react';
 import InputError from '@/Components/InputError';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
+import axios from 'axios';
 
 export default function OtpVerification({ email: initialEmail }) {
     const [countdown, setCountdown] = useState(60);
     const [canResend, setCanResend] = useState(false);
+    const [resending, setResending] = useState(false);
+    const [resendError, setResendError] = useState('');
+    const [resendStatus, setResendStatus] = useState('');
     
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
         email: initialEmail || '',
         code: '',
     });
@@ -25,17 +29,38 @@ export default function OtpVerification({ email: initialEmail }) {
 
     const submit = (e) => {
         e.preventDefault();
+        setResendError('');
+        setResendStatus('');
         post(route('otp.verify'));
     };
 
-    const resendCode = () => {
-        post(route('otp.send'), {
-            onSuccess: () => {
-                setCountdown(60);
-                setCanResend(false);
-                reset('code');
+    const resendCode = async () => {
+        if (resending || processing || !canResend) return;
+        setResending(true);
+        clearErrors('code');
+        setResendError('');
+        setResendStatus('');
+        try {
+            // Axios sends Laravel's same-origin XSRF cookie; the server owns the flow.
+            await axios.post(route('otp.send'), {}, { headers: { Accept: 'application/json' } });
+            setCountdown(60);
+            setCanResend(false);
+            reset('code');
+            setResendStatus('A new verification code has been sent.');
+        } catch (error) {
+            const codeError = error.response?.data?.errors?.code;
+            if (error.response?.status === 422 && codeError) {
+                setResendError(Array.isArray(codeError) ? codeError[0] : codeError);
+            } else if ([401, 403, 419].includes(error.response?.status)) {
+                setResendError('Your verification session has expired. Please sign in again.');
+            } else if (error.response?.status === 429) {
+                setResendError('Too many verification requests. Please try again later.');
+            } else {
+                setResendError('Unable to resend the code. Please wait before trying again.');
             }
-        });
+        } finally {
+            setResending(false);
+        }
     };
 
     return (
@@ -64,20 +89,23 @@ export default function OtpVerification({ email: initialEmail }) {
                                 required
                                 autoFocus
                             />
-                            <InputError message={errors.code} className="mt-2" />
+                            <div role="alert">
+                                <InputError message={resendError || errors.code} className="mt-2" />
+                            </div>
+                            {resendStatus && <p role="status" className="mt-2 text-sm text-green-600">{resendStatus}</p>}
                         </div>
 
                         <div className="flex items-center justify-between mt-4">
                             <button
                                 type="button"
                                 onClick={resendCode}
-                                disabled={!canResend || processing}
+                                disabled={!canResend || processing || resending}
                                 className="text-sm text-indigo-600 hover:text-indigo-900 disabled:opacity-25"
                             >
-                                {canResend ? 'Resend Code' : `Resend in ${countdown}s`}
+                                {resending ? 'Sending…' : (canResend ? 'Resend Code' : `Resend in ${countdown}s`)}
                             </button>
 
-                            <PrimaryButton className="ml-4" disabled={processing}>
+                            <PrimaryButton className="ml-4" disabled={processing || resending}>
                                 Verify
                             </PrimaryButton>
                         </div>
