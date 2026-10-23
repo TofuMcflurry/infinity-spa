@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Events\Audit\PasswordChanged;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class PasswordController extends Controller
 {
@@ -20,9 +23,19 @@ class PasswordController extends Controller
             'password' => ['required', Password::defaults(), 'confirmed'],
         ]);
 
-        $request->user()->update([
-            'password' => Hash::make($validated['password']),
-        ]);
+        DB::transaction(function () use ($request, $validated) {
+            $user = $request->user()->newQuery()->whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+            // Recheck after locking: another credential mutation may have won
+            // the race after the request's current_password validation.
+            if (!Hash::check($validated['current_password'], $user->password)) {
+                throw ValidationException::withMessages(['current_password' => __('validation.current_password')]);
+            }
+            $user->password = Hash::make($validated['password']);
+            if (!$user->save()) {
+                throw new \RuntimeException('Password change could not be saved.');
+            }
+            PasswordChanged::dispatch($user->id, $request);
+        });
 
         return back();
     }

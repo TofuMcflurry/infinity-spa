@@ -36,6 +36,8 @@ use App\Events\Audit\UserLoggedOut;
 use App\Events\Audit\LoginFailed;
 use App\Events\Audit\OtpVerified;
 use App\Events\Audit\GoogleLoginUsed;
+use App\Events\Audit\PasswordChanged;
+use App\Events\Audit\PasswordResetCompleted;
 use App\Events\Audit\CustomerBookingCreated;
 use App\Events\Audit\CustomerBookingCancelled;
 use App\Events\Audit\CustomerDownpaymentUploaded;
@@ -87,6 +89,8 @@ class EventServiceProvider extends ServiceProvider
         LoginFailed::class           => [AuditLogListener::class],
         OtpVerified::class           => [AuditLogListener::class],
         GoogleLoginUsed::class       => [AuditLogListener::class],
+        PasswordChanged::class       => [AuditLogListener::class],
+        PasswordResetCompleted::class => [AuditLogListener::class],
 
         // ── Customer ──────────────────────────────────────────────────────────
         CustomerBookingCreated::class      => [AuditLogListener::class],
